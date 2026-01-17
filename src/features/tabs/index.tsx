@@ -1,107 +1,506 @@
-import { Image } from "expo-image";
-import { Platform, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Dimensions,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useState } from "react";
+import { Fonts } from "@/src/constants/theme";
 
-import { HelloWave } from "@/src/components/common/hello-wave";
-import ParallaxScrollView from "@/src/components/common/parallax-scroll-view";
-import { ThemedText } from "@/src/components/common/themed-text";
-import { ThemedView } from "@/src/components/common/themed-view";
-import { Link } from "expo-router";
+const { width } = Dimensions.get("window");
 
-export default function HomeScreen() {
+interface Post {
+  id: string;
+  user: {
+    name: string;
+    avatar: string;
+    time: string;
+  };
+  images: string[];
+  likes: string;
+  comments: number;
+  shares: number;
+  views: string;
+  likedBy: string;
+  description: string;
+}
+
+const DUMMY_POSTS: Post[] = [
+  {
+    id: "1",
+    user: {
+      name: "Victory Paul",
+      avatar: "",
+      time: "10h",
+    },
+    images: [""],
+    likes: "17k",
+    comments: 292,
+    shares: 192,
+    views: "10.1K",
+    likedBy: "Sam123",
+    description:
+      "Victory Paul Modern 3-Bedroom Apartment in Lekki - Spacious living room, en-suite bedrooms, fully fitted kitchen, pool, secure estate. Perfect for family living or investment. Location: Lekki Phase 1, Lagos.",
+  },
+  {
+    id: "2",
+    user: {
+      name: "Sarah Chen",
+      avatar: "",
+      time: "5h",
+    },
+    images: ["", ""],
+    likes: "8.2k",
+    comments: 156,
+    shares: 89,
+    views: "5.8K",
+    likedBy: "Mike_R",
+    description:
+      "Luxury 4-Bedroom Duplex in Ikoyi - Premium finishes, smart home features, private gym, rooftop terrace with city views. Gated community with 24/7 security. Price negotiable.",
+  },
+  {
+    id: "3",
+    user: {
+      name: "James Okafor",
+      avatar: "",
+      time: "12h",
+    },
+    images: ["", "", ""],
+    likes: "23k",
+    comments: 445,
+    shares: 312,
+    views: "18.5K",
+    likedBy: "PropertyKing",
+    description:
+      "Investment Opportunity! 2-Bedroom Flat in Victoria Island - High ROI, close to major business districts, excellent rental demand. Ideal for investors. Contact for viewing.",
+  },
+  {
+    id: "4",
+    user: {
+      name: "Angela Martinez",
+      avatar: "",
+      time: "1d",
+    },
+    images: [""],
+    likes: "5.9k",
+    comments: 98,
+    shares: 67,
+    views: "4.2K",
+    likedBy: "HomeSeekers",
+    description:
+      "Cozy Studio Apartment in Yaba - Perfect for young professionals, close to tech hubs, affordable rent, modern amenities. Available immediately. DM for details.",
+  },
+  {
+    id: "5",
+    user: {
+      name: "David Adeyemi",
+      avatar: "",
+      time: "2d",
+    },
+    images: ["", "", "", ""],
+    likes: "31k",
+    comments: 678,
+    shares: 421,
+    views: "25.3K",
+    likedBy: "RealEstateHub",
+    description:
+      "Massive 5-Bedroom Mansion in Banana Island - Waterfront property, private dock, infinity pool, cinema room, wine cellar. Ultimate luxury living. Serious inquiries only.",
+  },
+  {
+    id: "6",
+    user: {
+      name: "Chioma Nwosu",
+      avatar: "",
+      time: "3d",
+    },
+    images: ["", ""],
+    likes: "12k",
+    comments: 234,
+    shares: 145,
+    views: "9.7K",
+    likedBy: "LagosHomes",
+    description:
+      "Family Home in Surulere - 3 bedrooms, spacious compound, good neighborhood, close to schools and markets. Well maintained property. Call to schedule viewing.",
+  },
+];
+
+export default function SocialsScreen() {
+  const [activeTab, setActiveTab] = useState("trending");
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: "#A1CEDC", dark: "#1D3D47" }}
-      headerImage={
-        <Image
-          source={require("@/assets/images/partial-react-logo.png")}
-          style={styles.reactLogo}
-        />
-      }
-    >
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit{" "}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText>{" "}
-          to see changes. Press{" "}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: "cmd + d",
-              android: "cmd + m",
-              web: "F12",
-            })}
-          </ThemedText>{" "}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction
-              title="Action"
-              icon="cube"
-              onPress={() => alert("Action pressed")}
-            />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert("Share pressed")}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert("Delete pressed")}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.headerButton}>
+          <Ionicons name="add" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>ReviAi</Text>
+        <TouchableOpacity style={styles.headerButton}>
+          <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">
-            npm run reset-project
-          </ThemedText>{" "}
-          to get a fresh <ThemedText type="defaultSemiBold">app</ThemedText>{" "}
-          directory. This will move the current{" "}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{" "}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      {/* Property Update Banner */}
+      <View style={styles.updateBanner}>
+        <View style={styles.updateContent}>
+          <View style={styles.avatarPlaceholder} />
+          <Text style={styles.updateText}>Property Update</Text>
+        </View>
+        <TouchableOpacity>
+          <Ionicons name="camera-outline" size={20} color="#999999" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "trending" && styles.activeTab]}
+          onPress={() => setActiveTab("trending")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "trending" && styles.activeTabText,
+            ]}
+          >
+            Trending Posts
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "featured" && styles.activeTab]}
+          onPress={() => setActiveTab("featured")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "featured" && styles.activeTabText,
+            ]}
+          >
+            Featured Properties
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeTab === "neighborhoods" && styles.activeTab,
+          ]}
+          onPress={() => setActiveTab("neighborhoods")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "neighborhoods" && styles.activeTabText,
+            ]}
+          >
+            Neighborhoods
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Feed */}
+      <ScrollView
+        style={styles.feed}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.feedContent}
+      >
+        {DUMMY_POSTS.map((post) => (
+          <View key={post.id} style={styles.postCard}>
+            {/* Post Header */}
+            <View style={styles.postHeader}>
+              <View style={styles.postUser}>
+                <View style={styles.userAvatar} />
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{post.user.name}</Text>
+                  <Text style={styles.postTime}>{post.user.time}</Text>
+                </View>
+              </View>
+              <View style={styles.postHeaderActions}>
+                <TouchableOpacity style={styles.followButton}>
+                  <Text style={styles.followButtonText}>Follow</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.moreButton}>
+                  <Ionicons
+                    name="ellipsis-horizontal"
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Post Image */}
+            <View style={styles.imageContainer}>
+              <View style={styles.imagePlaceholder}>
+                <Ionicons name="image-outline" size={60} color="#3A3A3C" />
+              </View>
+              <View style={styles.imageCounter}>
+                <Text style={styles.imageCounterText}>
+                  1/{post.images.length}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.fullscreenButton}>
+                <Ionicons name="expand-outline" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Post Actions */}
+            <View style={styles.postActions}>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="heart-outline" size={24} color="#FFFFFF" />
+                <Text style={styles.actionText}>{post.likes}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="chatbubble-outline" size={22} color="#FFFFFF" />
+                <Text style={styles.actionText}>{post.comments}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="arrow-redo-outline" size={22} color="#FFFFFF" />
+                <Text style={styles.actionText}>{post.shares}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="eye-outline" size={24} color="#FFFFFF" />
+                <Text style={styles.actionText}>{post.views}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.bookmarkButton}>
+                <Ionicons name="bookmark-outline" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Post Description */}
+            <View style={styles.postDescription}>
+              <Text style={styles.likedBy}>
+                Liked by <Text style={styles.likedByName}>{post.likedBy}</Text>{" "}
+                and others
+              </Text>
+              <Text style={styles.description} numberOfLines={3}>
+                {post.description}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: "#000000",
+    paddingTop: 40,
+  },
+  header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  headerButton: {
+    padding: 4,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: Fonts.bold,
+    color: "#FFFFFF",
+  },
+  updateBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#1C1C1E",
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 8,
+  },
+  updateContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  avatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#2C2C2E",
+  },
+  updateText: {
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    color: "#FFFFFF",
+  },
+  tabsContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    gap: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1C1C1E",
+  },
+  tab: {
+    paddingVertical: 12,
+  },
+  activeTab: {
+    borderBottomWidth: 2,
+    borderBottomColor: "#FFFFFF",
+  },
+  tabText: {
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    color: "#666666",
+  },
+  activeTabText: {
+    color: "#FFFFFF",
+    fontFamily: Fonts.semiBold,
+  },
+  feed: {
+    flex: 1,
+  },
+  feedContent: {
+    paddingBottom: 20,
+  },
+  postCard: {
+    marginTop: 16,
+    backgroundColor: "#000000",
+  },
+  postHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  postUser: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  userAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#2C2C2E",
+  },
+  userInfo: {
+    gap: 2,
+  },
+  userName: {
+    fontSize: 14,
+    fontFamily: Fonts.semiBold,
+    color: "#FFFFFF",
+  },
+  postTime: {
+    fontSize: 12,
+    fontFamily: Fonts.regular,
+    color: "#666666",
+  },
+  postHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  followButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: "#2C2C2E",
+    borderRadius: 6,
+  },
+  followButtonText: {
+    fontSize: 13,
+    fontFamily: Fonts.semiBold,
+    color: "#FFFFFF",
+  },
+  moreButton: {
+    padding: 4,
+  },
+  imageContainer: {
+    width: width,
+    height: width * 0.75,
+    backgroundColor: "#1C1C1E",
+    position: "relative",
+  },
+  imagePlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imageCounter: {
     position: "absolute",
+    top: 12,
+    right: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  imageCounterText: {
+    fontSize: 12,
+    fontFamily: Fonts.semiBold,
+    color: "#FFFFFF",
+  },
+  fullscreenButton: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    padding: 8,
+    borderRadius: 20,
+  },
+  postActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 16,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  actionText: {
+    fontSize: 13,
+    fontFamily: Fonts.regular,
+    color: "#FFFFFF",
+  },
+  bookmarkButton: {
+    marginLeft: "auto",
+  },
+  postDescription: {
+    paddingHorizontal: 16,
+    gap: 4,
+  },
+  likedBy: {
+    fontSize: 13,
+    fontFamily: Fonts.regular,
+    color: "#999999",
+  },
+  likedByName: {
+    fontFamily: Fonts.semiBold,
+    color: "#FFFFFF",
+  },
+  description: {
+    fontSize: 13,
+    fontFamily: Fonts.regular,
+    color: "#FFFFFF",
+    lineHeight: 18,
+  },
+  bottomActionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    paddingVertical: 12,
+    marginTop: 12,
+    marginHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#1C1C1E",
+  },
+  bottomAction: {
+    padding: 8,
   },
 });

@@ -38,6 +38,8 @@ export default function LoginScreen() {
     } else {
       console.log("Login with:", email, password);
       // Implement login logic
+      setVisible(false);
+      setTimeout(() => router.push("/(tabs)/chat"), 100);
     }
   };
 
