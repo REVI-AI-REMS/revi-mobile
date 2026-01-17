@@ -254,17 +254,21 @@ export default function SignUpScreen() {
                     {/* Social Login Buttons */}
                     <Button
                       title="Continue with Apple"
-                      variant="primary"
+                      variant="outline"
                       onPress={() => console.log("Apple Sign Up")}
-                      icon={<Ionicons name="logo-apple" size={20} color="#000" />}
+                      icon={
+                        <Ionicons name="logo-apple" size={20} color="#ffffff" />
+                      }
                       style={{ marginBottom: 12 }}
                     />
 
                     <Button
                       title="Continue with Google"
-                      variant="secondary"
+                      variant="outline"
                       onPress={() => console.log("Google Sign Up")}
-                      icon={<Ionicons name="logo-google" size={18} color="#FFF" />}
+                      icon={
+                        <Ionicons name="logo-google" size={18} color="#FFF" />
+                      }
                     />
                   </>
                 )}
@@ -309,7 +313,7 @@ export default function SignUpScreen() {
                       variant="primary"
                       onPress={() => {
                         setVisible(false);
-                        setTimeout(() => router.push("/(tabs)"), 100);
+                        setTimeout(() => router.push("/login"), 100);
                       }}
                       style={{ marginTop: 24, borderRadius: 30, width: 300 }}
                     />
@@ -460,7 +464,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2C2C2E",
+    backgroundColor: "transparent",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
