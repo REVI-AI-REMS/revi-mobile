@@ -103,11 +103,7 @@ export default function ChatHomeScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.cardIconContainer}>
-                <Ionicons
-                  name={suggestion.icon}
-                  size={24}
-                  color="#FFFFFF"
-                />
+                <Ionicons name={suggestion.icon} size={24} color="#FFFFFF" />
               </View>
               <View style={styles.cardContent}>
                 <Text style={styles.cardTitle}>{suggestion.title}</Text>
