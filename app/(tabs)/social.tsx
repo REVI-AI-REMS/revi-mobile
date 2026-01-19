@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -490,17 +489,5 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     lineHeight: 18,
   },
-  bottomActionBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingVertical: 12,
-    marginTop: 12,
-    marginHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#1C1C1E",
-  },
-  bottomAction: {
-    padding: 8,
-  },
 });
+

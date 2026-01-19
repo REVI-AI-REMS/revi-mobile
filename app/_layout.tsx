@@ -53,6 +53,7 @@ export default function RootLayout() {
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="chat-session" options={{ headerShown: false }} />
         <Stack.Screen
           name="modal"
           options={{ presentation: "modal", title: "Modal" }}
