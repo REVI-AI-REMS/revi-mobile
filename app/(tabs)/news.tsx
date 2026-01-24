@@ -1,10 +1,15 @@
-import { View, Text, StyleSheet } from "react-native";
+import { ScreenHeader } from "@/src/components";
 import { Fonts } from "@/src/constants/theme";
+import { Text } from "@react-navigation/elements";
+import { StyleSheet, View } from "react-native";
 
 export default function NewsScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>News Screen</Text>
+      <ScreenHeader title="Saved" showMenuButton={false} />
+      <View style={styles.container}>
+        <Text style={styles.text}>News Screen</Text>
+      </View>
     </View>
   );
 }
@@ -12,9 +17,7 @@ export default function NewsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "#0F0F10",
   },
   text: {
     fontSize: 24,

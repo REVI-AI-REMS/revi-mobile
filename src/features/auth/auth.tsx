@@ -1,13 +1,12 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-} from "react-native";
+import Button from "@/src/components/common/button";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import Button from "@/src/components/common/button";
+import {
+    StatusBar,
+    StyleSheet,
+    Text,
+    View
+} from "react-native";
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -70,7 +69,7 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: "#0F0F10",
   },
   content: {
     flex: 1,

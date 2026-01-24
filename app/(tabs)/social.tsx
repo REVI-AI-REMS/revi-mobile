@@ -1,14 +1,14 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-} from "react-native";
+import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { Fonts } from "@/src/constants/theme";
+import {
+    Dimensions,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
 const { width } = Dimensions.get("window");
 
@@ -289,7 +289,7 @@ export default function SocialsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: "#0F0F10",
     paddingTop: 40,
   },
   header: {
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   },
   postCard: {
     marginTop: 16,
-    backgroundColor: "#000000",
+    backgroundColor: "#0F0F10",
   },
   postHeader: {
     flexDirection: "row",
@@ -490,4 +490,3 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
-

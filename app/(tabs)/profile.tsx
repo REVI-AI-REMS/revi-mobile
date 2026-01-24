@@ -1,28 +1,34 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-} from "react-native";
+import { ScreenHeader } from "@/src/components";
+import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Fonts } from "@/src/constants/theme";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function ProfileScreen() {
+  const handleBackPress = () => {
+    // Handle back navigation
+    console.log("Back pressed");
+  };
+
+  const handleMenuPress = () => {
+    // Handle menu press
+    console.log("Menu pressed");
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerButton}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
-        <TouchableOpacity style={styles.headerButton}>
-          <Ionicons name="ellipsis-horizontal" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title="Profile"
+        onBackPress={handleBackPress}
+        onMenuPress={handleMenuPress}
+      />
 
       <ScrollView
         style={styles.content}
@@ -117,23 +123,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
-    paddingTop: 40,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.bold,
-    color: "#FFFFFF",
+    backgroundColor: "#0F0F10",
   },
   content: {
     flex: 1,

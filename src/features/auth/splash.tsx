@@ -1,13 +1,13 @@
-import { View, Text, StyleSheet, Image } from "react-native";
-import { useEffect } from "react";
-import { useRouter } from "expo-router";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSequence,
-} from "react-native-reanimated";
 import ReviaiLogo from "@/assets/svgs/reviaimobilelogo.svg";
+import { useRouter } from "expo-router";
+import { useEffect } from "react";
+import { StyleSheet, View } from "react-native";
+import Animated, {
+    useAnimatedStyle,
+    useSharedValue,
+    withSequence,
+    withTiming,
+} from "react-native-reanimated";
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -47,7 +47,7 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: "#0F0F10",
     justifyContent: "center",
     alignItems: "center",
   },

@@ -1,18 +1,18 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  Animated,
-  Dimensions,
-  TouchableWithoutFeedback,
-  ScrollView,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useRef } from "react";
-import { useRouter } from "expo-router";
 import { Fonts } from "@/src/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useEffect, useRef } from "react";
+import {
+    Animated,
+    Dimensions,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
+} from "react-native";
 
 const { width } = Dimensions.get("window");
 const SIDEBAR_WIDTH = width * 0.75;
@@ -125,11 +125,17 @@ export default function ChatSessionsSidebar({
               <View style={styles.sidebarHeader}>
                 <View style={styles.headerTop}>
                   <Text style={styles.headerTitle}>Chat History</Text>
-                  <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={onClose}
+                  >
                     <Ionicons name="close" size={24} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.newChatButton} onPress={handleNewChat}>
+                <TouchableOpacity
+                  style={styles.newChatButton}
+                  onPress={handleNewChat}
+                >
                   <Ionicons name="add" size={20} color="#FFFFFF" />
                   <Text style={styles.newChatText}>New Chat</Text>
                 </TouchableOpacity>
@@ -164,7 +170,9 @@ export default function ChatSessionsSidebar({
                       <Text style={styles.sessionPreview} numberOfLines={1}>
                         {session.preview}
                       </Text>
-                      <Text style={styles.sessionTimestamp}>{session.timestamp}</Text>
+                      <Text style={styles.sessionTimestamp}>
+                        {session.timestamp}
+                      </Text>
                     </View>
                     <TouchableOpacity
                       style={styles.sessionMenuButton}
@@ -210,7 +218,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: SIDEBAR_WIDTH,
-    backgroundColor: "#000000",
+    backgroundColor: "#0F0F10",
     borderRightWidth: 1,
     borderRightColor: "#1C1C1E",
   },

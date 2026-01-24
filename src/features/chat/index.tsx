@@ -1,19 +1,19 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
-import { useRouter } from "expo-router";
-import { Fonts } from "@/src/constants/theme";
 import ChatHeader from "@/src/components/chat/ChatHeader";
 import ChatSessionsSidebar from "@/src/components/chat/ChatSessionsSidebar";
+import { Fonts } from "@/src/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface SuggestionCard {
   id: string;
@@ -75,7 +75,7 @@ export default function ChatHomeScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#000000" }}
+      style={{ flex: 1, backgroundColor: "#0F0F10" }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
@@ -84,8 +84,8 @@ export default function ChatHomeScreen() {
         <ChatHeader onMenuPress={() => setSidebarVisible(true)} />
 
         {/* Sidebar */}
-      <ChatSessionsSidebar
-        visible={sidebarVisible}
+        <ChatSessionsSidebar
+          visible={sidebarVisible}
           onClose={() => setSidebarVisible(false)}
         />
 
@@ -156,7 +156,6 @@ export default function ChatHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 40,
   },
   content: {
     flex: 1,
