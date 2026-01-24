@@ -1,6 +1,7 @@
 import { SocialHeader } from "@/src/components";
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   Dimensions,
@@ -130,13 +131,14 @@ const DUMMY_POSTS: Post[] = [
 
 export default function SocialsScreen() {
   const [activeTab, setActiveTab] = useState("trending");
+  const router = useRouter();
 
   const handleAddPress = () => {
     console.log("Add pressed");
   };
 
   const handleNotificationPress = () => {
-    console.log("Notification pressed");
+    router.push("/notification");
   };
 
   return (
@@ -148,15 +150,7 @@ export default function SocialsScreen() {
       />
 
       {/* Property Update Banner */}
-      <View style={styles.updateBanner}>
-        <View style={styles.updateContent}>
-          <View style={styles.avatarPlaceholder} />
-          <Text style={styles.updateText}>Property Update</Text>
-        </View>
-        <TouchableOpacity>
-          <Ionicons name="camera-outline" size={20} color="#999999" />
-        </TouchableOpacity>
-      </View>
+      <View style={styles.updateBanner}></View>
 
       {/* Tabs */}
       <View style={styles.tabsContainer}>
@@ -216,10 +210,9 @@ export default function SocialsScreen() {
             <View style={styles.postHeader}>
               <View style={styles.postUser}>
                 <View style={styles.userAvatar} />
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{post.user.name}</Text>
-                  <Text style={styles.postTime}>{post.user.time}</Text>
-                </View>
+
+                <Text style={styles.userName}>{post.user.name}</Text>
+                <Text style={styles.postTime}>{post.user.time}</Text>
               </View>
               <View style={styles.postHeaderActions}>
                 <TouchableOpacity style={styles.followButton}>
@@ -395,7 +388,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
     backgroundColor: "#2C2C2E",
-    borderRadius: 6,
+    borderRadius: 100,
   },
   followButtonText: {
     fontSize: 13,
