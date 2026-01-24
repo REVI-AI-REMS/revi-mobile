@@ -6,6 +6,7 @@ export { HelloWave } from "./common/hello-wave";
 export { default as OverlayModal } from "./common/overlay-modal";
 export { default as ParallaxScrollView } from "./common/parallax-scroll-view";
 export { default as ScreenHeader } from "./common/screen-header";
+export { default as SocialHeader } from "./common/social-header";
 export { ThemedText } from "./common/themed-text";
 export { ThemedView } from "./common/themed-view";
 

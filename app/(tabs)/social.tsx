@@ -1,13 +1,14 @@
+import { SocialHeader } from "@/src/components";
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
-    Dimensions,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const { width } = Dimensions.get("window");
@@ -130,18 +131,21 @@ const DUMMY_POSTS: Post[] = [
 export default function SocialsScreen() {
   const [activeTab, setActiveTab] = useState("trending");
 
+  const handleAddPress = () => {
+    console.log("Add pressed");
+  };
+
+  const handleNotificationPress = () => {
+    console.log("Notification pressed");
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerButton}>
-          <Ionicons name="add" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>ReviAi</Text>
-        <TouchableOpacity style={styles.headerButton}>
-          <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+      <SocialHeader
+        onAddPress={handleAddPress}
+        onNotificationPress={handleNotificationPress}
+      />
 
       {/* Property Update Banner */}
       <View style={styles.updateBanner}>
@@ -290,22 +294,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0F0F10",
-    paddingTop: 40,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.bold,
-    color: "#FFFFFF",
   },
   updateBanner: {
     flexDirection: "row",
