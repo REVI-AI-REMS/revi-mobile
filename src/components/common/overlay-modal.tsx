@@ -1,13 +1,13 @@
-import {
-  Modal,
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  Pressable,
-  DimensionValue,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode } from "react";
+import {
+  DimensionValue,
+  Modal,
+  Pressable,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface OverlayModalProps {
   visible: boolean;
@@ -65,7 +65,7 @@ export default function OverlayModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "#0F0F10",
   },
   backdropPressable: {
     position: "absolute",

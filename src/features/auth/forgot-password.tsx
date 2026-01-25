@@ -1,22 +1,22 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
-  TouchableWithoutFeedback,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { useState, useEffect } from "react";
-import { Fonts } from "@/src/constants/theme";
 import ReviaiLogo from "@/assets/svgs/reviaimobilelogo.svg";
 import Button from "@/src/components/common/button";
 import OverlayModal from "@/src/components/common/overlay-modal";
+import { Fonts } from "@/src/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
 
 type Step = "confirm" | "code" | "newPassword" | "success";
 
@@ -25,7 +25,7 @@ export default function ForgotPasswordScreen() {
   const params = useLocalSearchParams();
   const userEmail = (params.email as string) || "user@example.com";
 
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(false);
   const [step, setStep] = useState<Step>("confirm");
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -33,21 +33,8 @@ export default function ForgotPasswordScreen() {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   useEffect(() => {
-    const keyboardDidShow = Keyboard.addListener("keyboardDidShow", () => {
-      setIsKeyboardVisible(true);
-    });
-    const keyboardDidHide = Keyboard.addListener("keyboardDidHide", () => {
-      setIsKeyboardVisible(false);
-    });
-
-    return () => {
-      keyboardDidShow.remove();
-      keyboardDidHide.remove();
-    };
+    setVisible(true);
   }, []);
-  //   const [newPassword, setNewPassword] = useState("");
-  //   const [confirmPassword, setConfirmPassword] = useState("");
-  //   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   useEffect(() => {
     const keyboardDidShow = Keyboard.addListener("keyboardDidShow", () => {
@@ -65,14 +52,26 @@ export default function ForgotPasswordScreen() {
 
   const handleClose = () => {
     setVisible(false);
-    setTimeout(() => router.back(), 200);
+    setTimeout(() => {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/login");
+      }
+    }, 200);
   };
 
   const handleBack = () => {
     if (step === "confirm") {
       // Go back to login
       setVisible(false);
-      setTimeout(() => router.back(), 200);
+      setTimeout(() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/login");
+        }
+      }, 200);
     } else if (step === "code") {
       setStep("confirm");
       setCode("");
@@ -149,9 +148,9 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: "#0F0F10" }}>
       {/* Background branding text */}
-      <View style={styles.backgroundTextContainer}>
+      <View style={styles.backgroundTextContainer} pointerEvents="none">
         <Text style={styles.backgroundText}>REVI AI</Text>
         <Text style={styles.backgroundSubtext}>
           real answers for real estate decisions.
@@ -316,7 +315,7 @@ export default function ForgotPasswordScreen() {
                       variant="primary"
                       onPress={() => {
                         setVisible(false);
-                        setTimeout(() => router.push("/login"), 100);
+                        setTimeout(() => router.push("/login"), 200);
                       }}
                       style={{ marginBottom: 16, borderRadius: 30, width: 300 }}
                     />
@@ -333,22 +332,6 @@ export default function ForgotPasswordScreen() {
                   />
                 )}
 
-                {/* Back to Login Button - only on success step */}
-                {/* {step === "success" && (
-                  <Button
-                    title="Back to Login"
-                    variant="primary"
-                    icon={
-                      <Ionicons name="arrow-back" size={20} color="#ffffff" />
-                    }
-                    onPress={() => {
-                      setVisible(false);
-                      setTimeout(() => router.push("/login"), 200);
-                    }}
-                    style={{ marginTop: 16, borderRadius: 30 }}
-                  />
-                )} */}
-
                 {/* Resend Code - only on code step */}
                 {step === "code" && (
                   <TouchableOpacity
@@ -364,7 +347,7 @@ export default function ForgotPasswordScreen() {
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </OverlayModal>
-    </>
+    </View>
   );
 }
 
@@ -375,14 +358,17 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: "center",
-    zIndex: 0,
+    zIndex: 1,
+    backgroundColor: "transparent",
   },
   backgroundText: {
     fontSize: 42,
     fontWeight: "700",
     color: "#ffffff",
+    opacity: 0.25,
     letterSpacing: 6,
     marginBottom: 8,
+    zIndex: 1,
   },
   backgroundSubtext: {
     fontSize: 16,
