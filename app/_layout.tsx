@@ -46,7 +46,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ contentStyle: { backgroundColor: "#0F0F10" } }}>
+      <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="splash" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />
@@ -61,11 +61,7 @@ export default function RootLayout() {
             title: "Notifications",
           }}
         />
-        <Stack.Screen name="profile/my-profile" options={{ headerShown: false }} />
-        <Stack.Screen name="profile/edit-profile" options={{ headerShown: false }} />
-        <Stack.Screen name="profile/tokens" options={{ headerShown: false }} />
-        <Stack.Screen name="profile/reviews" options={{ headerShown: false }} />
-        <Stack.Screen name="profile/settings" options={{ headerShown: false }} />
+
         <Stack.Screen
           name="modal"
           options={{ presentation: "modal", title: "Modal" }}
