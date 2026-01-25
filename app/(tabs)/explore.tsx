@@ -144,7 +144,11 @@ export default function ExploreScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <ScreenHeader title="Search" showMenuButton={false} />
+      <ScreenHeader
+        title="Search"
+        showMenuButton={false}
+        showBackButton={false}
+      />
 
       {/* Search Input */}
       <View style={styles.searchContainer}>

@@ -6,9 +6,13 @@ import { StyleSheet, View } from "react-native";
 export default function NewsScreen() {
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Saved" showMenuButton={false} />
+      <ScreenHeader
+        title="Saved"
+        showMenuButton={false}
+        showBackButton={false}
+      />
       <View style={styles.container}>
-        <Text style={styles.text}>News Screen</Text>
+        <Text style={styles.text}>Saved Screen</Text>
       </View>
     </View>
   );

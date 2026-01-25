@@ -4,7 +4,6 @@ import HomeSearch from "@/assets/svgs/SEARCH 1.svg";
 import ProfileIcon from "@/assets/svgs/aProfile 1.svg";
 import HomeBookmark from "@/assets/svgs/sSAVED 1.svg";
 import { Tabs } from "expo-router";
-import React from "react";
 import { View } from "react-native";
 
 export default function TabLayout() {

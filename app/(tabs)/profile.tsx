@@ -2,6 +2,7 @@ import { ScreenHeader } from "@/src/components";
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import {
   ScrollView,
   StyleSheet,
@@ -11,6 +12,8 @@ import {
 } from "react-native";
 
 export default function ProfileScreen() {
+  const router = useRouter();
+
   const handleBackPress = () => {
     // Handle back navigation
     console.log("Back pressed");
@@ -27,6 +30,7 @@ export default function ProfileScreen() {
       <ScreenHeader
         title="Profile"
         onBackPress={handleBackPress}
+        showBackButton={false}
         onMenuPress={handleMenuPress}
       />
 
@@ -45,7 +49,10 @@ export default function ProfileScreen() {
           <Text style={styles.username}>@victory_paul</Text>
           <Text style={styles.name}>Victory Paul</Text>
           <Text style={styles.email}>E-mail: 123victoryps@gmail.com</Text>
-          <TouchableOpacity style={styles.viewProfileButton}>
+          <TouchableOpacity
+            style={styles.viewProfileButton}
+            onPress={() => router.push("/profile/my-profile")}
+          >
             <Text style={styles.viewProfileButtonText}>View Profile</Text>
           </TouchableOpacity>
         </View>
@@ -70,7 +77,10 @@ export default function ProfileScreen() {
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push("/profile/tokens")}
+          >
             <View style={styles.menuItemLeft}>
               <View style={styles.menuIconContainer}>
                 <Ionicons name="wallet-outline" size={20} color="#FF9500" />
@@ -85,7 +95,10 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push("/profile/reviews")}
+          >
             <View style={styles.menuItemLeft}>
               <View style={styles.menuIconContainer}>
                 <Ionicons name="star-outline" size={20} color="#FFD700" />
@@ -95,7 +108,10 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#666666" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push("/profile/settings")}
+          >
             <View style={styles.menuItemLeft}>
               <View style={styles.menuIconContainer}>
                 <Ionicons name="settings-outline" size={20} color="#0A84FF" />
