@@ -1,18 +1,18 @@
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  Animated,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 const SIDEBAR_WIDTH = width * 0.75;
@@ -70,22 +70,40 @@ export default function ChatSessionsSidebar({
   onClose,
   currentSessionId,
 }: ChatSessionsSidebarProps) {
+  const [showSidebar, setShowSidebar] = useState(visible);
   const slideAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (visible) {
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      setShowSidebar(true);
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      Animated.timing(slideAnim, {
-        toValue: -SIDEBAR_WIDTH,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: -SIDEBAR_WIDTH,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start(() => setShowSidebar(false));
     }
   }, [visible]);
 
@@ -103,113 +121,117 @@ export default function ChatSessionsSidebar({
     onClose();
   };
 
+  if (!showSidebar) return null;
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <View style={[StyleSheet.absoluteFill, { zIndex: 1000 }]}>
       <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback>
-            <Animated.View
-              style={[
-                styles.sidebar,
-                {
-                  transform: [{ translateX: slideAnim }],
-                },
-              ]}
-            >
-              {/* Sidebar Header */}
-              <View style={styles.sidebarHeader}>
-                <View style={styles.headerTop}>
-                  <Text style={styles.headerTitle}>Chat History</Text>
-                  <TouchableOpacity
-                    style={styles.closeButton}
-                    onPress={onClose}
-                  >
-                    <Ionicons name="close" size={24} color="#FFFFFF" />
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity
-                  style={styles.newChatButton}
-                  onPress={handleNewChat}
-                >
-                  <Ionicons name="add" size={20} color="#FFFFFF" />
-                  <Text style={styles.newChatText}>New Chat</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Chat Sessions */}
-              <ScrollView
-                style={styles.sessionsContainer}
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={styles.sectionTitle}>Recent</Text>
-                {dummySessions.map((session) => (
-                  <TouchableOpacity
-                    key={session.id}
-                    style={[
-                      styles.sessionItem,
-                      currentSessionId === session.id && styles.activeSession,
-                    ]}
-                    onPress={() => handleSessionPress(session.id)}
-                  >
-                    <View style={styles.sessionIconContainer}>
-                      <Ionicons
-                        name="chatbubble-outline"
-                        size={20}
-                        color="#FFFFFF"
-                      />
-                    </View>
-                    <View style={styles.sessionContent}>
-                      <Text style={styles.sessionTitle} numberOfLines={1}>
-                        {session.title}
-                      </Text>
-                      <Text style={styles.sessionPreview} numberOfLines={1}>
-                        {session.preview}
-                      </Text>
-                      <Text style={styles.sessionTimestamp}>
-                        {session.timestamp}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.sessionMenuButton}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        console.log("Session menu:", session.id);
-                      }}
-                    >
-                      <Ionicons
-                        name="ellipsis-vertical"
-                        size={16}
-                        color="#666666"
-                      />
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                ))}
-
-                {/* Bottom Actions */}
-                <View style={styles.divider} />
-                <TouchableOpacity style={styles.actionItem}>
-                  <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-                  <Text style={[styles.actionText, { color: "#FF3B30" }]}>
-                    Clear All History
-                  </Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </Animated.View>
-          </TouchableWithoutFeedback>
-        </View>
+        <Animated.View
+          style={[
+            styles.backdrop,
+            { opacity: fadeAnim }
+          ]}
+        />
       </TouchableWithoutFeedback>
-    </Modal>
+
+      <Animated.View
+        style={[
+          styles.sidebar,
+          {
+            transform: [{ translateX: slideAnim }],
+            marginTop: insets.top + 0,
+            marginBottom: 0, // Approximate tab bar height
+            borderTopRightRadius: 20, // Adding border radius for better aesthetics since it's detached
+            borderBottomRightRadius: 0,
+          },
+        ]}
+      >
+        {/* Sidebar Header */}
+        <View style={styles.sidebarHeader}>
+          <View style={styles.headerTop}>
+            <Text style={styles.headerTitle}>Chat History</Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={onClose}
+            >
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={styles.newChatButton}
+            onPress={handleNewChat}
+          >
+            <Ionicons name="add" size={20} color="#FFFFFF" />
+            <Text style={styles.newChatText}>New Chat</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Chat Sessions */}
+        <ScrollView
+          style={styles.sessionsContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.sectionTitle}>Recent</Text>
+          {dummySessions.map((session) => (
+            <TouchableOpacity
+              key={session.id}
+              style={[
+                styles.sessionItem,
+                currentSessionId === session.id && styles.activeSession,
+              ]}
+              onPress={() => handleSessionPress(session.id)}
+            >
+              <View style={styles.sessionIconContainer}>
+                <Ionicons
+                  name="chatbubble-outline"
+                  size={20}
+                  color="#FFFFFF"
+                />
+              </View>
+              <View style={styles.sessionContent}>
+                <Text style={styles.sessionTitle} numberOfLines={1}>
+                  {session.title}
+                </Text>
+                <Text style={styles.sessionPreview} numberOfLines={1}>
+                  {session.preview}
+                </Text>
+                <Text style={styles.sessionTimestamp}>
+                  {session.timestamp}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.sessionMenuButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  console.log("Session menu:", session.id);
+                }}
+              >
+                <Ionicons
+                  name="ellipsis-vertical"
+                  size={16}
+                  color="#666666"
+                />
+              </TouchableOpacity>
+            </TouchableOpacity>
+          ))}
+
+          {/* Bottom Actions */}
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.actionItem}>
+            <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+            <Text style={[styles.actionText, { color: "#FF3B30" }]}>
+              Clear All History
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   sidebar: {
@@ -218,13 +240,14 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: SIDEBAR_WIDTH,
+    paddingTop: 20,
     backgroundColor: "#0F0F10",
     borderRightWidth: 1,
     borderRightColor: "#1C1C1E",
   },
   sidebarHeader: {
-    padding: 20,
-    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: "#1C1C1E",
   },
