@@ -3,8 +3,9 @@ import ChatSessionsSidebar from "@/src/components/chat/ChatSessionsSidebar";
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import React, { useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -49,13 +50,42 @@ const suggestions: SuggestionCard[] = [
   },
 ];
 
+import ChatActionModal from "@/src/components/chat/ChatActionModal";
+import ReportModal from "@/src/components/chat/ReportModal";
+import TellStoryModal from "@/src/components/chat/TellStoryModal";
+import SuccessModal from "@/src/components/common/SuccessModal";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
+
 export default function ChatHomeScreen() {
   const [message, setMessage] = useState("");
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [tellStoryModalVisible, setTellStoryModalVisible] = useState(false);
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
+  const [reportModalTitle, setReportModalTitle] = useState("Report your Landlord");
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleSuggestionPress = (title: string) => {
     console.log("Suggestion pressed:", title);
+    // Close modal if open
+    if (actionModalVisible) {
+      setActionModalVisible(false);
+    }
+
+    if (title === "Report a Landlord") {
+      setReportModalTitle("Report your Landlord");
+      setReportModalVisible(true);
+      return;
+    }
+
+    if (title === "Tell Your Story") {
+      setTellStoryModalVisible(true);
+      return;
+    }
+
     router.push({
       pathname: "/(tabs)/conversation",
       params: { query: title },
@@ -73,6 +103,112 @@ export default function ChatHomeScreen() {
     }
   };
 
+  const handleSuccess = () => {
+    setSuccessModalVisible(true);
+  };
+
+  const handleCamera = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        alert("You've refused to allow this app to access your camera!");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync();
+
+      if (!result.canceled) {
+        console.log("Camera result:", result.assets[0]);
+        // Handle the image (e.g., upload or add to message)
+      }
+    } catch (error) {
+      console.log("Camera error:", error);
+      alert("Camera not available on this device/simulator.");
+    }
+  };
+
+  const handlePhotos = async () => {
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        Alert.alert("Permission Required", "You've refused to allow this app to access your photos!");
+        return;
+      }
+
+      console.log("Opening gallery...");
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'], // Correct usage: array of strings or single string 'images'
+        allowsEditing: true,
+        quality: 1,
+      });
+
+      if (!result.canceled) {
+        console.log("Photo result:", result.assets[0]);
+        // Handle the image
+      }
+    } catch (error) {
+      console.error("Error picking photo:", error);
+      Alert.alert("Error", "Failed to open photos. Please try again.");
+    }
+  };
+
+  const handleFiles = async () => {
+    // causing trouble? removing for now: if (isLoading) return;
+    // setIsLoading(true);
+    console.log("Opening file picker...");
+    try {
+      const result = await DocumentPicker.getDocumentAsync({});
+
+      if (!result.canceled) {
+        console.log("File result:", result.assets[0]);
+        // Handle the file
+      }
+    } catch (err: any) {
+      console.error("Document picker error:", err);
+      if (err.message && err.message.includes("Different document picking in progress")) {
+        Alert.alert("System Busy", "Another file selection is active. Please restart the app if this persists.");
+      } else {
+        Alert.alert("Error", "Failed to pick file.");
+      }
+    } finally {
+      // setIsLoading(false);
+    }
+  };
+
+  const handleActionPress = (action: string) => {
+    console.log("Action pressed:", action);
+    setActionModalVisible(false);
+
+    // Add a delay to allow modal to close before opening native pickers
+    setTimeout(() => {
+      switch (action) {
+        case "Camera":
+          handleCamera();
+          break;
+        case "Photos":
+          handlePhotos();
+          break;
+        case "Files":
+          handleFiles();
+          break;
+        case "Report a Landlord":
+          setReportModalTitle("Report your Landlord");
+          setReportModalVisible(true);
+          break;
+        case "Tell Your Story":
+          setTellStoryModalVisible(true);
+          break;
+        default:
+          // Handle suggestions (Report, Find, etc.)
+          handleSuggestionPress(action);
+          break;
+      }
+    }, 300);
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: "#0F0F10" }}
@@ -87,6 +223,34 @@ export default function ChatHomeScreen() {
         <ChatSessionsSidebar
           visible={sidebarVisible}
           onClose={() => setSidebarVisible(false)}
+        />
+
+        {/* Action Modal */}
+        <ChatActionModal
+          visible={actionModalVisible}
+          onClose={() => setActionModalVisible(false)}
+          onActionPress={handleActionPress}
+        />
+
+        {/* Report Modal */}
+        <ReportModal
+          visible={reportModalVisible}
+          onClose={() => setReportModalVisible(false)}
+          title={reportModalTitle}
+          onSuccess={handleSuccess}
+        />
+
+        {/* Tell Story Modal */}
+        <TellStoryModal
+          visible={tellStoryModalVisible}
+          onClose={() => setTellStoryModalVisible(false)}
+          onSuccess={handleSuccess}
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          visible={successModalVisible}
+          onClose={() => setSuccessModalVisible(false)}
         />
 
         {/* Main Content */}
@@ -127,7 +291,10 @@ export default function ChatHomeScreen() {
 
         {/* Bottom Input */}
         <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.attachButton}>
+          <TouchableOpacity
+            style={styles.attachButton}
+            onPress={() => setActionModalVisible(true)}
+          >
             <Ionicons name="add" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.inputWrapper}>

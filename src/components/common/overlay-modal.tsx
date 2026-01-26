@@ -65,7 +65,7 @@ export default function OverlayModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "#0F0F10",
+    backgroundColor: "rgba(15, 15, 16, 0.7)",
   },
   backdropPressable: {
     position: "absolute",
