@@ -134,7 +134,7 @@ export default function SocialsScreen() {
   const router = useRouter();
 
   const handleAddPress = () => {
-    console.log("Add pressed");
+    router.push("/new-post");
   };
 
   const handleNotificationPress = () => {
