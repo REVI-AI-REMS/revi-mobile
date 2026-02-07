@@ -152,6 +152,8 @@ export default function ChatConversationScreen() {
               value={message}
               onChangeText={setMessage}
               multiline
+              includeFontPadding={false}
+              textAlignVertical="center"
             />
             <TouchableOpacity
               style={styles.sendButton}

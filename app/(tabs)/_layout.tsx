@@ -4,21 +4,33 @@ import HomeSearch from "@/assets/svgs/SEARCH 1.svg";
 import ProfileIcon from "@/assets/svgs/aProfile 1.svg";
 import HomeBookmark from "@/assets/svgs/sSAVED 1.svg";
 import { Tabs } from "expo-router";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: "#FFFFFF",
         tabBarInactiveTintColor: "#666666",
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: "#0F0F10",
           borderTopColor: "#141414",
           borderTopWidth: 1,
-          height: 84,
-          paddingBottom: 15,
+          height: Platform.select({
+            ios: 40 + insets.bottom,
+            android: 60 + insets.bottom,
+            default: 60 + insets.bottom,
+          }),
+          paddingBottom: Platform.select({
+            ios: 12 + insets.bottom,
+            android: 12 + insets.bottom,
+            default: 12 + insets.bottom,
+          }),
           paddingTop: 15,
         },
         tabBarLabelStyle: {

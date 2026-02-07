@@ -6,6 +6,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -76,7 +79,7 @@ export default function LoginScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#0F0F10" }}>
-      <OverlayModal visible={visible} onClose={handleClose}>
+      <OverlayModal visible={visible} onClose={handleClose} height={Platform.OS === "ios" ? "80%" : "90%"}>
         {/* Back Button - only show on password step */}
         {step === "password" && (
           <TouchableOpacity
@@ -88,109 +91,125 @@ export default function LoginScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Logo and Header */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <ReviaiLogo width={39} height={37} />
-          </View>
-          <Text style={styles.title}>
-            {step === "email" ? "Welcome back to Revi" : "Enter your password"}
-          </Text>
-          <Text style={styles.subtitle}>
-            {step === "email"
-              ? "Continue getting real answers about\nproperties, landlords, and rent."
-              : `Enter your password to continue`}
-          </Text>
-        </View>
-
         {/* Form Section */}
-        <View style={styles.formSection}>
-          {/* Email or Password Input */}
-          {step === "email" ? (
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="mail-outline"
-                size={20}
-                color="#999999"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                placeholderTextColor="#999999"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
+        <KeyboardAvoidingView
+          behavior="padding"
+          style={{ flexShrink: 1 }}
+          keyboardVerticalOffset={Platform.OS === "android" ? 100 : 40}
+        >
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: Platform.OS === "android" ? 80 : 20 }}
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Logo and Header */}
+            <View style={styles.header}>
+              <View style={styles.logoContainer}>
+                <ReviaiLogo width={39} height={37} />
+              </View>
+              <Text style={styles.title}>
+                {step === "email" ? "Welcome back to Revi" : "Enter your password"}
+              </Text>
+              <Text style={styles.subtitle}>
+                {step === "email"
+                  ? "Continue getting real answers about\nproperties, landlords, and rent."
+                  : `Enter your password to continue`}
+              </Text>
             </View>
-          ) : (
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={20}
-                color="#999999"
-                style={styles.inputIcon}
+            <View style={styles.formSection}>
+              {/* Email or Password Input */}
+              {step === "email" ? (
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="mail-outline"
+                    size={20}
+                    color="#999999"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Email"
+                    placeholderTextColor="#999999"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+
+                    textAlignVertical="center"
+                  />
+                </View>
+              ) : (
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={20}
+                    color="#999999"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Password"
+                    placeholderTextColor="#999999"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoComplete="password"
+
+                    textAlignVertical="center"
+                  />
+                </View>
+              )}
+
+              {/* Continue Button */}
+              <Button
+                title="Continue"
+                variant="primary"
+                onPress={handleContinue}
+                style={{ marginBottom: 24, borderRadius: 30 }}
               />
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor="#999999"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoCapitalize="none"
-                autoComplete="password"
-              />
+
+              {/* Forgot Password - only on password step */}
+              {step === "password" && (
+                <TouchableOpacity
+                  style={styles.forgotPasswordContainer}
+                  onPress={handleForgotPassword}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Divider */}
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>OR</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              {/* Social Buttons */}
+              <View style={styles.socialButtons}>
+                <Button
+                  title="Continue with Apple"
+                  variant="outline"
+                  onPress={handleAppleSignIn}
+                  icon={<Ionicons name="logo-apple" size={20} color="#FFFFFF" />}
+                />
+
+                <Button
+                  title="Continue with Google"
+                  variant="outline"
+                  onPress={handleGoogleSignIn}
+                  icon={<Ionicons name="logo-google" size={18} color="#FFFFFF" />}
+                />
+              </View>
+
+              <Button title="Sign Up" variant="secondary" onPress={handleSignUp} style={{ borderRadius: 30 }} />
             </View>
-          )}
-
-          {/* Continue Button */}
-          <Button
-            title="Continue"
-            variant="primary"
-            onPress={handleContinue}
-            style={{ marginBottom: 24, borderRadius: 30 }}
-          />
-
-          {/* Forgot Password - only on password step */}
-          {step === "password" && (
-            <TouchableOpacity
-              style={styles.forgotPasswordContainer}
-              onPress={handleForgotPassword}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Divider */}
-          <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Social Buttons */}
-          <View style={styles.socialButtons}>
-            <Button
-              title="Continue with Apple"
-              variant="outline"
-              onPress={handleAppleSignIn}
-              icon={<Ionicons name="logo-apple" size={20} color="#FFFFFF" />}
-            />
-
-            <Button
-              title="Continue with Google"
-              variant="outline"
-              onPress={handleGoogleSignIn}
-              icon={<Ionicons name="logo-google" size={18} color="#FFFFFF" />}
-            />
-          </View>
-
-          <Button title="Sign Up" variant="secondary" onPress={handleSignUp} />
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </OverlayModal>
     </View>
   );
@@ -217,7 +236,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 87,
+    paddingTop: 37,
   },
   title: {
     fontSize: 19,
@@ -244,7 +263,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: Platform.OS === "android" ? 5 : 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "#3A3A3C",
@@ -292,6 +311,8 @@ const styles = StyleSheet.create({
   },
   signUpContainer: {
     alignItems: "center",
+    paddingBottom: Platform.OS === "android" ? 3 : 0,
+
   },
   signUpText: {
     fontSize: 16,

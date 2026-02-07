@@ -169,6 +169,8 @@ export default function ExploreScreen() {
             autoCapitalize="none"
             returnKeyType="search"
             blurOnSubmit={false}
+            includeFontPadding={false}
+            textAlignVertical="center"
           />
           {searchText.length > 0 && (
             <TouchableOpacity

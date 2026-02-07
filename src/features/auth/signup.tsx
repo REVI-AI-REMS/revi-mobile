@@ -1,22 +1,21 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
-  TouchableWithoutFeedback,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useState, useEffect } from "react";
-import { Fonts } from "@/src/constants/theme";
 import ReviaiLogo from "@/assets/svgs/reviaimobilelogo.svg";
 import Button from "@/src/components/common/button";
 import OverlayModal from "@/src/components/common/overlay-modal";
+import { Fonts } from "@/src/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from "react-native";
 
 type Step = "details" | "code" | "success";
 
@@ -105,17 +104,6 @@ export default function SignUpScreen() {
     }
   };
 
-  const getModalHeight = () => {
-    if (step === "success") {
-      return 450;
-    }
-    if (step === "details") {
-      return isKeyboardVisible ? 830 : 800;
-    }
-    // Code step
-    return isKeyboardVisible ? 770 : 550;
-  };
-
   return (
     <>
       {/* Background branding text */}
@@ -129,7 +117,7 @@ export default function SignUpScreen() {
       <OverlayModal
         visible={visible}
         onClose={handleClose}
-        height={getModalHeight()}
+        height={Platform.OS === "ios" ? "80%" : "90%"}
       >
         {/* Back Button - Fixed at top left, outside scroll */}
         <TouchableOpacity
@@ -141,226 +129,233 @@ export default function SignUpScreen() {
         </TouchableOpacity>
 
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+          behavior="padding"
+          style={{ flexShrink: 1 }}
+          keyboardVerticalOffset={Platform.OS === "android" ? 100 : 40}
         >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={
-                step === "success"
-                  ? { flexGrow: 1, justifyContent: "center" }
-                  : { paddingBottom: 50 }
-              }
-              scrollEnabled={step !== "success"}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={
+              step === "success"
+                ? { flexGrow: 1, justifyContent: "center" }
+                : { flexGrow: 1, paddingBottom: Platform.OS === "android" ? 80 : 20 }
+            }
+            scrollEnabled={step !== "success"}
+            bounces={false}
+          >
+            {/* Logo and Header */}
+            <View
+              style={[
+                styles.header,
+                step === "success" && { paddingTop: 0, marginBottom: 0 },
+              ]}
             >
-              {/* Logo and Header */}
-              <View
-                style={[
-                  styles.header,
-                  step === "success" && { paddingTop: 0, marginBottom: 0 },
-                ]}
-              >
-                {step !== "success" && (
-                  <View style={styles.logoContainer}>
-                    <ReviaiLogo width={39} height={37} />
-                  </View>
-                )}
-                {step !== "success" && (
-                  <Text style={styles.title}>{getTitle()}</Text>
-                )}
-                {step !== "success" && (
-                  <Text style={styles.subtitle}>{getSubtitle()}</Text>
-                )}
-              </View>
+              {step !== "success" && (
+                <View style={styles.logoContainer}>
+                  <ReviaiLogo width={39} height={37} />
+                </View>
+              )}
+              {step !== "success" && (
+                <Text style={styles.title}>{getTitle()}</Text>
+              )}
+              {step !== "success" && (
+                <Text style={styles.subtitle}>{getSubtitle()}</Text>
+              )}
+            </View>
 
-              {/* Form Section */}
-              <View style={styles.formSection}>
-                {/* Details Step - Email and passwords */}
-                {step === "details" && (
-                  <>
-                    <View style={styles.inputContainer}>
-                      <Ionicons
-                        name="mail-outline"
-                        size={20}
-                        color="#999999"
-                        style={styles.inputIcon}
-                      />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Email"
-                        placeholderTextColor="#999999"
-                        value={email}
-                        onChangeText={setEmail}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoFocus
-                      />
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                      <Ionicons
-                        name="lock-closed-outline"
-                        size={20}
-                        color="#999999"
-                        style={styles.inputIcon}
-                      />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Password"
-                        placeholderTextColor="#999999"
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry
-                        autoCapitalize="none"
-                      />
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                      <Ionicons
-                        name="lock-closed-outline"
-                        size={20}
-                        color="#999999"
-                        style={styles.inputIcon}
-                      />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Re-enter password"
-                        placeholderTextColor="#999999"
-                        value={confirmPassword}
-                        onChangeText={setConfirmPassword}
-                        secureTextEntry
-                        autoCapitalize="none"
-                      />
-                    </View>
-
-                    {/* Sign Up Button */}
-                    <Button
-                      title="Sign Up"
-                      variant="primary"
-                      onPress={handleContinue}
-                      style={{ marginTop: 16, borderRadius: 30 }}
-                    />
-
-                    {/* Divider */}
-                    <View style={styles.dividerContainer}>
-                      <View style={styles.divider} />
-                      <Text style={styles.dividerText}>or</Text>
-                      <View style={styles.divider} />
-                    </View>
-
-                    {/* Social Login Buttons */}
-                    <Button
-                      title="Continue with Apple"
-                      variant="outline"
-                      onPress={() => console.log("Apple Sign Up")}
-                      icon={
-                        <Ionicons name="logo-apple" size={20} color="#ffffff" />
-                      }
-                      style={{ marginBottom: 12 }}
-                    />
-
-                    <Button
-                      title="Continue with Google"
-                      variant="outline"
-                      onPress={() => console.log("Google Sign Up")}
-                      icon={
-                        <Ionicons name="logo-google" size={18} color="#FFF" />
-                      }
-                    />
-                  </>
-                )}
-
-                {/* Code Input Step */}
-                {step === "code" && (
+            {/* Form Section */}
+            <View style={styles.formSection}>
+              {/* Details Step - Email and passwords */}
+              {step === "details" && (
+                <>
                   <View style={styles.inputContainer}>
                     <Ionicons
-                      name="keypad-outline"
+                      name="mail-outline"
                       size={20}
                       color="#999999"
                       style={styles.inputIcon}
                     />
                     <TextInput
                       style={styles.input}
-                      placeholder="Enter 6-digit code"
+                      placeholder="Email"
                       placeholderTextColor="#999999"
-                      value={code}
-                      onChangeText={setCode}
-                      keyboardType="number-pad"
-                      maxLength={6}
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
                       autoFocus
+                      includeFontPadding={false}
+                      textAlignVertical="center"
                     />
                   </View>
-                )}
 
-                {/* Success Step - Show success message */}
-                {step === "success" && (
-                  <View style={styles.successSection}>
+                  <View style={styles.inputContainer}>
                     <Ionicons
-                      name="checkmark-circle"
-                      size={64}
-                      color="#ffffff"
-                      style={styles.successIcon}
+                      name="lock-closed-outline"
+                      size={20}
+                      color="#999999"
+                      style={styles.inputIcon}
                     />
-                    <Text style={styles.successTitle}>Welcome to REVI!</Text>
-                    <Text style={styles.successMessage}>
-                      Your account has been created {"\n"} successfully.
-                    </Text>
-                    <Button
-                      title="Get Started"
-                      variant="primary"
-                      onPress={() => {
-                        setVisible(false);
-                        setTimeout(() => router.push("/login"), 100);
-                      }}
-                      style={{ marginTop: 24, borderRadius: 30, width: 300 }}
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Password"
+                      placeholderTextColor="#999999"
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      includeFontPadding={false}
+                      textAlignVertical="center"
                     />
                   </View>
-                )}
 
-                {/* Continue Button - only on code step */}
-                {step === "code" && (
+                  <View style={styles.inputContainer}>
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={20}
+                      color="#999999"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Re-enter password"
+                      placeholderTextColor="#999999"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      includeFontPadding={false}
+                      textAlignVertical="center"
+                    />
+                  </View>
+
+                  {/* Sign Up Button */}
                   <Button
-                    title="Continue"
+                    title="Sign Up"
                     variant="primary"
                     onPress={handleContinue}
                     style={{ marginTop: 16, borderRadius: 30 }}
                   />
-                )}
 
-                {/* Resend Code - only on code step */}
-                {step === "code" && (
+                  {/* Divider */}
+                  <View style={styles.dividerContainer}>
+                    <View style={styles.divider} />
+                    <Text style={styles.dividerText}>or</Text>
+                    <View style={styles.divider} />
+                  </View>
+
+                  {/* Social Login Buttons */}
+                  <Button
+                    title="Continue with Apple"
+                    variant="outline"
+                    onPress={() => console.log("Apple Sign Up")}
+                    icon={
+                      <Ionicons name="logo-apple" size={20} color="#ffffff" />
+                    }
+                    style={{ marginBottom: 12 }}
+                  />
+
+                  <Button
+                    title="Continue with Google"
+                    variant="outline"
+                    onPress={() => console.log("Google Sign Up")}
+                    icon={
+                      <Ionicons name="logo-google" size={18} color="#FFF" />
+                    }
+                  />
+                </>
+              )}
+
+              {/* Code Input Step */}
+              {step === "code" && (
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="keypad-outline"
+                    size={20}
+                    color="#999999"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter 6-digit code"
+                    placeholderTextColor="#999999"
+                    value={code}
+                    onChangeText={setCode}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    autoFocus
+                    includeFontPadding={false}
+                    textAlignVertical="center"
+                  />
+                </View>
+              )}
+
+              {/* Success Step - Show success message */}
+              {step === "success" && (
+                <View style={styles.successSection}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={64}
+                    color="#ffffff"
+                    style={styles.successIcon}
+                  />
+                  <Text style={styles.successTitle}>Welcome to REVI!</Text>
+                  <Text style={styles.successMessage}>
+                    Your account has been created {"\n"} successfully.
+                  </Text>
+                  <Button
+                    title="Get Started"
+                    variant="primary"
+                    onPress={() => {
+                      setVisible(false);
+                      setTimeout(() => router.push("/login"), 100);
+                    }}
+                    style={{ marginTop: 24, borderRadius: 30, width: 300 }}
+                  />
+                </View>
+              )}
+
+              {/* Continue Button - only on code step */}
+              {step === "code" && (
+                <Button
+                  title="Continue"
+                  variant="primary"
+                  onPress={handleContinue}
+                  style={{ marginTop: 16, borderRadius: 30 }}
+                />
+              )}
+
+              {/* Resend Code - only on code step */}
+              {step === "code" && (
+                <TouchableOpacity
+                  style={styles.resendContainer}
+                  onPress={handleResendCode}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.resendText}>Resend code</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Already have account - only on details step */}
+              {step === "details" && (
+                <View style={styles.loginPrompt}>
+                  <Text style={styles.loginPromptText}>
+                    Already have an account?{" "}
+                  </Text>
                   <TouchableOpacity
-                    style={styles.resendContainer}
-                    onPress={handleResendCode}
+                    onPress={() => {
+                      setVisible(false);
+                      setTimeout(() => router.push("/login"), 200);
+                    }}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.resendText}>Resend code</Text>
+                    <Text style={styles.loginLink}>Log In</Text>
                   </TouchableOpacity>
-                )}
-
-                {/* Already have account - only on details step */}
-                {step === "details" && (
-                  <View style={styles.loginPrompt}>
-                    <Text style={styles.loginPromptText}>
-                      Already have an account?{" "}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setVisible(false);
-                        setTimeout(() => router.push("/login"), 200);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.loginLink}>Log In</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            </ScrollView>
-          </TouchableWithoutFeedback>
+                </View>
+              )}
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </OverlayModal>
     </>
@@ -467,7 +462,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: Platform.OS === "android" ? 5 : 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "#3A3A3C",

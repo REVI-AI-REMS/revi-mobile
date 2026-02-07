@@ -1,12 +1,13 @@
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ViewStyle,
-  TextStyle,
-  ActivityIndicator,
-} from "react-native";
 import { Fonts } from "@/src/constants/theme";
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  TextStyle,
+  TouchableOpacity,
+  ViewStyle,
+} from "react-native";
 
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost";
 
@@ -65,7 +66,15 @@ export default function Button({
       ) : (
         <>
           {icon}
-          <Text style={textStyleCombined}>{title}</Text>
+          <Text
+            style={textStyleCombined}
+            {...(Platform.OS === 'android' && {
+              includeFontPadding: false,
+              textAlignVertical: 'center' as const,
+            })}
+          >
+            {title}
+          </Text>
         </>
       )}
     </TouchableOpacity>
@@ -74,7 +83,7 @@ export default function Button({
 
 const styles = StyleSheet.create({
   button: {
-    paddingVertical: 16,
+    paddingVertical: Platform.OS === "android" ? 12 : 16,
     borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",

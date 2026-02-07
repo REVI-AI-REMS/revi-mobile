@@ -15,6 +15,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import "react-native-reanimated";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useColorScheme } from "@/src/hooks/use-color-scheme";
 
@@ -45,34 +46,36 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="splash" options={{ headerShown: false }} />
-        <Stack.Screen name="auth" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="chat-session" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="notification"
-          options={{
-            headerShown: false,
-            title: "Notifications",
-          }}
-        />
-        <Stack.Screen name="profile/tokens" options={{ headerShown: false }} />
-        <Stack.Screen name="profile/edit-profile" options={{ headerShown: false }} />
-        <Stack.Screen name="profile/my-profile" options={{ headerShown: false }} />
-        <Stack.Screen name="profile/reviews" options={{ headerShown: false }} />
-        <Stack.Screen name="profile/settings" options={{ headerShown: false }} />
+    <SafeAreaProvider>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="splash" options={{ headerShown: false }} />
+          <Stack.Screen name="auth" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="chat-session" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="notification"
+            options={{
+              headerShown: false,
+              title: "Notifications",
+            }}
+          />
+          <Stack.Screen name="profile/tokens" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/edit-profile" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/my-profile" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/reviews" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/settings" options={{ headerShown: false }} />
 
-        <Stack.Screen
-          name="modal"
-          options={{ presentation: "modal", title: "Modal" }}
-        />
-      </Stack>
-      <StatusBar style="light" />
-    </ThemeProvider>
+          <Stack.Screen
+            name="modal"
+            options={{ presentation: "modal", title: "Modal" }}
+          />
+        </Stack>
+        <StatusBar style="light" />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
