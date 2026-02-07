@@ -15,8 +15,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function LoginScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -95,11 +97,11 @@ export default function LoginScreen() {
         <KeyboardAvoidingView
           behavior="padding"
           style={{ flexShrink: 1 }}
-          keyboardVerticalOffset={Platform.OS === "android" ? 100 : 40}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 60 : 100}
         >
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: Platform.OS === "android" ? 80 : 20 }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: Platform.OS === "android" ? 50 : 20 }}
             bounces={false}
             keyboardShouldPersistTaps="handled"
           >

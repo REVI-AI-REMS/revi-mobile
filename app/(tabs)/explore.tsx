@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1C1C1E",
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: Platform.OS === "ios" ? 16 : 6,
   },
   searchIcon: {
     marginRight: 12,

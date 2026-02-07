@@ -3,9 +3,10 @@ import ChatSessionsSidebar from "@/src/components/chat/ChatSessionsSidebar";
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,8 +14,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ChatActionModal from "@/src/components/chat/ChatActionModal";
 import ReportModal from "@/src/components/chat/ReportModal";
@@ -68,7 +70,25 @@ export default function ChatHomeScreen() {
     "Report your Landlord",
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setIsKeyboardVisible(true)
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setIsKeyboardVisible(false)
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
 
   const handleSuggestionPress = (title: string) => {
     console.log("Suggestion pressed:", title);
@@ -224,8 +244,8 @@ export default function ChatHomeScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: "#0F0F10" }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      behavior="padding"
+      keyboardVerticalOffset={0}
     >
       <View style={styles.container}>
         {/* Header */}

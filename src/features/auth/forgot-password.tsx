@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Step = "confirm" | "code" | "newPassword" | "success";
 
@@ -30,6 +31,7 @@ export default function ForgotPasswordScreen() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     setVisible(true);
@@ -161,7 +163,7 @@ export default function ForgotPasswordScreen() {
         <KeyboardAvoidingView
           behavior="padding"
           style={{ flexShrink: 1 }}
-          keyboardVerticalOffset={Platform.OS === "android" ? 100 : 40}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 60 : 100}
         >
           <ScrollView
             showsVerticalScrollIndicator={false}
@@ -169,7 +171,7 @@ export default function ForgotPasswordScreen() {
             contentContainerStyle={
               step === "success"
                 ? { flexGrow: 1, justifyContent: "center" }
-                : { flexGrow: 1, paddingBottom: Platform.OS === "android" ? 80 : 20 }
+                : { flexGrow: 1, paddingBottom: Platform.OS === "android" ? 50 : 20 }
             }
             scrollEnabled={step !== "success"}
             bounces={false}

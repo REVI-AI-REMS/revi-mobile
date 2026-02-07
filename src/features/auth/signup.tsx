@@ -16,10 +16,12 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Step = "details" | "code" | "success";
 
 export default function SignUpScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   const [visible, setVisible] = useState(true);
@@ -131,7 +133,7 @@ export default function SignUpScreen() {
         <KeyboardAvoidingView
           behavior="padding"
           style={{ flexShrink: 1 }}
-          keyboardVerticalOffset={Platform.OS === "android" ? 100 : 40}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 60 : 100}
         >
           <ScrollView
             showsVerticalScrollIndicator={false}
@@ -139,7 +141,7 @@ export default function SignUpScreen() {
             contentContainerStyle={
               step === "success"
                 ? { flexGrow: 1, justifyContent: "center" }
-                : { flexGrow: 1, paddingBottom: Platform.OS === "android" ? 80 : 20 }
+                : { flexGrow: 1, paddingBottom: Platform.OS === "android" ? 50 : 20 }
             }
             scrollEnabled={step !== "success"}
             bounces={false}
