@@ -19,6 +19,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 export default function LoginScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -83,7 +84,7 @@ export default function LoginScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#0F0F10" }}>
-      <OverlayModal visible={visible} onClose={handleClose}>
+      <OverlayModal visible={visible} onClose={handleClose} height={Platform.OS === "ios" ? "80%" : "90%"}>
         {/* Back Button - only show on password step */}
         {step === "password" && (
           <TouchableOpacity
@@ -531,6 +532,8 @@ const styles = StyleSheet.create({
   },
   signUpContainer: {
     alignItems: "center",
+    paddingBottom: Platform.OS === "android" ? 3 : 0,
+
   },
   signUpText: {
     fontSize: 16,

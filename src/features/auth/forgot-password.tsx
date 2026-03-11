@@ -13,8 +13,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+  View
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
@@ -144,7 +143,7 @@ export default function ForgotPasswordScreen() {
       <OverlayModal
         visible={visible}
         onClose={handleClose}
-        height={getModalHeight()}
+        height={Platform.OS === "ios" ? "80%" : "90%"}
       >
         {/* Back Button - Fixed at top left, outside scroll */}
         <TouchableOpacity
@@ -383,36 +382,29 @@ export default function ForgotPasswordScreen() {
               }
               scrollEnabled={step !== "success"}
             >
-              {/* Logo and Header */}
-              <View
-                style={[
-                  styles.header,
-                  step === "success" && { paddingTop: 0, marginBottom: 0 },
-                ]}
-              >
-                {step !== "success" && (
-                  <View style={styles.logoContainer}>
-                    <ReviaiLogo width={39} height={37} />
-                  </View>
-                )}
-                {step !== "success" && (
-                  <Text style={styles.title}>{getTitle()}</Text>
-                )}
-                {step !== "success" && (
-                  <Text style={styles.subtitle}>{getSubtitle()}</Text>
-                )}
-              </View>
+              {step !== "success" && (
+                <View style={styles.logoContainer}>
+                  <ReviaiLogo width={39} height={37} />
+                </View>
+              )}
+              {step !== "success" && (
+                <Text style={styles.title}>{getTitle()}</Text>
+              )}
+              {step !== "success" && (
+                <Text style={styles.subtitle}>{getSubtitle()}</Text>
+              )}
+            </View>
 
-              {/* Form Section */}
-              <View style={styles.formSection}>
-                {/* Confirm Step - No input, just text */}
-                {step === "confirm" && (
-                  <View style={styles.confirmSection}>
-                    <Text style={styles.confirmText}>
-                      Click continue to reset your password
-                    </Text>
-                  </View>
-                )}
+            {/* Form Section */}
+            <View style={styles.formSection}>
+              {/* Confirm Step - No input, just text */}
+              {step === "confirm" && (
+                <View style={styles.confirmSection}>
+                  <Text style={styles.confirmText}>
+                    Click continue to reset your password
+                  </Text>
+                </View>
+              )}
 
                 {/* Code Input Step */}
                 {step === "code" && (
@@ -423,14 +415,14 @@ export default function ForgotPasswordScreen() {
                     ]}
                   >
                     <Ionicons
-                      name="keypad-outline"
+                      name="lock-closed-outline"
                       size={20}
                       color="#999999"
                       style={styles.inputIcon}
                     />
                     <TextInput
                       style={styles.input}
-                      placeholder="Enter 6-digit code"
+                      placeholder="New password"
                       placeholderTextColor="#999999"
                       value={code}
                       onChangeText={setCode}
@@ -514,52 +506,49 @@ export default function ForgotPasswordScreen() {
                 {step === "success" && (
                   <View style={styles.successSection}>
                     <Ionicons
-                      name="checkmark-circle"
-                      size={44}
-                      color="#ffffff"
-                      style={styles.successIcon}
+                      name="lock-closed-outline"
+                      size={20}
+                      color="#999999"
+                      style={styles.inputIcon}
                     />
-                    <View
-                      style={{
-                        alignItems: "center",
-                        paddingBottom: 16,
-                        paddingTop: 16,
-                      }}
-                    >
-                      <Text style={styles.successTitle}>Password updated</Text>
-                      <Text style={styles.successMessage}>
-                        Your password has been changed {"\n"} successfully.
-                      </Text>
-                    </View>
-
-                    <Button
-                      title="Back to Login"
-                      variant="primary"
-                      onPress={() => {
-                        setVisible(false);
-                        setTimeout(() => router.push("/login"), 200);
-                      }}
-                      style={{ marginBottom: 16, borderRadius: 30, width: 300 }}
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Re-enter password"
+                      placeholderTextColor="#999999"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      includeFontPadding={false}
+                      textAlignVertical="center"
                     />
                   </View>
-                )}
+                  <View style={styles.passwordRequirements}>
+                    <Text style={styles.passwordRequirement}>
+                      Password must be at least 8 characters long
+                    </Text>
+                    <Text style={styles.passwordRequirement}>
+                      Password must contain combination of letters and numbers
+                    </Text>
+                  </View>
+                </>
+              )}
 
-                {/* Continue Button */}
-                {step !== "success" && (
-                  <Button
-                    title="Continue"
-                    variant="primary"
-                    onPress={handleContinue}
-                    style={{ marginTop: 16, borderRadius: 30 }}
+              {/* Success Step - Show success message */}
+              {step === "success" && (
+                <View style={styles.successSection}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={44}
+                    color="#ffffff"
+                    style={styles.successIcon}
                   />
-                )}
-
-                {/* Resend Code - only on code step */}
-                {step === "code" && (
-                  <TouchableOpacity
-                    style={styles.resendContainer}
-                    onPress={handleResendCode}
-                    activeOpacity={0.7}
+                  <View
+                    style={{
+                      alignItems: "center",
+                      paddingBottom: 16,
+                      paddingTop: 16,
+                    }}
                   >
                     <Text style={styles.resendText}>Resend code</Text>
                   </TouchableOpacity>
@@ -569,7 +558,7 @@ export default function ForgotPasswordScreen() {
           </TouchableWithoutFeedback>
         )}
       </OverlayModal>
-    </View>
+    </View >
   );
 }
 
@@ -683,7 +672,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2C2C2E",
+    backgroundColor: "transparent",
     borderRadius: 12,
     paddingHorizontal: Platform.OS === "android" ? 14 : 16,
     paddingVertical: Platform.OS === "android" ? 8 : 16,
@@ -718,3 +707,5 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 });
+
+

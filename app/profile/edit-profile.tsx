@@ -94,6 +94,8 @@ export default function EditProfileScreen() {
                                     placeholder="username"
                                     placeholderTextColor="#666666"
                                     autoCapitalize="none"
+                                    includeFontPadding={false}
+                                    textAlignVertical="center"
                                 />
                             </View>
                         </View>
@@ -107,6 +109,8 @@ export default function EditProfileScreen() {
                                     onChangeText={setDisplayName}
                                     placeholder="Display Name"
                                     placeholderTextColor="#666666"
+                                    includeFontPadding={false}
+                                    textAlignVertical="center"
                                 />
                             </View>
                         </View>

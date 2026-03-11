@@ -3,7 +3,7 @@ import ChatSessionsSidebar from "@/src/components/chat/ChatSessionsSidebar";
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -53,13 +53,6 @@ const suggestions: SuggestionCard[] = [
   },
 ];
 
-import ChatActionModal from "@/src/components/chat/ChatActionModal";
-import ReportModal from "@/src/components/chat/ReportModal";
-import TellStoryModal from "@/src/components/chat/TellStoryModal";
-import SuccessModal from "@/src/components/common/SuccessModal";
-import * as DocumentPicker from "expo-document-picker";
-import * as ImagePicker from "expo-image-picker";
-
 export default function ChatHomeScreen() {
   const [message, setMessage] = useState("");
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -67,9 +60,29 @@ export default function ChatHomeScreen() {
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [tellStoryModalVisible, setTellStoryModalVisible] = useState(false);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
-  const [reportModalTitle, setReportModalTitle] = useState("Report your Landlord");
+  const [reportModalTitle, setReportModalTitle] = useState(
+    "Report your Landlord",
+  );
   const [isLoading, setIsLoading] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setIsKeyboardVisible(true)
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setIsKeyboardVisible(false)
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
 
   const handleSuggestionPress = (title: string) => {
     console.log("Suggestion pressed:", title);
@@ -112,7 +125,8 @@ export default function ChatHomeScreen() {
 
   const handleCamera = async () => {
     try {
-      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      const permissionResult =
+        await ImagePicker.requestCameraPermissionsAsync();
 
       if (permissionResult.granted === false) {
         alert("You've refused to allow this app to access your camera!");
@@ -137,13 +151,16 @@ export default function ChatHomeScreen() {
         await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (permissionResult.granted === false) {
-        Alert.alert("Permission Required", "You've refused to allow this app to access your photos!");
+        Alert.alert(
+          "Permission Required",
+          "You've refused to allow this app to access your photos!",
+        );
         return;
       }
 
       console.log("Opening gallery...");
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'], // Correct usage: array of strings or single string 'images'
+        mediaTypes: ["images"], // Correct usage: array of strings or single string 'images'
         allowsEditing: true,
         quality: 1,
       });
@@ -171,8 +188,14 @@ export default function ChatHomeScreen() {
       }
     } catch (err: any) {
       console.error("Document picker error:", err);
-      if (err.message && err.message.includes("Different document picking in progress")) {
-        Alert.alert("System Busy", "Another file selection is active. Please restart the app if this persists.");
+      if (
+        err.message &&
+        err.message.includes("Different document picking in progress")
+      ) {
+        Alert.alert(
+          "System Busy",
+          "Another file selection is active. Please restart the app if this persists.",
+        );
       } else {
         Alert.alert("Error", "Failed to pick file.");
       }

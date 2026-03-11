@@ -8,6 +8,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface OverlayModalProps {
   visible: boolean;
@@ -23,9 +24,16 @@ export default function OverlayModal({
   onClose,
   children,
   showCloseButton = true,
-  height = "90%",
+  height = "auto",
   dismissOnBackdrop = false,
 }: OverlayModalProps) {
+  const insets = useSafeAreaInsets();
+
+  // Android navigation bar is often not captured by insets, so we add extra padding
+  const bottomPadding = Platform.OS === 'android'
+    ? insets.bottom
+    : Math.max(insets.bottom, 10);
+
   return (
     <Modal
       visible={visible}
@@ -65,7 +73,7 @@ export default function OverlayModal({
           </View>
         </View>
       </View>
-    </Modal>
+    </Modal >
   );
 }
 
@@ -103,9 +111,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 40,
     paddingHorizontal: 24,
     paddingTop: 40,
-    paddingBottom: 40,
   },
   contentAuto: {
     paddingBottom: 48,
   },
 });
+
