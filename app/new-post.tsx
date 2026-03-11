@@ -1,281 +1,822 @@
 import { Fonts } from "@/src/constants/theme";
+import { useCreatePostMutation } from "@/src/hooks/mutations/use-feed-mutations";
+import { mediaService } from "@/src/services/social/media.service";
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
+import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Dimensions,
     FlatList,
-    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
+// Hardcoded Lagos coords — replace with expo-location when ready
+const DEV_COORDS = { latitude: 6.5244, longitude: 3.3792 };
+
+type Step = "pick" | "caption";
+
+// ─── URI resolver ────────────────────────────────────────────────────────────
+// On iOS, MediaLibrary returns ph:// URIs that fetch() cannot read directly.
+// Use MediaLibrary.getAssetInfoAsync to get the real file:// localUri.
+async function resolvePhUri(uri: string, assetId?: string): Promise<string> {
+  if (!uri.startsWith("ph://")) return uri;
+  try {
+    // getAssetInfoAsync accepts either an Asset object or an AssetId string
+    const info = await MediaLibrary.getAssetInfoAsync(assetId ?? uri);
+    if (info?.localUri) return info.localUri;
+  } catch (_) {
+    // fall through
+  }
+  // Last-resort: export to cache via FileSystem
+  const dest = (FileSystem.cacheDirectory ?? "") + `upload-${Date.now()}.jpg`;
+  await FileSystem.copyAsync({ from: uri, to: dest });
+  return dest;
+}
+
+// ─── Upload helper ────────────────────────────────────────────────────────────
+// PUT raw bytes directly to Azure SAS URL (no backend proxy).
+// localUri must already be a file:// or http:// URI — no ph:// here.
+async function uploadToAzure(
+  localUri: string,
+  sasUrl: string,
+  contentType: string,
+): Promise<void> {
+  const fileRes = await fetch(localUri);
+  const blob = await fileRes.blob();
+  const res = await fetch(sasUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": contentType,
+      "x-ms-blob-type": "BlockBlob",
+    },
+    body: blob,
+  });
+  if (!res.ok) {
+    throw new Error(`Azure upload failed: ${res.status} ${res.statusText}`);
+  }
+}
+
 export default function NewPostScreen() {
-    const router = useRouter();
-    const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
-    const [assets, setAssets] = useState<MediaLibrary.Asset[]>([]);
-    const [selectedAsset, setSelectedAsset] = useState<MediaLibrary.Asset | null>(null);
-    const [activeTab, setActiveTab] = useState<"All" | "Photos" | "Videos">("All");
+  const router = useRouter();
+  const [step, setStep] = useState<Step>("pick");
+  const [caption, setCaption] = useState("");
+  const [uploadStatus, setUploadStatus] = useState<
+    "idle" | "uploading" | "creating"
+  >("idle");
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-    useEffect(() => {
-        async function getPermissions() {
-            if (!permissionResponse) {
-                // Initial load, wait slightly or request
-                await requestPermission();
-            } else if (permissionResponse.status !== "granted" && permissionResponse.canAskAgain) {
-                await requestPermission();
-            }
-        }
-        getPermissions();
-    }, [permissionResponse, requestPermission]);
+  // ─── Media picker state ───────────────────────────────────────────────────
+  const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
+  const [assets, setAssets] = useState<MediaLibrary.Asset[]>([]);
+  const [activeTab, setActiveTab] = useState<"All" | "Photos" | "Videos">(
+    "All",
+  );
 
-    useEffect(() => {
-        // Only load assets if explicitly granted
-        if (permissionResponse?.status === "granted") {
-            loadAssets();
-        }
-    }, [permissionResponse, activeTab]);
+  // Multi-select: ordered list of selected image URIs (max 10)
+  const [selectedUris, setSelectedUris] = useState<string[]>([]);
+  const [selectedAssets, setSelectedAssets] = useState<MediaLibrary.Asset[]>(
+    [],
+  );
+  // Which image is shown large in the preview pane
+  const [focusedUri, setFocusedUri] = useState<string | null>(null);
 
-    const loadAssets = async () => {
-        // Double check permission before calling getAssetsAsync to avoid crash
-        if (permissionResponse?.status !== "granted") return;
+  const { mutate: createPost } = useCreatePostMutation();
 
-        let mediaType: any[] = ['photo', 'video'];
-        if (activeTab === "Photos") mediaType = ['photo'];
-        if (activeTab === "Videos") mediaType = ['video'];
-
-        try {
-            const { assets } = await MediaLibrary.getAssetsAsync({
-                mediaType,
-                sortBy: MediaLibrary.SortBy.creationTime,
-                first: 100,
-            });
-            setAssets(assets);
-            if (!selectedAsset && assets.length > 0) {
-                setSelectedAsset(assets[0]);
-            }
-        } catch (e) {
-            console.log("Error loading assets:", e);
-        }
-    };
-
-    const handleCamera = async () => {
-        try {
-            const { status } = await ImagePicker.requestCameraPermissionsAsync();
-            if (status !== 'granted') {
-                alert("Camera permission needed");
-                return;
-            }
-
-            const result = await ImagePicker.launchCameraAsync();
-            if (!result.canceled && result.assets[0]) {
-                console.log("Camera result", result.assets[0]);
-                // Optionally add to list or select it
-            }
-        } catch (e) {
-            console.log("Error launching camera:", e);
-        }
+  useEffect(() => {
+    async function getPermissions() {
+      if (!permissionResponse) {
+        await requestPermission();
+      } else if (
+        permissionResponse.status !== "granted" &&
+        permissionResponse.canAskAgain
+      ) {
+        await requestPermission();
+      }
     }
+    getPermissions();
+  }, [permissionResponse, requestPermission]);
 
-    const renderHeader = () => (
-        <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <Ionicons name="chevron-back" size={24} color="#FFF" />
+  useEffect(() => {
+    if (permissionResponse?.status === "granted") {
+      loadAssets();
+    }
+  }, [permissionResponse, activeTab]);
+
+  const loadAssets = async () => {
+    if (permissionResponse?.status !== "granted") return;
+    let mediaType: MediaLibrary.MediaTypeValue[] = ["photo", "video"];
+    if (activeTab === "Photos") mediaType = ["photo"];
+    if (activeTab === "Videos") mediaType = ["video"];
+    try {
+      const { assets: loaded } = await MediaLibrary.getAssetsAsync({
+        mediaType,
+        sortBy: MediaLibrary.SortBy.creationTime,
+        first: 100,
+      });
+      setAssets(loaded);
+      // Auto-select first photo on initial load
+      if (selectedUris.length === 0 && loaded.length > 0) {
+        const first = loaded[0];
+        setSelectedUris([first.uri]);
+        setSelectedAssets([first]);
+        setFocusedUri(first.uri);
+      }
+    } catch (e) {
+      console.log("Error loading assets:", e);
+    }
+  };
+
+  const handleCamera = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        alert("Camera permission needed");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.85,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const uri = result.assets[0].uri;
+        if (selectedUris.length < 10) {
+          setSelectedUris((prev) => [...prev, uri]);
+          setFocusedUri(uri);
+        }
+      }
+    } catch (e) {
+      console.log("Camera error:", e);
+    }
+  };
+
+  // Fallback for Expo Go where MediaLibrary has limited access
+  const handlePickFromLibrary = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const uris = result.assets.map((a) => a.uri).slice(0, 10);
+      setSelectedUris(uris);
+      setSelectedAssets([]);
+      setFocusedUri(uris[0]);
+    }
+  };
+
+  // ─── Post submission ──────────────────────────────────────────────────────
+  const handlePost = async () => {
+    if (selectedUris.length === 0) return;
+    setUploadError(null);
+
+    try {
+      setUploadStatus("uploading");
+      const contentType = "image/png";
+      const ts = Date.now();
+
+      // Step 1: Resolve any ph:// (iOS Photo Library) URIs to file:// URIs.
+      // MediaLibrary.getAssetInfoAsync gives us the real local path.
+      const uploadUris = await Promise.all(
+        selectedUris.map((uri, i) => {
+          const assetId = selectedAssets[i]?.id;
+          return resolvePhUri(uri, assetId);
+        }),
+      );
+
+      // Step 2: Get SAS URLs for all images in parallel
+      const sasResults = await Promise.all(
+        uploadUris.map((_, i) =>
+          mediaService.getUploadUrl(`post-${ts}-${i}.png`, contentType),
+        ),
+      );
+
+      // Step 3: Upload all images to Azure in parallel
+      await Promise.all(
+        uploadUris.map((uri, i) =>
+          uploadToAzure(uri, sasResults[i].upload_url, contentType),
+        ),
+      );
+
+      const blobUrls = sasResults.map((r) => r.blob_url);
+      const isCarousel = blobUrls.length > 1;
+
+      // Step 4: Create post
+      setUploadStatus("creating");
+      createPost(
+        {
+          caption: caption.trim() || null,
+          media_url: blobUrls[0],
+          media_urls: isCarousel ? blobUrls : null,
+          media_type: isCarousel ? "carousel" : "image",
+          latitude: DEV_COORDS.latitude,
+          longitude: DEV_COORDS.longitude,
+        },
+        {
+          onSuccess: () => {
+            setUploadStatus("idle");
+            router.back();
+          },
+          onError: (err) => {
+            setUploadStatus("idle");
+            setUploadError((err as Error).message ?? "Failed to create post");
+          },
+        },
+      );
+    } catch (err) {
+      setUploadStatus("idle");
+      setUploadError((err as Error).message ?? "Upload failed");
+    }
+  };
+
+  const isBusy = uploadStatus !== "idle";
+  const selectionCount = selectedUris.length;
+
+  // ─── Caption step ─────────────────────────────────────────────────────────
+  if (step === "caption") {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <StatusBar style="light" />
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => {
+                if (!isBusy) setStep("pick");
+              }}
+              style={styles.backButton}
+            >
+              <Ionicons name="chevron-back" size={24} color="#FFF" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>New Post</Text>
-            <TouchableOpacity style={styles.nextButton}>
-                <Text style={styles.nextButtonText}>Next</Text>
-            </TouchableOpacity>
-        </View>
-    );
-
-    const renderItem = ({ item, index }: { item: string | MediaLibrary.Asset; index: number }) => {
-        if (item === "camera") {
-            return (
-                <TouchableOpacity style={styles.gridItem} onPress={handleCamera}>
-                    <View style={styles.cameraItem}>
-                        <Ionicons name="camera-outline" size={30} color="#FFF" />
-                    </View>
-                </TouchableOpacity>
-            );
-        }
-
-        const asset = item as MediaLibrary.Asset;
-        return (
             <TouchableOpacity
-                style={[styles.gridItem, selectedAsset?.id === asset.id && styles.selectedGridItem]}
-                onPress={() => setSelectedAsset(asset)}
+              style={[styles.postButton, isBusy && styles.postButtonDisabled]}
+              onPress={handlePost}
+              disabled={isBusy}
             >
-                <Image source={{ uri: asset.uri }} style={styles.gridImage} />
-                {asset.mediaType === "video" && (
-                    <View style={styles.videoIndicator}>
-                        <Text style={styles.videoDuration}>{formatDuration(asset.duration)}</Text>
-                    </View>
-                )}
+              {isBusy ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <Text style={styles.postButtonText}>Post</Text>
+              )}
             </TouchableOpacity>
-        );
-    };
+          </View>
 
-    const formatDuration = (seconds: number) => {
-        const m = Math.floor(seconds / 60);
-        const s = Math.round(seconds % 60);
-        return `${m}:${s < 10 ? '0' : ''}${s}`;
-    };
-
-    const data: (string | MediaLibrary.Asset)[] = ["camera", ...assets];
-
-    if (!permissionResponse) {
-        return <View style={styles.container} />; // Loading state
-    }
-
-    return (
-        <SafeAreaView style={styles.container}>
-            <Stack.Screen options={{ headerShown: false }} />
-            <StatusBar style="light" />
-            {renderHeader()}
-
-            <View style={styles.previewContainer}>
-                {selectedAsset ? (
-                    <Image source={{ uri: selectedAsset.uri }} style={styles.previewImage} resizeMode="cover" />
-                ) : (
-                    <View style={styles.emptyPreview} />
-                )}
-            </View>
-
-            <View style={styles.tabsContainer}>
-                {["All", "Photos", "Videos"].map((tab) => (
-                    <TouchableOpacity
-                        key={tab}
-                        style={[styles.tab, activeTab === tab && styles.activeTab]}
-                        onPress={() => setActiveTab(tab as any)}
-                    >
-                        <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-
-            <FlatList
-                data={data}
-                renderItem={renderItem}
-                keyExtractor={(item) => (typeof item === "string" ? item : item.id)}
-                numColumns={4}
-                showsVerticalScrollIndicator={false}
+          {/* Thumbnails + caption row */}
+          <View style={styles.captionRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.captionThumbsRow}
+              contentContainerStyle={{ paddingRight: 8 }}
+            >
+              {selectedUris.map((uri, i) => (
+                <View key={uri} style={styles.captionThumbWrapper}>
+                  <Image
+                    source={{ uri }}
+                    style={styles.captionThumb}
+                    contentFit="cover"
+                  />
+                  {selectedUris.length > 1 && (
+                    <View style={styles.captionThumbBadge}>
+                      <Text style={styles.captionThumbBadgeText}>{i + 1}</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+            <TextInput
+              style={styles.captionInput}
+              placeholder="Write a caption..."
+              placeholderTextColor="#666"
+              multiline
+              maxLength={500}
+              value={caption}
+              onChangeText={setCaption}
+              editable={!isBusy}
+              autoFocus
             />
-        </SafeAreaView>
+          </View>
+
+          {/* Upload status */}
+          {isBusy && (
+            <View style={styles.statusRow}>
+              <ActivityIndicator color="#A855F7" size="small" />
+              <Text style={styles.statusText}>
+                {uploadStatus === "uploading"
+                  ? "Uploading media..."
+                  : "Creating post..."}
+              </Text>
+            </View>
+          )}
+
+          {/* Error */}
+          {uploadError && (
+            <View style={styles.errorRow}>
+              <Ionicons name="alert-circle-outline" size={16} color="#FF6B6B" />
+              <Text style={styles.errorText}>{uploadError}</Text>
+            </View>
+          )}
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     );
+  }
+
+  // ─── Pick step ────────────────────────────────────────────────────────────
+  const gridData: (string | MediaLibrary.Asset)[] = ["camera", ...assets];
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar style="light" />
+
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
+          <Ionicons name="chevron-back" size={24} color="#FFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>New Post</Text>
+        <TouchableOpacity
+          style={[
+            styles.nextButton,
+            selectionCount === 0 && styles.nextButtonDisabled,
+          ]}
+          onPress={() => {
+            if (selectionCount > 0) setStep("caption");
+          }}
+          disabled={selectionCount === 0}
+        >
+          <Text style={styles.nextButtonText}>
+            Next{selectionCount > 1 ? ` (${selectionCount})` : ""}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Preview */}
+      <View style={styles.previewContainer}>
+        {focusedUri ? (
+          <>
+            <Image
+              source={{ uri: focusedUri }}
+              style={styles.previewImage}
+              contentFit="cover"
+            />
+            {selectedUris.length > 1 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.previewStrip}
+                contentContainerStyle={styles.previewStripContent}
+              >
+                {selectedUris.map((uri, i) => (
+                  <TouchableOpacity
+                    key={uri}
+                    onPress={() => setFocusedUri(uri)}
+                    style={styles.stripThumbWrapper}
+                  >
+                    <Image
+                      source={{ uri }}
+                      style={[
+                        styles.stripThumb,
+                        focusedUri === uri && styles.stripThumbActive,
+                      ]}
+                      contentFit="cover"
+                    />
+                    <View style={styles.stripBadge}>
+                      <Text style={styles.stripBadgeText}>{i + 1}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </>
+        ) : (
+          <View style={styles.emptyPreview}>
+            <Ionicons name="image-outline" size={48} color="#3A3A3C" />
+            <Text style={styles.emptyPreviewText}>Tap photos to select</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Tabs + library fallback */}
+      <View style={styles.tabsContainer}>
+        {["All", "Photos", "Videos"].map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tab, activeTab === tab && styles.activeTab]}
+            onPress={() => setActiveTab(tab as "All" | "Photos" | "Videos")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === tab && styles.activeTabText,
+              ]}
+            >
+              {tab}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        {/* Expo Go fallback — MediaLibrary has limited access in Expo Go */}
+        {assets.length === 0 && (
+          <TouchableOpacity
+            style={styles.libraryFallback}
+            onPress={handlePickFromLibrary}
+          >
+            <Ionicons name="folder-outline" size={16} color="#A855F7" />
+            <Text style={styles.libraryFallbackText}>Browse</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <FlatList
+        data={gridData}
+        renderItem={({ item }) => {
+          if (item === "camera") {
+            return (
+              <TouchableOpacity style={styles.gridItem} onPress={handleCamera}>
+                <View style={styles.cameraItem}>
+                  <Ionicons name="camera-outline" size={30} color="#FFF" />
+                </View>
+              </TouchableOpacity>
+            );
+          }
+          const asset = item as MediaLibrary.Asset;
+          const selectedIdx = selectedUris.indexOf(asset.uri);
+          const isSelected = selectedIdx >= 0;
+          return (
+            <TouchableOpacity
+              style={styles.gridItem}
+              onPress={() => {
+                if (isSelected) {
+                  // Deselect
+                  const newUris = selectedUris.filter((u) => u !== asset.uri);
+                  const newAssets = selectedAssets.filter(
+                    (a) => a.id !== asset.id,
+                  );
+                  setSelectedUris(newUris);
+                  setSelectedAssets(newAssets);
+                  if (focusedUri === asset.uri) {
+                    setFocusedUri(
+                      newUris.length > 0 ? newUris[newUris.length - 1] : null,
+                    );
+                  }
+                } else {
+                  if (selectedUris.length >= 10) return;
+                  setSelectedUris((prev) => [...prev, asset.uri]);
+                  setSelectedAssets((prev) => [...prev, asset]);
+                  setFocusedUri(asset.uri);
+                }
+              }}
+            >
+              <Image
+                source={{ uri: asset.uri }}
+                style={[
+                  styles.gridImage,
+                  isSelected && styles.gridImageSelected,
+                ]}
+                contentFit="cover"
+              />
+              {asset.mediaType === "video" && (
+                <View style={styles.videoIndicator}>
+                  <Text style={styles.videoDuration}>
+                    {`${Math.floor(asset.duration / 60)}:${String(Math.round(asset.duration % 60)).padStart(2, "0")}`}
+                  </Text>
+                </View>
+              )}
+              {isSelected ? (
+                <View style={styles.selectionBadge}>
+                  <Text style={styles.selectionBadgeText}>
+                    {selectedIdx + 1}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.unselectedCircle} />
+              )}
+            </TouchableOpacity>
+          );
+        }}
+        keyExtractor={(item) => (typeof item === "string" ? item : item.id)}
+        numColumns={4}
+        showsVerticalScrollIndicator={false}
+      />
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#0F0F10",
-    },
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-    },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: "#2C2C2E",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    headerTitle: {
-        color: "#FFF",
-        fontSize: 18,
-        fontFamily: Fonts.bold,
-    },
-    nextButton: {
-        backgroundColor: "#2C2C2E",
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 20,
-    },
-    nextButtonText: {
-        color: "#A855F7", // Purple-ish
-        fontFamily: Fonts.semiBold,
-        fontSize: 14,
-    },
-    previewContainer: {
-        width: width,
-        height: width * 1.2,
-        backgroundColor: "#1C1C1E",
-        marginBottom: 4,
-    },
-    previewImage: {
-        width: "100%",
-        height: "100%",
-    },
-    emptyPreview: {
-        flex: 1,
-        backgroundColor: "#1C1C1E"
-    },
-    tabsContainer: {
-        flexDirection: "row",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: "#0F0F10",
-        gap: 16,
-        alignItems: 'center'
-    },
-    tab: {
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: 20,
-    },
-    activeTab: {
-        backgroundColor: "#FFF",
-    },
-    tabText: {
-        color: "#999",
-        fontFamily: Fonts.medium,
-        fontSize: 14,
-    },
-    activeTabText: {
-        color: "#000",
-    },
-    gridItem: {
-        width: width / 4,
-        height: width / 4,
-        padding: 1,
-    },
-    gridImage: {
-        width: '100%',
-        height: '100%',
-    },
-    selectedGridItem: {
-        opacity: 0.6,
-    },
-    cameraItem: {
-        flex: 1,
-        backgroundColor: "#2C2C2E",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    videoIndicator: {
-        position: 'absolute',
-        bottom: 4,
-        right: 4,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        paddingHorizontal: 4,
-        borderRadius: 4,
-    },
-    videoDuration: {
-        color: '#FFF',
-        fontSize: 10,
-        fontFamily: Fonts.medium
-    }
+  container: {
+    flex: 1,
+    backgroundColor: "#0F0F10",
+  },
+  // ─── Header ────────────────────────────────────────────────────────────────
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#2C2C2E",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    color: "#FFF",
+    fontSize: 18,
+    fontFamily: Fonts.bold,
+  },
+  nextButton: {
+    backgroundColor: "#2C2C2E",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  nextButtonDisabled: {
+    opacity: 0.4,
+  },
+  nextButtonText: {
+    color: "#A855F7",
+    fontFamily: Fonts.semiBold,
+    fontSize: 14,
+  },
+  postButton: {
+    backgroundColor: "#A855F7",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    minWidth: 64,
+    alignItems: "center",
+  },
+  postButtonDisabled: {
+    opacity: 0.6,
+  },
+  postButtonText: {
+    color: "#FFF",
+    fontFamily: Fonts.semiBold,
+    fontSize: 14,
+  },
+  // ─── Pick step ─────────────────────────────────────────────────────────────
+  previewContainer: {
+    width: width,
+    height: width * 1.1,
+    backgroundColor: "#1C1C1E",
+    marginBottom: 4,
+  },
+  previewImage: {
+    width: "100%",
+    height: "100%",
+  },
+  emptyPreview: {
+    flex: 1,
+    backgroundColor: "#1C1C1E",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  emptyPreviewText: {
+    color: "#3A3A3C",
+    fontFamily: Fonts.regular,
+    fontSize: 14,
+  },
+  tabsContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#0F0F10",
+    gap: 12,
+    alignItems: "center",
+  },
+  tab: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  activeTab: {
+    backgroundColor: "#FFF",
+  },
+  tabText: {
+    color: "#999",
+    fontFamily: Fonts.medium,
+    fontSize: 14,
+  },
+  activeTabText: {
+    color: "#000",
+  },
+  libraryFallback: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: "auto",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#A855F7",
+  },
+  libraryFallbackText: {
+    color: "#A855F7",
+    fontFamily: Fonts.semiBold,
+    fontSize: 13,
+  },
+  gridItem: {
+    width: width / 4,
+    height: width / 4,
+    padding: 1,
+  },
+  gridImage: {
+    width: "100%",
+    height: "100%",
+  },
+  gridImageSelected: {
+    opacity: 0.75,
+  },
+  // ─── Selection badges ────────────────────────────────────────────────────────
+  selectionBadge: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#A855F7",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#FFF",
+  },
+  selectionBadgeText: {
+    color: "#FFF",
+    fontSize: 11,
+    fontFamily: Fonts.bold,
+  },
+  unselectedCircle: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.55)",
+  },
+  // ─── Preview strip ──────────────────────────────────────────────────────
+  previewStrip: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  previewStripContent: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    gap: 6,
+    flexDirection: "row",
+  },
+  stripThumbWrapper: {
+    position: "relative",
+  },
+  stripThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  stripThumbActive: {
+    borderColor: "#A855F7",
+  },
+  stripBadge: {
+    position: "absolute",
+    top: 3,
+    left: 3,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#A855F7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stripBadgeText: {
+    color: "#FFF",
+    fontSize: 9,
+    fontFamily: Fonts.bold,
+  },
+  cameraItem: {
+    flex: 1,
+    backgroundColor: "#2C2C2E",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  videoIndicator: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 4,
+    borderRadius: 4,
+  },
+  videoDuration: {
+    color: "#FFF",
+    fontSize: 10,
+    fontFamily: Fonts.medium,
+  },
+  // ─── Caption step ──────────────────────────────────────────────────────────
+  captionRow: {
+    flexDirection: "column",
+    padding: 16,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1C1C1E",
+  },
+  captionThumbsRow: {
+    maxHeight: 88,
+  },
+  captionThumbWrapper: {
+    marginRight: 8,
+    position: "relative",
+  },
+  captionThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: 8,
+    backgroundColor: "#2C2C2E",
+  },
+  captionThumbBadge: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#A855F7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  captionThumbBadgeText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontFamily: Fonts.bold,
+  },
+  captionInput: {
+    color: "#FFF",
+    fontFamily: Fonts.regular,
+    fontSize: 15,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  statusText: {
+    color: "#999",
+    fontFamily: Fonts.regular,
+    fontSize: 14,
+  },
+  errorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255,107,107,0.1)",
+    marginHorizontal: 16,
+    borderRadius: 8,
+  },
+  errorText: {
+    color: "#FF6B6B",
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    flex: 1,
+  },
 });

@@ -1,284 +1,291 @@
 import { SocialHeader } from "@/src/components";
+import { CommentsSheet } from "@/src/components/social/comments-sheet";
+import {
+  PostCard,
+  PostCardSkeleton
+} from "@/src/components/social/post-card";
+import { PostOptionsSheet } from "@/src/components/social/post-options-sheet";
 import { Fonts } from "@/src/constants/theme";
+import {
+  useBatchLogViewsMutation,
+  useFollowMutation,
+  useLikePostMutation
+} from "@/src/hooks/mutations/use-feed-mutations";
+import {
+  useGeospatialFeed,
+  useMainFeed
+} from "@/src/hooks/queries/use-feed";
+import { useUserFollowing } from "@/src/hooks/queries/use-relationships";
+import type { MainFeedParams, PostRead } from "@/src/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Dimensions,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  type ViewToken,
 } from "react-native";
 
-const { width } = Dimensions.get("window");
+// ─── Dev / Default Location ───────────────────────────────────────────────────
+// TODO: replace with expo-location getCurrentPositionAsync() when ready
+const DEV_LOCATION: MainFeedParams = {
+  latitude: 6.5244, // Lagos, Nigeria
+  longitude: 3.3792,
+  radius_km: 20,
+  limit: 20,
+};
 
-interface Post {
-  id: string;
-  user: {
-    name: string;
-    avatar: string;
-    time: string;
-  };
-  images: string[];
-  likes: string;
-  comments: number;
-  shares: number;
-  views: string;
-  likedBy: string;
-  description: string;
+function FeedSkeleton() {
+  return (
+    <>
+      <PostCardSkeleton />
+      <PostCardSkeleton />
+      <PostCardSkeleton />
+    </>
+  );
 }
 
-const DUMMY_POSTS: Post[] = [
-  {
-    id: "1",
-    user: {
-      name: "Victory Paul",
-      avatar: "",
-      time: "10h",
-    },
-    images: [""],
-    likes: "17k",
-    comments: 292,
-    shares: 192,
-    views: "10.1K",
-    likedBy: "Sam123",
-    description:
-      "Victory Paul Modern 3-Bedroom Apartment in Lekki - Spacious living room, en-suite bedrooms, fully fitted kitchen, pool, secure estate. Perfect for family living or investment. Location: Lekki Phase 1, Lagos.",
-  },
-  {
-    id: "2",
-    user: {
-      name: "Sarah Chen",
-      avatar: "",
-      time: "5h",
-    },
-    images: ["", ""],
-    likes: "8.2k",
-    comments: 156,
-    shares: 89,
-    views: "5.8K",
-    likedBy: "Mike_R",
-    description:
-      "Luxury 4-Bedroom Duplex in Ikoyi - Premium finishes, smart home features, private gym, rooftop terrace with city views. Gated community with 24/7 security. Price negotiable.",
-  },
-  {
-    id: "3",
-    user: {
-      name: "James Okafor",
-      avatar: "",
-      time: "12h",
-    },
-    images: ["", "", ""],
-    likes: "23k",
-    comments: 445,
-    shares: 312,
-    views: "18.5K",
-    likedBy: "PropertyKing",
-    description:
-      "Investment Opportunity! 2-Bedroom Flat in Victoria Island - High ROI, close to major business districts, excellent rental demand. Ideal for investors. Contact for viewing.",
-  },
-  {
-    id: "4",
-    user: {
-      name: "Angela Martinez",
-      avatar: "",
-      time: "1d",
-    },
-    images: [""],
-    likes: "5.9k",
-    comments: 98,
-    shares: 67,
-    views: "4.2K",
-    likedBy: "HomeSeekers",
-    description:
-      "Cozy Studio Apartment in Yaba - Perfect for young professionals, close to tech hubs, affordable rent, modern amenities. Available immediately. DM for details.",
-  },
-  {
-    id: "5",
-    user: {
-      name: "David Adeyemi",
-      avatar: "",
-      time: "2d",
-    },
-    images: ["", "", "", ""],
-    likes: "31k",
-    comments: 678,
-    shares: 421,
-    views: "25.3K",
-    likedBy: "RealEstateHub",
-    description:
-      "Massive 5-Bedroom Mansion in Banana Island - Waterfront property, private dock, infinity pool, cinema room, wine cellar. Ultimate luxury living. Serious inquiries only.",
-  },
-  {
-    id: "6",
-    user: {
-      name: "Chioma Nwosu",
-      avatar: "",
-      time: "3d",
-    },
-    images: ["", ""],
-    likes: "12k",
-    comments: 234,
-    shares: 145,
-    views: "9.7K",
-    likedBy: "LagosHomes",
-    description:
-      "Family Home in Surulere - 3 bedrooms, spacious compound, good neighborhood, close to schools and markets. Well maintained property. Call to schedule viewing.",
-  },
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
+type Tab = "trending" | "featured" | "neighborhoods";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "trending", label: "Trending" },
+  { key: "featured", label: "Featured" },
+  { key: "neighborhoods", label: "Nearby" },
 ];
 
 export default function SocialsScreen() {
-  const [activeTab, setActiveTab] = useState("trending");
+  const [activeTab, setActiveTab] = useState<Tab>("trending");
   const router = useRouter();
 
-  const handleAddPress = () => {
-    router.push("/new-post");
-  };
+  // ─── Relationship status ───────────────────────────────────────────────────
+  // Load who the current user already follows so Follow buttons initialise
+  // correctly on every mount, not just after an in-session toggle.
+  const currentUserId = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
+  const { data: followingList = [] } = useUserFollowing(currentUserId);
+  const followingIds = useMemo(
+    () => new Set(followingList.map((f) => f.following_id)),
+    [followingList],
+  );
 
-  const handleNotificationPress = () => {
-    router.push("/notification");
+  // ─── View tracking ─────────────────────────────────────────────────────────
+  // Accumulate viewed IDs as user scrolls, flush to API at 50 or on unmount
+  const viewedIdsRef = useRef<Set<string>>(new Set());
+  const { mutate: batchLogViews } = useBatchLogViewsMutation();
+
+  useEffect(() => {
+    const viewedIds = viewedIdsRef.current;
+    return () => {
+      if (viewedIds.size > 0) {
+        batchLogViews([...viewedIds]);
+        viewedIds.clear();
+      }
+    };
+  }, [batchLogViews]);
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      viewableItems.forEach(({ item }) => {
+        if ((item as PostRead)?.id) {
+          viewedIdsRef.current.add((item as PostRead).id);
+        }
+      });
+      if (viewedIdsRef.current.size >= 50) {
+        batchLogViews([...viewedIdsRef.current]);
+        viewedIdsRef.current.clear();
+      }
+    },
+    [batchLogViews],
+  );
+
+  // ─── Feed queries ──────────────────────────────────────────────────────────
+  const mainFeedQuery = useMainFeed(DEV_LOCATION);
+  const geoFeedQuery = useGeospatialFeed({ ...DEV_LOCATION, radius_km: 5 });
+
+  const {
+    data: posts = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = activeTab === "neighborhoods" ? geoFeedQuery : mainFeedQuery;
+
+  // ─── Mutations ─────────────────────────────────────────────────────────────
+  const { mutate: likePost, isPending: likePending } = useLikePostMutation();
+  const { mutate: followUser } = useFollowMutation();
+
+  // ─── Comments sheet ────────────────────────────────────────────────────────
+  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+
+  // ─── Post options sheet ───────────────────────────────────────────────────
+  const [optionsPost, setOptionsPost] = useState<PostRead | null>(null);
+
+  const handleLike = useCallback(
+    (postId: string, isLiked: boolean) => {
+      likePost({ postId, isLiked });
+    },
+    [likePost],
+  );
+
+  const handleFollow = useCallback(
+    (authorId: string, isFollowing: boolean) => {
+      followUser({ userId: authorId, isFollowing });
+    },
+    [followUser],
+  );
+
+  const handleComment = useCallback((postId: string) => {
+    setCommentsPostId(postId);
+  }, []);
+
+  const handleMore = useCallback((post: PostRead) => {
+    setOptionsPost(post);
+  }, []);
+
+  const handleVideoPress = useCallback(
+    (post: PostRead) => {
+      router.push(`/reels?postId=${post.id}`);
+    },
+    [router],
+  );
+
+  const renderPost = useCallback(
+    ({ item }: { item: PostRead }) => (
+      <PostCard
+        post={item}
+        onLike={handleLike}
+        onFollow={handleFollow}
+        onComment={handleComment}
+        onMore={handleMore}
+        onVideoPress={handleVideoPress}
+        isFollowing={followingIds.has(item.author_id)}
+        likePending={likePending}
+        currentUserId={currentUserId}
+      />
+    ),
+    [
+      handleLike,
+      handleFollow,
+      handleComment,
+      handleMore,
+      handleVideoPress,
+      followingIds,
+      likePending,
+      currentUserId,
+    ],
+  );
+
+  // ─── Empty / Loading / Error ───────────────────────────────────────────────
+  const ListEmptyComponent = () => {
+    if (isLoading) {
+      return <FeedSkeleton />;
+    }
+    if (isError) {
+      // Pull the HTTP status and server message for easy debugging
+      const axiosError = error as {
+        response?: { status: number; data?: { detail?: string } };
+      } | null;
+      const status = axiosError?.response?.status;
+      const detail =
+        axiosError?.response?.data?.detail ??
+        (error as Error)?.message ??
+        "Unknown error";
+
+      return (
+        <View style={styles.centered}>
+          <Ionicons name="cloud-offline-outline" size={48} color="#666666" />
+          <Text style={styles.emptyText}>Failed to load feed</Text>
+          {status ? (
+            <Text style={styles.errorDetail}>
+              {status} — {detail}
+            </Text>
+          ) : (
+            <Text style={styles.errorDetail}>{detail}</Text>
+          )}
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => refetch()}
+          >
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.centered}>
+        <Ionicons name="newspaper-outline" size={48} color="#666666" />
+        <Text style={styles.emptyText}>No posts yet</Text>
+      </View>
+    );
   };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <SocialHeader
-        onAddPress={handleAddPress}
-        onNotificationPress={handleNotificationPress}
+        onAddPress={() => router.push("/new-post")}
+        onNotificationPress={() => router.push("/notification")}
       />
 
-      {/* Property Update Banner */}
-      <View style={styles.updateBanner}></View>
+      <View style={styles.updateBanner} />
 
       {/* Tabs */}
       <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "trending" && styles.activeTab]}
-          onPress={() => setActiveTab("trending")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "trending" && styles.activeTabText,
-            ]}
+        {TABS.map(({ key, label }) => (
+          <TouchableOpacity
+            key={key}
+            style={[styles.tab, activeTab === key && styles.activeTab]}
+            onPress={() => setActiveTab(key)}
           >
-            Trending Posts
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "featured" && styles.activeTab]}
-          onPress={() => setActiveTab("featured")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "featured" && styles.activeTabText,
-            ]}
-          >
-            Featured Properties
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            activeTab === "neighborhoods" && styles.activeTab,
-          ]}
-          onPress={() => setActiveTab("neighborhoods")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "neighborhoods" && styles.activeTabText,
-            ]}
-          >
-            Neighborhoods
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === key && styles.activeTabText,
+              ]}
+            >
+              {label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Feed */}
-      <ScrollView
-        style={styles.feed}
+      <FlatList
+        data={posts}
+        keyExtractor={(item) => item.id}
+        renderItem={renderPost}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        onRefresh={refetch}
+        refreshing={isLoading && posts.length > 0}
+        ListEmptyComponent={ListEmptyComponent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.feedContent}
-      >
-        {DUMMY_POSTS.map((post) => (
-          <View key={post.id} style={styles.postCard}>
-            {/* Post Header */}
-            <View style={styles.postHeader}>
-              <View style={styles.postUser}>
-                <View style={styles.userAvatar} />
+        contentContainerStyle={
+          posts.length === 0 ? styles.emptyContainer : styles.feedContent
+        }
+        onEndReachedThreshold={0.5}
+      />
 
-                <Text style={styles.userName}>{post.user.name}</Text>
-                <Text style={styles.postTime}>{post.user.time}</Text>
-              </View>
-              <View style={styles.postHeaderActions}>
-                <TouchableOpacity style={styles.followButton}>
-                  <Text style={styles.followButtonText}>Follow</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.moreButton}>
-                  <Ionicons
-                    name="ellipsis-horizontal"
-                    size={20}
-                    color="#FFFFFF"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
+      {/* Comments Sheet */}
+      <CommentsSheet
+        postId={commentsPostId}
+        currentUserId={currentUserId}
+        onClose={() => setCommentsPostId(null)}
+      />
 
-            {/* Post Image */}
-            <View style={styles.imageContainer}>
-              <View style={styles.imagePlaceholder}>
-                <Ionicons name="image-outline" size={60} color="#3A3A3C" />
-              </View>
-              <View style={styles.imageCounter}>
-                <Text style={styles.imageCounterText}>
-                  1/{post.images.length}
-                </Text>
-              </View>
-              <TouchableOpacity style={styles.fullscreenButton}>
-                <Ionicons name="expand-outline" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Post Actions */}
-            <View style={styles.postActions}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="heart-outline" size={24} color="#FFFFFF" />
-                <Text style={styles.actionText}>{post.likes}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="chatbubble-outline" size={22} color="#FFFFFF" />
-                <Text style={styles.actionText}>{post.comments}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="arrow-redo-outline" size={22} color="#FFFFFF" />
-                <Text style={styles.actionText}>{post.shares}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton}>
-                <Ionicons name="eye-outline" size={24} color="#FFFFFF" />
-                <Text style={styles.actionText}>{post.views}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.bookmarkButton}>
-                <Ionicons name="bookmark-outline" size={22} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Post Description */}
-            <View style={styles.postDescription}>
-              <Text style={styles.likedBy}>
-                Liked by <Text style={styles.likedByName}>{post.likedBy}</Text>{" "}
-                and others
-              </Text>
-              <Text style={styles.description} numberOfLines={3}>
-                {post.description}
-              </Text>
-            </View>
-          </View>
-        ))}
-      </ScrollView>
+      {/* Post Options Sheet */}
+      <PostOptionsSheet
+        post={optionsPost}
+        currentUserId={currentUserId}
+        onClose={() => setOptionsPost(null)}
+      />
     </View>
   );
 }
@@ -289,31 +296,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#0F0F10",
   },
   updateBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#1C1C1E",
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 8,
-  },
-  updateContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  avatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#2C2C2E",
-  },
-  updateText: {
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-    color: "#FFFFFF",
+    height: 8,
+    backgroundColor: "#0F0F10",
   },
   tabsContainer: {
     flexDirection: "row",
@@ -338,136 +322,40 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: Fonts.semiBold,
   },
-  feed: {
-    flex: 1,
-  },
   feedContent: {
     paddingBottom: 20,
   },
-  postCard: {
-    marginTop: 16,
-    backgroundColor: "#0F0F10",
+  emptyContainer: {
+    flex: 1,
   },
-  postHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  postUser: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  userAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#2C2C2E",
-  },
-  userInfo: {
-    gap: 2,
-  },
-  userName: {
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-    color: "#FFFFFF",
-  },
-  postTime: {
-    fontSize: 12,
-    fontFamily: Fonts.regular,
-    color: "#666666",
-  },
-  postHeaderActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  followButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    backgroundColor: "#2C2C2E",
-    borderRadius: 100,
-  },
-  followButtonText: {
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
-    color: "#FFFFFF",
-  },
-  moreButton: {
-    padding: 4,
-  },
-  imageContainer: {
-    width: width,
-    height: width * 0.75,
-    backgroundColor: "#1C1C1E",
-    position: "relative",
-  },
-  imagePlaceholder: {
+  centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    gap: 12,
+    paddingTop: 80,
   },
-  imageCounter: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+  emptyText: {
+    fontSize: 15,
+    fontFamily: Fonts.regular,
+    color: "#666666",
   },
-  imageCounterText: {
+  errorDetail: {
     fontSize: 12,
-    fontFamily: Fonts.semiBold,
-    color: "#FFFFFF",
+    fontFamily: Fonts.regular,
+    color: "#FF6B6B",
+    textAlign: "center",
+    paddingHorizontal: 24,
   },
-  fullscreenButton: {
-    position: "absolute",
-    bottom: 12,
-    right: 12,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    padding: 8,
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    backgroundColor: "#2C2C2E",
     borderRadius: 20,
   },
-  postActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 16,
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  actionText: {
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-    color: "#FFFFFF",
-  },
-  bookmarkButton: {
-    marginLeft: "auto",
-  },
-  postDescription: {
-    paddingHorizontal: 16,
-    gap: 4,
-  },
-  likedBy: {
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-    color: "#999999",
-  },
-  likedByName: {
+  retryText: {
+    fontSize: 14,
     fontFamily: Fonts.semiBold,
     color: "#FFFFFF",
-  },
-  description: {
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-    color: "#FFFFFF",
-    lineHeight: 18,
   },
 });

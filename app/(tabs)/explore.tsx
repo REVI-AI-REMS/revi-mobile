@@ -1,9 +1,16 @@
 import { ScreenHeader } from "@/src/components";
 import { Fonts } from "@/src/constants";
+import { useMainFeed } from "@/src/hooks/queries/use-feed";
+import { useSearch } from "@/src/hooks/queries/use-search";
+import type { PostRead, UserSync } from "@/src/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
-  Image,
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,297 +19,453 @@ import {
   View,
 } from "react-native";
 
+const { width } = Dimensions.get("window");
+const GRID_GAP = 2;
+const GRID_COLS = 3;
+const THUMB = (width - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
+
+// ─── Dev location (match social feed) ────────────────────────────────────────
+const DEV_LOCATION = { latitude: 6.5244, longitude: 3.3792, radius_km: 20, limit: 60 };
+
+// ─── Small helpers ────────────────────────────────────────────────────────────
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+function initials(u: UserSync): string {
+  const fn = u.first_name?.[0] ?? "";
+  const ln = u.last_name?.[0] ?? "";
+  return (fn + ln).toUpperCase() || u.username?.[0]?.toUpperCase() || "?";
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function UserRow({ user }: { user: UserSync }) {
+  const name =
+    [user.first_name, user.last_name].filter(Boolean).join(" ") ||
+    user.username;
+  return (
+    <TouchableOpacity style={styles.userRow} activeOpacity={0.7}>
+      {user.avatar ? (
+        <Image
+          source={{ uri: user.avatar }}
+          style={styles.userAvatar}
+          contentFit="cover"
+        />
+      ) : (
+        <View style={[styles.userAvatar, styles.userAvatarPlaceholder]}>
+          <Text style={styles.userAvatarText}>{initials(user)}</Text>
+        </View>
+      )}
+      <View style={styles.userInfo}>
+        <Text style={styles.userName}>{name}</Text>
+        {user.username ? (
+          <Text style={styles.userHandle}>@{user.username}</Text>
+        ) : null}
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#3A3A3C" />
+    </TouchableOpacity>
+  );
+}
+
+function PostThumb({ post }: { post: PostRead }) {
+  const router = useRouter();
+  const isCarousel = post.media_type === "carousel" && (post.media_urls?.length ?? 0) > 1;
+  return (
+    <TouchableOpacity
+      style={styles.thumbWrapper}
+      activeOpacity={0.85}
+      onPress={() => router.push(`/post/${post.id}`)}
+    >
+      <Image
+        source={{ uri: post.media_url }}
+        style={styles.thumb}
+        contentFit="cover"
+        transition={150}
+      />
+      {isCarousel && (
+        <View style={styles.carouselBadge}>
+          <Ionicons name="copy-outline" size={12} color="#FFF" />
+        </View>
+      )}
+      {post.like_count > 0 && (
+        <View style={styles.likesBadge}>
+          <Ionicons name="heart" size={10} color="#FF3B30" />
+          <Text style={styles.likesBadgeText}>{formatCount(post.like_count)}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
 export default function ExploreScreen() {
-  const [searchText, setSearchText] = useState("");
-  const [searchHistory, setSearchHistory] = useState<string[]>([
-    "Lagos Island apartments",
-    "Victoria Island luxury homes",
-    "Ikeja budget flats",
-  ]);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [query, setQuery] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const [history, setHistory] = useState<string[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<TextInput>(null);
 
-  // Sample images for when no search history
-  const sampleImages = [
-    "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400",
-    "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400",
-    "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=400",
-    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400",
-    "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?w=400",
-    "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400",
-    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400",
-    "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400",
-    "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400",
-    "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=400",
-    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400",
-    "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?w=400",
-    "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400",
-    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400",
-    "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400",
-    "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400",
-    "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=400",
-    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400",
-    "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?w=400",
-    "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400",
-    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=400",
-  ];
+  // Debounce: fire search 400 ms after user stops typing
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedQ(query.trim()), 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query]);
 
-  const handleSearch = (text: string) => {
-    setSearchText(text);
-    if (text.trim()) {
-      setIsSearching(true);
-      // Simulate search - replace with real search logic
-      setTimeout(() => {
-        setSearchResults([]); // Empty results for demo
-        setIsSearching(false);
-      }, 1000);
-    } else {
-      setSearchResults([]);
-      setIsSearching(false);
+  // Search query (only enabled when debouncedQ >= 2 chars)
+  const { data: results, isFetching: searching, isError: searchError } = useSearch(debouncedQ);
+
+  // Explore grid: trending posts shown when search is empty
+  const { data: explorePosts = [] } = useMainFeed(DEV_LOCATION);
+
+  const handleSubmit = () => {
+    const t = query.trim();
+    if (t && !history.includes(t)) {
+      setHistory((prev) => [t, ...prev].slice(0, 15));
     }
   };
 
-  const handleSearchSubmit = () => {
-    if (searchText.trim() && !searchHistory.includes(searchText.trim())) {
-      setSearchHistory([searchText.trim(), ...searchHistory]);
-    }
+  const handleHistoryTap = (item: string) => {
+    setQuery(item);
+    setDebouncedQ(item);
+    inputRef.current?.focus();
   };
 
-  const clearSearchHistory = () => {
-    setSearchHistory([]);
+  const removeHistory = (item: string) =>
+    setHistory((prev) => prev.filter((h) => h !== item));
+
+  const clearHistory = () => setHistory([]);
+
+  const clearSearch = () => {
+    setQuery("");
+    setDebouncedQ("");
   };
 
-  const renderContent = () => {
-    if (isSearching) {
+  // ─── Derived state ──────────────────────────────────────────────────────────
+  const isActive = debouncedQ.length >= 2;
+  const posts: PostRead[] = results?.posts ?? [];
+  const users: UserSync[] = results?.users ?? [];
+  const hasResults = posts.length > 0 || users.length > 0;
+
+  // ─── Render states ──────────────────────────────────────────────────────────
+
+  const renderSearchResults = () => {
+    if (searching) {
       return (
-        <View style={styles.centerContainer}>
-          <Text style={styles.loadingText}>Searching...</Text>
+        <View style={styles.center}>
+          <ActivityIndicator color="#A855F7" size="large" />
+          <Text style={styles.hint}>Searching…</Text>
         </View>
       );
     }
 
-    if (searchText.trim() && searchResults.length === 0) {
+    if (searchError) {
       return (
-        <View style={styles.centerContainer}>
-          <View style={styles.noResultsContainer}>
-            <Ionicons name="search-outline" size={60} color="#666666" />
-            <Text style={styles.noResultsTitle}>Nothing Found</Text>
-            <Text style={styles.noResultsSubtitle}>
-              Try searching with different keywords
-            </Text>
-          </View>
+        <View style={styles.center}>
+          <Ionicons name="cloud-offline-outline" size={48} color="#666" />
+          <Text style={styles.hint}>Search failed — check your connection</Text>
         </View>
       );
     }
 
-    if (searchHistory.length === 0) {
+    if (!hasResults) {
       return (
-        <View style={styles.imageGridContainer}>
-          {/* <Text style={styles.sectionTitle}>Explore Properties</Text> */}
-          <View style={styles.imageGrid}>
-            {sampleImages.map((image, index) => (
-              <TouchableOpacity key={index} style={styles.imageItem}>
-                <Image source={{ uri: image }} style={styles.gridImage} />
-              </TouchableOpacity>
-            ))}
-          </View>
+        <View style={styles.center}>
+          <Ionicons name="search-outline" size={56} color="#3A3A3C" />
+          <Text style={styles.noResultTitle}>Nothing found</Text>
+          <Text style={styles.hint}>Try different keywords</Text>
         </View>
       );
     }
 
     return (
-      <View style={styles.searchHistoryContainer}>
-        <View style={styles.historyHeader}>
-          <Text style={styles.sectionTitle}>Recent Searches</Text>
-          <TouchableOpacity onPress={clearSearchHistory}>
-            <Text style={styles.clearAllText}>Clear All</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.historyList}>
-          {searchHistory.map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.historyItem}
-              onPress={() => handleSearch(item)}
-            >
-              <Ionicons name="time-outline" size={16} color="#666666" />
-              <Text style={styles.historyText}>{item}</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setSearchHistory(searchHistory.filter((_, i) => i !== index));
-                }}
-              >
-                {/* <Ionicons name="close" size={16} color="#666666" /> */}
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {/* Users section */}
+        {users.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>People</Text>
+            {users.map((u) => (
+              <UserRow key={u.id} user={u} />
+            ))}
+          </View>
+        )}
+
+        {/* Posts section */}
+        {posts.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Posts</Text>
+            <View style={styles.grid}>
+              {posts.map((p) => (
+                <PostThumb key={p.id} post={p} />
+              ))}
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
+
+  const renderIdle = () => {
+    if (history.length > 0) {
+      return (
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {/* Recent searches */}
+          <View style={styles.section}>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionTitle}>Recent</Text>
+              <TouchableOpacity onPress={clearHistory}>
+                <Text style={styles.clearText}>Clear all</Text>
               </TouchableOpacity>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+            </View>
+            {history.map((item) => (
+              <TouchableOpacity
+                key={item}
+                style={styles.historyItem}
+                onPress={() => handleHistoryTap(item)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="time-outline" size={18} color="#666" />
+                <Text style={styles.historyText}>{item}</Text>
+                <TouchableOpacity
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => removeHistory(item)}
+                >
+                  <Ionicons name="close" size={16} color="#3A3A3C" />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Explore grid below history */}
+          {explorePosts.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Explore</Text>
+              <View style={styles.grid}>
+                {explorePosts.map((p) => (
+                  <PostThumb key={p.id} post={p} />
+                ))}
+              </View>
+            </View>
+          )}
+        </ScrollView>
+      );
+    }
+
+    // No history → just the explore grid
+    return (
+      <FlatList
+        data={explorePosts}
+        keyExtractor={(p) => p.id}
+        numColumns={GRID_COLS}
+        columnWrapperStyle={styles.gridRow}
+        renderItem={({ item }) => <PostThumb post={item} />}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          explorePosts.length > 0 ? (
+            <Text style={[styles.sectionTitle, { paddingHorizontal: 16, paddingTop: 8 }]}>
+              Explore
+            </Text>
+          ) : null
+        }
+        ListEmptyComponent={
+          <View style={styles.center}>
+            <ActivityIndicator color="#A855F7" />
+          </View>
+        }
+        contentContainerStyle={{ paddingBottom: 20 }}
+      />
     );
   };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <ScreenHeader
-        title="Search"
-        showMenuButton={false}
-        showBackButton={false}
-      />
+      <ScreenHeader title="Search" showMenuButton={false} showBackButton={false} />
 
-      {/* Search Input */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchInputContainer}>
-          <Ionicons
-            name="search"
-            size={20}
-            color="#666666"
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search properties, locations..."
-            placeholderTextColor="#666666"
-            value={searchText}
-            onChangeText={handleSearch}
-            onSubmitEditing={handleSearchSubmit}
-            autoCapitalize="none"
-            returnKeyType="search"
-            blurOnSubmit={false}
-          />
-          {searchText.length > 0 && (
-            <TouchableOpacity
-              onPress={() => {
-                setSearchText("");
-                setSearchResults([]);
-                setIsSearching(false);
-              }}
-            >
-              <Ionicons name="close-circle" size={20} color="#666666" />
-            </TouchableOpacity>
-          )}
-        </View>
+      {/* Search bar */}
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={20} color="#666" style={{ marginRight: 10 }} />
+        <TextInput
+          ref={inputRef}
+          style={styles.searchInput}
+          placeholder="Search posts, people…"
+          placeholderTextColor="#666"
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={handleSubmit}
+          returnKeyType="search"
+          autoCapitalize="none"
+          autoCorrect={false}
+          blurOnSubmit={false}
+        />
+        {query.length > 0 && (
+          <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close-circle" size={20} color="#666" />
+          </TouchableOpacity>
+        )}
       </View>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Content */}
-        {renderContent()}
-      </ScrollView>
+
+      {/* Content */}
+      <View style={styles.body}>
+        {isActive ? renderSearchResults() : renderIdle()}
+      </View>
     </View>
   );
 }
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0F0F10",
-  },
-  content: {
-    flex: 1,
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 16,
-  },
-  searchInputContainer: {
+  container: { flex: 1, backgroundColor: "#0F0F10" },
+  searchBar: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1C1C1E",
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 12,
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-  },
-  searchIcon: {
-    marginRight: 12,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: Fonts.regular,
-    color: "#FFFFFF",
+    color: "#FFF",
   },
-  centerContainer: {
+  body: { flex: 1 },
+  center: {
     flex: 1,
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    paddingTop: 100,
+    gap: 12,
+    paddingTop: 80,
   },
-  loadingText: {
-    fontSize: 16,
+  hint: {
+    fontSize: 14,
     fontFamily: Fonts.regular,
-    color: "#666666",
+    color: "#666",
+    textAlign: "center",
+    paddingHorizontal: 32,
   },
-  noResultsContainer: {
-    alignItems: "center",
-  },
-  noResultsTitle: {
+  noResultTitle: {
     fontSize: 20,
     fontFamily: Fonts.bold,
-    color: "#FFFFFF",
-    marginTop: 16,
-    marginBottom: 8,
+    color: "#FFF",
   },
-  noResultsSubtitle: {
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-    color: "#666666",
-    textAlign: "center",
-  },
-  imageGridContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.bold,
-    color: "#FFFFFF",
-    marginBottom: 16,
-  },
-  imageGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  imageItem: {
-    width: "31%",
-    aspectRatio: 1,
-    marginBottom: 12,
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  gridImage: {
-    width: "100%",
-    height: "100%",
-  },
-  searchHistoryContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  historyHeader: {
+  // ─── Sections ──────────────────────────────────────────────────────────────
+  section: { paddingBottom: 8 },
+  sectionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    paddingTop: 4,
   },
-  clearAllText: {
-    fontSize: 14,
+  sectionTitle: {
+    fontSize: 16,
+    fontFamily: Fonts.bold,
+    color: "#FFF",
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    paddingTop: 4,
+  },
+  clearText: {
+    fontSize: 13,
     fontFamily: Fonts.medium,
-    color: "#c7c7c7",
+    color: "#A855F7",
   },
-  historyList: {
-    gap: 10,
-  },
+  // ─── History ───────────────────────────────────────────────────────────────
   historyItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "transparent",
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 10,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   historyText: {
     flex: 1,
+    fontSize: 15,
+    fontFamily: Fonts.regular,
+    color: "#FFF",
+  },
+  // ─── Users ─────────────────────────────────────────────────────────────────
+  userRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  userAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  userAvatarPlaceholder: {
+    backgroundColor: "#2C2C2E",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  userAvatarText: {
     fontSize: 16,
-    fontFamily: Fonts.medium,
-    color: "#FFFFFF",
+    fontFamily: Fonts.semiBold,
+    color: "#FFF",
+  },
+  userInfo: { flex: 1 },
+  userName: {
+    fontSize: 15,
+    fontFamily: Fonts.semiBold,
+    color: "#FFF",
+  },
+  userHandle: {
+    fontSize: 13,
+    fontFamily: Fonts.regular,
+    color: "#666",
+    marginTop: 2,
+  },
+  // ─── Grid ──────────────────────────────────────────────────────────────────
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: GRID_GAP,
+    paddingHorizontal: 0,
+  },
+  gridRow: { gap: GRID_GAP },
+  thumbWrapper: {
+    width: THUMB,
+    height: THUMB,
+    position: "relative",
+  },
+  thumb: { width: "100%", height: "100%" },
+  carouselBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 4,
+    padding: 3,
+  },
+  likesBadge: {
+    position: "absolute",
+    bottom: 6,
+    left: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  likesBadgeText: {
+    fontSize: 10,
+    fontFamily: Fonts.semiBold,
+    color: "#FFF",
   },
 });

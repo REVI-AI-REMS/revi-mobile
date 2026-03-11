@@ -1,7 +1,7 @@
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect } from "react";
-import { Modal, StyleSheet, Text, View } from "react-native";
+import { Modal, StyleSheet, Text, View, Platform } from "react-native";
 
 interface SuccessModalProps {
     visible: boolean;
@@ -53,12 +53,12 @@ const styles = StyleSheet.create({
     content: {
         backgroundColor: "#1C1C1E",
         borderRadius: 20,
-        padding: 32,
+        padding: Platform.OS === "android" ? 28 : 32,
         alignItems: "center",
-        minWidth: 200,
+        minWidth: Platform.OS === "android" ? 180 : 200,
     },
     iconContainer: {
-        marginBottom: 16,
+        marginBottom: Platform.OS === "android" ? 12 : 16,
         // Add shadow/glow effect if possible
         shadowColor: "#A855F7",
         shadowOffset: { width: 0, height: 0 },
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     text: {
         color: "#FFF",
         fontFamily: Fonts.medium,
-        fontSize: 16,
+        fontSize: Platform.OS === "android" ? 14 : 16,
         textAlign: "center",
     },
 });

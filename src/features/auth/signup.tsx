@@ -1,22 +1,22 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
-  TouchableWithoutFeedback,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useState, useEffect } from "react";
-import { Fonts } from "@/src/constants/theme";
 import ReviaiLogo from "@/assets/svgs/reviaimobilelogo.svg";
 import Button from "@/src/components/common/button";
 import OverlayModal from "@/src/components/common/overlay-modal";
+import { Fonts } from "@/src/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
 
 type Step = "details" | "code" | "success";
 

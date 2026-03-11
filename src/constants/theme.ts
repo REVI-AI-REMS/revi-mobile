@@ -35,12 +35,45 @@ export const Fonts = {
   // Fallback fonts for platform-specific designs
   system: Platform.select({
     ios: "system-ui",
+    android: "Roboto",
     default: "normal",
     web: "system-ui, sans-serif",
   }),
   mono: Platform.select({
     ios: "ui-monospace",
+    android: "monospace",
     default: "monospace",
     web: "monospace",
   }),
+};
+
+// Platform-specific sizing
+export const Typography = {
+  // Font sizes that work well cross-platform
+  xs: 12,
+  sm: 14,
+  md: 16,
+  lg: 18,
+  xl: 20,
+  xxl: 24,
+  
+  // Platform-specific line heights
+  lineHeight: {
+    tight: Platform.select({ ios: 1.2, android: 1.3, default: 1.2 }),
+    normal: Platform.select({ ios: 1.4, android: 1.5, default: 1.4 }),
+    loose: Platform.select({ ios: 1.6, android: 1.7, default: 1.6 }),
+  },
+};
+
+// Platform-specific border radius values
+export const BorderRadius = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  full: 9999,
+  // Android often looks better with slightly larger radius
+  button: Platform.select({ ios: 12, android: 14, default: 12 }),
+  card: Platform.select({ ios: 12, android: 16, default: 12 }),
 };

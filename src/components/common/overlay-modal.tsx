@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { ReactNode } from "react";
 import {
-  DimensionValue,
-  Modal,
-  Pressable,
-  StyleSheet,
-  TouchableOpacity,
-  View,
+    DimensionValue,
+    Modal,
+    Pressable,
+    StyleSheet,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 interface OverlayModalProps {
@@ -43,7 +43,14 @@ export default function OverlayModal({
 
         {/* Content Container */}
         <View style={styles.contentContainer}>
-          <View style={[styles.content, { height: height as DimensionValue }]}>
+          <View
+            style={[
+              styles.content,
+              height === "auto"
+                ? styles.contentAuto
+                : { height: height as DimensionValue },
+            ]}
+          >
             {/* Close Button - inside overlay */}
             {showCloseButton && (
               <TouchableOpacity
@@ -97,5 +104,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 40,
     paddingBottom: 40,
+  },
+  contentAuto: {
+    paddingBottom: 48,
   },
 });

@@ -2,11 +2,12 @@ import Button from "@/src/components/common/button";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
-    StatusBar,
     StyleSheet,
     Text,
-    View
+    View,
+    Platform
 } from "react-native";
+import { StatusBar } from "expo-status-bar";
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -32,7 +33,7 @@ export default function AuthScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar style="light" />
 
       <View style={styles.content}>
         <View style={styles.logoSection}>
@@ -74,7 +75,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: "space-between",
-    paddingTop: 100,
+    paddingTop: Platform.OS === "android" ? 80 : 100,
   },
   logoSection: {
     alignItems: "center",
@@ -83,26 +84,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 33,
   },
   logo: {
-    fontSize: 42,
+    fontSize: Platform.OS === "android" ? 34 : 42,
     fontWeight: "700",
     fontStyle: "normal",
     color: "#FFFFFF",
-    letterSpacing: 4,
+    letterSpacing: Platform.OS === "android" ? 3.5 : 4,
     marginBottom: 8,
   },
   tagline: {
-    fontSize: 15,
+    fontSize: Platform.OS === "android" ? 13 : 15,
     fontStyle: "normal",
     fontWeight: "400",
-    lineHeight: 20,
+    lineHeight: Platform.OS === "android" ? 18 : 20,
     color: "#A6A6A6",
     textAlign: "center",
   },
   buttonSection: {
-    gap: 12,
+    gap: Platform.OS === "android" ? 10 : 12,
     width: "100%",
     paddingHorizontal: 33,
-    paddingVertical: 59,
+    paddingVertical: Platform.OS === "android" ? 48 : 59,
     backgroundColor: "#1a1a1a",
     borderTopStartRadius: 40,
     borderTopEndRadius: 40,

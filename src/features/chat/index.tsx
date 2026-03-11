@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,8 +14,10 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface SuggestionCard {
   id: string;
@@ -212,10 +215,11 @@ export default function ChatHomeScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: "#0F0F10" }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
-      <View style={styles.container}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.container}>
         {/* Header */}
         <ChatHeader onMenuPress={() => setSidebarVisible(true)} />
 
@@ -289,33 +293,37 @@ export default function ChatHomeScreen() {
           </View>
         </ScrollView>
 
-        {/* Bottom Input */}
-        <View style={styles.inputContainer}>
-          <TouchableOpacity
-            style={styles.attachButton}
-            onPress={() => setActionModalVisible(true)}
-          >
-            <Ionicons name="add" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              placeholder="Ask anything real estate"
-              placeholderTextColor="#666666"
-              value={message}
-              onChangeText={setMessage}
-              multiline
-            />
+        {/* Bottom Input - Wrapped in SafeAreaView for bottom edge */}
+        <SafeAreaView edges={["bottom"]} style={styles.bottomSafeArea}>
+          <View style={styles.inputContainer}>
             <TouchableOpacity
-              style={styles.sendButton}
-              onPress={handleSendMessage}
-              activeOpacity={0.7}
+              style={styles.attachButton}
+              onPress={() => setActionModalVisible(true)}
             >
-              <Ionicons name="arrow-up" size={20} color="#000000" />
+              <Ionicons name="add" size={24} color="#FFFFFF" />
             </TouchableOpacity>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="Ask anything real estate"
+                placeholderTextColor="#666666"
+                value={message}
+                onChangeText={setMessage}
+                multiline
+                underlineColorAndroid="transparent"
+              />
+              <TouchableOpacity
+                style={styles.sendButton}
+                onPress={handleSendMessage}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-up" size={20} color="#000000" />
+              </TouchableOpacity>
+            </View>
           </View>
+        </SafeAreaView>
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }
@@ -324,26 +332,30 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  bottomSafeArea: {
+    backgroundColor: "#0F0F10", // Match your app background
+  },
   content: {
     flex: 1,
   },
   contentContainer: {
     flexGrow: 1,
-    justifyContent: "center",
     paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingVertical: Platform.OS === "android" ? 16 : 20,
+    justifyContent: "flex-start",
   },
   greetingSection: {
-    marginBottom: 32,
+    marginBottom: Platform.OS === "android" ? 24 : 32,
+    marginTop: Platform.OS === "android" ? 20 : 0,
   },
   greeting: {
-    fontSize: 16,
+    fontSize: Platform.OS === "android" ? 14 : 16,
     fontFamily: Fonts.regular,
     color: "#999999",
     marginBottom: 8,
   },
   question: {
-    fontSize: 28,
+    fontSize: Platform.OS === "android" ? 24 : 28,
     fontFamily: Fonts.bold,
     color: "#FFFFFF",
   },
@@ -387,13 +399,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    // borderTopWidth: 1,
     borderTopColor: "#1C1C1E",
     gap: 10,
   },
   attachButton: {
-    width: 50,
-    height: 50,
+    width: Platform.OS === "android" ? 44 : 50,
+    height: Platform.OS === "android" ? 44 : 50,
     borderRadius: 100,
     backgroundColor: "#1C1C1E",
     alignItems: "center",
@@ -406,17 +417,19 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     flexDirection: "row",
     alignItems: "center",
-    height: 50,
+    minHeight: 50,
   },
   input: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: Platform.OS === "android" ? 8 : 10,
     paddingRight: 48,
     fontSize: 16,
     fontFamily: Fonts.regular,
     color: "#FFFFFF",
-    maxHeight: 100,
+    maxHeight: 120,
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   sendButton: {
     position: "absolute",

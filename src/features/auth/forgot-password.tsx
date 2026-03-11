@@ -9,7 +9,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,6 +16,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 type Step = "confirm" | "code" | "newPassword" | "success";
 
@@ -30,24 +30,10 @@ export default function ForgotPasswordScreen() {
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   useEffect(() => {
     setVisible(true);
-  }, []);
-
-  useEffect(() => {
-    const keyboardDidShow = Keyboard.addListener("keyboardDidShow", () => {
-      setIsKeyboardVisible(true);
-    });
-    const keyboardDidHide = Keyboard.addListener("keyboardDidHide", () => {
-      setIsKeyboardVisible(false);
-    });
-
-    return () => {
-      keyboardDidShow.remove();
-      keyboardDidHide.remove();
-    };
   }, []);
 
   const handleClose = () => {
@@ -137,14 +123,12 @@ export default function ForgotPasswordScreen() {
 
   const getModalHeight = () => {
     if (step === "confirm" || step === "success") {
-      return 450;
+      return Platform.OS === "android" ? 400 : 450;
     }
     if (step === "newPassword") {
-      // Higher height for new password step with two input fields
-      return isKeyboardVisible ? 780 : 650;
+      return Platform.OS === "android" ? 580 : 650;
     }
-    // Code step
-    return isKeyboardVisible ? 770 : 550;
+    return Platform.OS === "android" ? 480 : 550;
   };
 
   return (
@@ -171,15 +155,227 @@ export default function ForgotPasswordScreen() {
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-        >
+        {Platform.OS === "ios" ? (
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={0}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <KeyboardAwareScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                enableOnAndroid={true}
+                enableAutomaticScroll={false}
+                extraScrollHeight={0}
+                contentContainerStyle={
+                  step === "success"
+                    ? { flexGrow: 1, justifyContent: "center" }
+                    : { paddingBottom: 50 }
+                }
+                scrollEnabled={step !== "success"}
+              >
+                {/* Logo and Header */}
+                <View
+                  style={[
+                    styles.header,
+                    step === "success" && { paddingTop: 0, marginBottom: 0 },
+                  ]}
+                >
+                  {step !== "success" && (
+                    <View style={styles.logoContainer}>
+                      <ReviaiLogo width={39} height={37} />
+                    </View>
+                  )}
+                  {step !== "success" && (
+                    <Text style={styles.title}>{getTitle()}</Text>
+                  )}
+                  {step !== "success" && (
+                    <Text style={styles.subtitle}>{getSubtitle()}</Text>
+                  )}
+                </View>
+
+                {/* Form Section */}
+                <View style={styles.formSection}>
+                  {/* Confirm Step - No input, just text */}
+                  {step === "confirm" && (
+                    <View style={styles.confirmSection}>
+                      <Text style={styles.confirmText}>
+                        Click continue to reset your password
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Code Input Step */}
+                  {step === "code" && (
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        focusedInput === "code" && styles.inputContainerFocused,
+                      ]}
+                    >
+                      <Ionicons
+                        name="keypad-outline"
+                        size={20}
+                        color="#999999"
+                        style={styles.inputIcon}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Enter 6-digit code"
+                        placeholderTextColor="#999999"
+                        value={code}
+                        onChangeText={setCode}
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        autoFocus
+                        onFocus={() => setFocusedInput("code")}
+                        onBlur={() => setFocusedInput(null)}
+                        underlineColorAndroid="transparent"
+                      />
+                    </View>
+                  )}
+
+                  {/* New Password Step */}
+                  {step === "newPassword" && (
+                    <>
+                      <View
+                        style={[
+                          styles.inputContainer,
+                          focusedInput === "newPassword" &&
+                            styles.inputContainerFocused,
+                        ]}
+                      >
+                        <Ionicons
+                          name="lock-closed-outline"
+                          size={20}
+                          color="#999999"
+                          style={styles.inputIcon}
+                        />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="New password"
+                          placeholderTextColor="#999999"
+                          value={newPassword}
+                          onChangeText={setNewPassword}
+                          secureTextEntry
+                          autoCapitalize="none"
+                          onFocus={() => setFocusedInput("newPassword")}
+                          onBlur={() => setFocusedInput(null)}
+                          underlineColorAndroid="transparent"
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.inputContainer,
+                          focusedInput === "confirmPassword" &&
+                            styles.inputContainerFocused,
+                        ]}
+                      >
+                        <Ionicons
+                          name="lock-closed-outline"
+                          size={20}
+                          color="#999999"
+                          style={styles.inputIcon}
+                        />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Re-enter password"
+                          placeholderTextColor="#999999"
+                          value={confirmPassword}
+                          onChangeText={setConfirmPassword}
+                          secureTextEntry
+                          autoCapitalize="none"
+                          onFocus={() => setFocusedInput("confirmPassword")}
+                          onBlur={() => setFocusedInput(null)}
+                          underlineColorAndroid="transparent"
+                        />
+                      </View>
+                      <View style={styles.passwordRequirements}>
+                        <Text style={styles.passwordRequirement}>
+                          Password must be at least 8 characters long
+                        </Text>
+                        <Text style={styles.passwordRequirement}>
+                          Password must contain combination of letters and
+                          numbers
+                        </Text>
+                      </View>
+                    </>
+                  )}
+
+                  {/* Success Step - Show success message */}
+                  {step === "success" && (
+                    <View style={styles.successSection}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={44}
+                        color="#ffffff"
+                        style={styles.successIcon}
+                      />
+                      <View
+                        style={{
+                          alignItems: "center",
+                          paddingBottom: 16,
+                          paddingTop: 16,
+                        }}
+                      >
+                        <Text style={styles.successTitle}>
+                          Password updated
+                        </Text>
+                        <Text style={styles.successMessage}>
+                          Your password has been changed {"\n"} successfully.
+                        </Text>
+                      </View>
+
+                      <Button
+                        title="Back to Login"
+                        variant="primary"
+                        onPress={() => {
+                          setVisible(false);
+                          setTimeout(() => router.push("/login"), 200);
+                        }}
+                        style={{
+                          marginBottom: 16,
+                          borderRadius: 30,
+                          width: 300,
+                        }}
+                      />
+                    </View>
+                  )}
+
+                  {/* Continue Button */}
+                  {step !== "success" && (
+                    <Button
+                      title="Continue"
+                      variant="primary"
+                      onPress={handleContinue}
+                      style={{ marginTop: 16, borderRadius: 30 }}
+                    />
+                  )}
+
+                  {/* Resend Code - only on code step */}
+                  {step === "code" && (
+                    <TouchableOpacity
+                      style={styles.resendContainer}
+                      onPress={handleResendCode}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.resendText}>Resend code</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </KeyboardAwareScrollView>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
+        ) : (
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <ScrollView
+            <KeyboardAwareScrollView
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              enableOnAndroid={true}
+              enableAutomaticScroll={true}
+              extraScrollHeight={100}
+              keyboardOpeningTime={0}
               contentContainerStyle={
                 step === "success"
                   ? { flexGrow: 1, justifyContent: "center" }
@@ -220,7 +416,12 @@ export default function ForgotPasswordScreen() {
 
                 {/* Code Input Step */}
                 {step === "code" && (
-                  <View style={styles.inputContainer}>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      focusedInput === "code" && styles.inputContainerFocused,
+                    ]}
+                  >
                     <Ionicons
                       name="keypad-outline"
                       size={20}
@@ -236,6 +437,9 @@ export default function ForgotPasswordScreen() {
                       keyboardType="number-pad"
                       maxLength={6}
                       autoFocus
+                      onFocus={() => setFocusedInput("code")}
+                      onBlur={() => setFocusedInput(null)}
+                      underlineColorAndroid="transparent"
                     />
                   </View>
                 )}
@@ -243,7 +447,13 @@ export default function ForgotPasswordScreen() {
                 {/* New Password Step */}
                 {step === "newPassword" && (
                   <>
-                    <View style={styles.inputContainer}>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        focusedInput === "newPassword" &&
+                          styles.inputContainerFocused,
+                      ]}
+                    >
                       <Ionicons
                         name="lock-closed-outline"
                         size={20}
@@ -258,9 +468,18 @@ export default function ForgotPasswordScreen() {
                         onChangeText={setNewPassword}
                         secureTextEntry
                         autoCapitalize="none"
+                        onFocus={() => setFocusedInput("newPassword")}
+                        onBlur={() => setFocusedInput(null)}
+                        underlineColorAndroid="transparent"
                       />
                     </View>
-                    <View style={styles.inputContainer}>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        focusedInput === "confirmPassword" &&
+                          styles.inputContainerFocused,
+                      ]}
+                    >
                       <Ionicons
                         name="lock-closed-outline"
                         size={20}
@@ -275,6 +494,9 @@ export default function ForgotPasswordScreen() {
                         onChangeText={setConfirmPassword}
                         secureTextEntry
                         autoCapitalize="none"
+                        onFocus={() => setFocusedInput("confirmPassword")}
+                        onBlur={() => setFocusedInput(null)}
+                        underlineColorAndroid="transparent"
                       />
                     </View>
                     <View style={styles.passwordRequirements}>
@@ -343,9 +565,9 @@ export default function ForgotPasswordScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+        )}
       </OverlayModal>
     </View>
   );
@@ -362,27 +584,27 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   backgroundText: {
-    fontSize: 42,
+    fontSize: Platform.OS === "android" ? 34 : 42,
     fontWeight: "700",
     color: "#ffffff",
     opacity: 0.25,
-    letterSpacing: 6,
+    letterSpacing: Platform.OS === "android" ? 5 : 6,
     marginBottom: 8,
     zIndex: 1,
   },
   backgroundSubtext: {
-    fontSize: 16,
+    fontSize: Platform.OS === "android" ? 13 : 16,
     fontWeight: "400",
     color: "#A6A6A6",
-    letterSpacing: 1,
+    letterSpacing: Platform.OS === "android" ? 0.5 : 1,
   },
   passwordRequirements: {
     backgroundColor: "#2A2A2A",
     borderRadius: 8,
-    padding: 12,
+    padding: Platform.OS === "android" ? 10 : 12,
   },
   passwordRequirement: {
-    fontSize: 12,
+    fontSize: Platform.OS === "android" ? 11 : 12,
     fontFamily: Fonts.regular,
     color: "#999999",
     marginBottom: 4,
@@ -401,38 +623,38 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    marginBottom: 40,
-    paddingTop: 87,
+    marginBottom: Platform.OS === "android" ? 32 : 40,
+    paddingTop: Platform.OS === "android" ? 70 : 87,
   },
   logoContainer: {
-    marginBottom: 24,
+    marginBottom: Platform.OS === "android" ? 20 : 24,
   },
   title: {
-    fontSize: 24,
+    fontSize: Platform.OS === "android" ? 20 : 24,
     fontFamily: Fonts.bold,
     color: "#FFFFFF",
-    marginBottom: 12,
+    marginBottom: Platform.OS === "android" ? 10 : 12,
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: Platform.OS === "android" ? 12 : 14,
     fontFamily: Fonts.regular,
     color: "#999999",
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: Platform.OS === "android" ? 16 : 20,
   },
   formSection: {
     flex: 1,
   },
   confirmSection: {
-    marginBottom: 24,
+    marginBottom: Platform.OS === "android" ? 20 : 24,
   },
   confirmText: {
-    fontSize: 16,
+    fontSize: Platform.OS === "android" ? 14 : 16,
     fontFamily: Fonts.regular,
     color: "#999999",
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: Platform.OS === "android" ? 20 : 24,
   },
   successSection: {
     alignItems: "center",
@@ -441,49 +663,57 @@ const styles = StyleSheet.create({
   },
 
   successTitle: {
-    fontSize: 24,
+    fontSize: Platform.OS === "android" ? 20 : 24,
     fontFamily: Fonts.bold,
     color: "#FFFFFF",
     // marginBottom: 16,
     textAlign: "center",
   },
   successIcon: {
-    marginBottom: 16,
+    marginBottom: Platform.OS === "android" ? 12 : 16,
   },
   successMessage: {
-    fontSize: 16,
+    fontSize: Platform.OS === "android" ? 14 : 16,
     fontFamily: Fonts.regular,
     color: "#999999",
     textAlign: "center",
-    lineHeight: 24,
-    paddingBottom: 20,
+    lineHeight: Platform.OS === "android" ? 20 : 24,
+    paddingBottom: Platform.OS === "android" ? 16 : 20,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#2C2C2E",
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    marginBottom: 16,
+    paddingHorizontal: Platform.OS === "android" ? 14 : 16,
+    paddingVertical: Platform.OS === "android" ? 8 : 16,
+    marginBottom: Platform.OS === "android" ? 12 : 16,
     borderWidth: 1,
     borderColor: "#3A3A3C",
+    height: Platform.OS === "android" ? 48 : "auto",
+  },
+  inputContainerFocused: {
+    borderColor: "#FFFFFF",
+    borderWidth: 1.5,
   },
   inputIcon: {
-    marginRight: 12,
+    marginRight: Platform.OS === "android" ? 10 : 12,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: Platform.OS === "android" ? 14 : 16,
     fontFamily: Fonts.regular,
     color: "#FFFFFF",
+    includeFontPadding: false,
+    textAlignVertical: Platform.OS === "android" ? "center" : "auto",
+    paddingVertical: 0,
   },
   resendContainer: {
     alignItems: "center",
-    marginTop: 24,
+    marginTop: Platform.OS === "android" ? 20 : 24,
   },
   resendText: {
-    fontSize: 16,
+    fontSize: Platform.OS === "android" ? 14 : 16,
     fontFamily: Fonts.semiBold,
     color: "#FFFFFF",
   },
