@@ -7,9 +7,9 @@ const BASE_URL =
 
 export const api = axios.create({
   baseURL: BASE_URL,
-  // 35s — Azure Container Apps can take 20-30s to wake from cold start.
-  // Reduce to 15s once you enable min-replicas: 1 in Azure.
-  timeout: 35_000,
+  // 15s timeout — if the server cold-starts, the request will timeout and
+  // React Query will retry with backoff rather than blocking for 35s.
+  timeout: 15_000,
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -54,7 +54,7 @@ if (process.env.EXPO_PUBLIC_DEV_MODE === "true") {
 }
 
 // ─── Request Interceptor ────────────────────────────────────────────────────
-// Reads token from Zustand store on every request.
+// Reads accessToken from Zustand store on every request.
 // Zustand store is synchronous — safe to call outside React here.
 // In dev mode, use X-Dev-User-Id header instead of Bearer token.
 api.interceptors.request.use(
@@ -67,9 +67,9 @@ api.interceptors.request.use(
         config.headers["X-Dev-User-Id"] = devUserId;
       }
     } else {
-      const token = useAuthStore.getState().token;
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      const accessToken = useAuthStore.getState().accessToken;
+      if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
       }
     }
     return config;
@@ -78,15 +78,64 @@ api.interceptors.request.use(
 );
 
 // ─── Response Interceptor ───────────────────────────────────────────────────
-// On 401, clear auth state and let the router redirect to login.
-// Skip in dev mode — we use X-Dev-User-Id so 401s shouldn't log us out.
+// On 401, attempt a silent token refresh then replay the failed request.
+// Concurrent 401s are queued — only one refresh call is ever in-flight.
+// Skip entirely in dev mode (X-Dev-User-Id bypass means 401s are real errors).
+
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}> = [];
+
+const processQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) reject(error);
+    else resolve(token!);
+  });
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const isDev = process.env.EXPO_PUBLIC_DEV_MODE === "true";
-    if (!isDev && error.response?.status === 401) {
-      useAuthStore.getState().logout();
+    const originalRequest = error.config as typeof error.config & {
+      _retry?: boolean;
+    };
+
+    if (!isDev && error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Another refresh is already in-flight — queue this request
+        return new Promise<string>((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const newToken = await useAuthStore.getState().refreshAccessToken();
+        if (newToken) {
+          processQueue(null, newToken);
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        } else {
+          processQueue(error, null);
+          return Promise.reject(error);
+        }
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
+
     return Promise.reject(error);
   },
 );

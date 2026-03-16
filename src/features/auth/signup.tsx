@@ -2,49 +2,43 @@ import ReviaiLogo from "@/assets/svgs/reviaimobilelogo.svg";
 import Button from "@/src/components/common/button";
 import OverlayModal from "@/src/components/common/overlay-modal";
 import { Fonts } from "@/src/constants/theme";
+import {
+  useLoginMutation,
+  useRegisterMutation,
+} from "@/src/hooks/mutations/use-auth";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  Keyboard,
-  KeyboardAvoidingView,
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
-type Step = "details" | "code" | "success";
+type Step = "details" | "success";
 
 export default function SignUpScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   const [visible, setVisible] = useState(true);
   const [step, setStep] = useState<Step>("details");
+
+  // Form fields
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [code, setCode] = useState("");
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
-  useEffect(() => {
-    const keyboardDidShow = Keyboard.addListener("keyboardDidShow", () => {
-      setIsKeyboardVisible(true);
-    });
-    const keyboardDidHide = Keyboard.addListener("keyboardDidHide", () => {
-      setIsKeyboardVisible(false);
-    });
-
-    return () => {
-      keyboardDidShow.remove();
-      keyboardDidHide.remove();
-    };
-  }, []);
+  const { mutate: register, isPending: isRegistering } = useRegisterMutation();
+  const { mutate: login, isPending: isLoggingIn } = useLoginMutation();
+  const isPending = isRegistering || isLoggingIn;
 
   const handleClose = () => {
     setVisible(false);
@@ -55,59 +49,76 @@ export default function SignUpScreen() {
     if (step === "details") {
       setVisible(false);
       setTimeout(() => router.back(), 200);
-    } else if (step === "code") {
-      setStep("details");
-      setCode("");
-    } else if (step === "success") {
-      // Don't allow back from success screen
-      return;
     }
+    // no back from success
   };
 
   const handleContinue = () => {
-    if (step === "details") {
-      if (password === confirmPassword && email.trim() && password.trim()) {
-        console.log("Creating account for:", email);
-        setStep("code");
-      } else {
-        console.log("Passwords don't match or fields empty");
-      }
-    } else if (step === "code") {
-      if (code.trim()) {
-        console.log("Verifying code:", code);
-        setStep("success");
-      }
+    if (step !== "details") return;
+
+    if (
+      !firstName.trim() ||
+      !lastName.trim() ||
+      !username.trim() ||
+      !email.trim() ||
+      !password.trim()
+    ) {
+      Alert.alert("Missing fields", "Please fill in all fields.");
+      return;
     }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Password mismatch", "Passwords do not match.");
+      return;
+    }
+
+    register(
+      {
+        email: email.trim(),
+        username: username.trim(),
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        password,
+        type: "user",
+      },
+      {
+        onSuccess: () => {
+          // Auto-login after registration (backend doesn't return tokens on register)
+          login(
+            { email: email.trim(), password },
+            {
+              onSuccess: () => setStep("success"),
+              onError: (err: any) => {
+                const msg =
+                  err?.response?.data?.detail ??
+                  "Account created but auto-login failed. Please log in manually.";
+                Alert.alert("Login error", msg);
+                setVisible(false);
+                setTimeout(() => router.replace("/login"), 200);
+              },
+            },
+          );
+        },
+        onError: (err: any) => {
+          const detail = err?.response?.data;
+          const msg =
+            typeof detail === "string"
+              ? detail
+              : (detail?.detail ??
+                detail?.email?.[0] ??
+                detail?.username?.[0] ??
+                "Registration failed. Please try again.");
+          Alert.alert("Sign up failed", msg);
+        },
+      },
+    );
   };
 
-  const handleResendCode = () => {
-    console.log("Resending verification code to:", email);
-  };
-
-  const getTitle = () => {
-    switch (step) {
-      case "details":
-        return "Create your account";
-      case "code":
-        return "Verify your email";
-      case "success":
-        return "Account created!";
-    }
-  };
-
-  const getSubtitle = () => {
-    switch (step) {
-      case "details":
-        return "Enter your details to get started";
-      case "code":
-        return `Enter the verification code we just \n sent to ${email}`;
-      case "success":
-        return "";
-    }
-  };
+  const getTitle = () =>
+    step === "details" ? "Create your account" : "Account created!";
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: "#0F0F10" }}>
       {/* Background branding text */}
       <View style={styles.backgroundTextContainer}>
         <Text style={styles.backgroundText}>REVI AI</Text>
@@ -119,248 +130,245 @@ export default function SignUpScreen() {
       <OverlayModal
         visible={visible}
         onClose={handleClose}
-        height={Platform.OS === "ios" ? "80%" : "90%"}
+        height={Platform.OS === "ios" ? "82%" : "87%"}
+        // height={Platform.OS === "ios" ? "80%" : "auto"}
       >
-        {/* Back Button - Fixed at top left, outside scroll */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBack}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <KeyboardAvoidingView
-          behavior="padding"
-          style={{ flexShrink: 1 }}
-          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 60 : 100}
-        >
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={
-              step === "success"
-                ? { flexGrow: 1, justifyContent: "center" }
-                : { flexGrow: 1, paddingBottom: Platform.OS === "android" ? 50 : 20 }
-            }
-            scrollEnabled={step !== "success"}
-            bounces={false}
+        {/* Back Button */}
+        {step === "details" && (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+            activeOpacity={0.7}
           >
-            {/* Logo and Header */}
-            <View
-              style={[
-                styles.header,
-                step === "success" && { paddingTop: 0, marginBottom: 0 },
-              ]}
-            >
-              {step !== "success" && (
-                <View style={styles.logoContainer}>
-                  <ReviaiLogo width={39} height={37} />
-                </View>
-              )}
-              {step !== "success" && (
-                <Text style={styles.title}>{getTitle()}</Text>
-              )}
-              {step !== "success" && (
-                <Text style={styles.subtitle}>{getSubtitle()}</Text>
-              )}
+            <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={
+            step === "success"
+              ? { flexGrow: 1, justifyContent: "center" }
+              : {
+                  flexGrow: 1,
+                  paddingBottom: Platform.OS === "android" ? 50 : 20,
+                }
+          }
+          scrollEnabled={step !== "success"}
+          bounces={false}
+        >
+          {/* Logo and Header */}
+          {step === "details" && (
+            <View style={styles.header}>
+              <View style={styles.logoContainer}>
+                <ReviaiLogo width={39} height={37} />
+              </View>
+              <Text style={styles.title}>{getTitle()}</Text>
+              <Text style={styles.subtitle}>
+                Enter your details to get started
+              </Text>
             </View>
+          )}
 
-            {/* Form Section */}
+          {/* ── Details Step ─────────────────────────────────────────── */}
+          {step === "details" && (
             <View style={styles.formSection}>
-              {/* Details Step - Email and passwords */}
-              {step === "details" && (
-                <>
-                  <View style={styles.inputContainer}>
-                    <Ionicons
-                      name="mail-outline"
-                      size={20}
-                      color="#999999"
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Email"
-                      placeholderTextColor="#999999"
-                      value={email}
-                      onChangeText={setEmail}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoFocus
-                      includeFontPadding={false}
-                      textAlignVertical="center"
-                    />
-                  </View>
-
-                  <View style={styles.inputContainer}>
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={20}
-                      color="#999999"
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Password"
-                      placeholderTextColor="#999999"
-                      value={password}
-                      onChangeText={setPassword}
-                      secureTextEntry
-                      autoCapitalize="none"
-                      includeFontPadding={false}
-                      textAlignVertical="center"
-                    />
-                  </View>
-
-                  <View style={styles.inputContainer}>
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={20}
-                      color="#999999"
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Re-enter password"
-                      placeholderTextColor="#999999"
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      secureTextEntry
-                      autoCapitalize="none"
-                      includeFontPadding={false}
-                      textAlignVertical="center"
-                    />
-                  </View>
-
-                  {/* Sign Up Button */}
-                  <Button
-                    title="Sign Up"
-                    variant="primary"
-                    onPress={handleContinue}
-                    style={{ marginTop: 16, borderRadius: 30 }}
-                  />
-
-                  {/* Divider */}
-                  <View style={styles.dividerContainer}>
-                    <View style={styles.divider} />
-                    <Text style={styles.dividerText}>or</Text>
-                    <View style={styles.divider} />
-                  </View>
-
-                  {/* Social Login Buttons */}
-                  <Button
-                    title="Continue with Apple"
-                    variant="outline"
-                    onPress={() => console.log("Apple Sign Up")}
-                    icon={
-                      <Ionicons name="logo-apple" size={20} color="#ffffff" />
-                    }
-                    style={{ marginBottom: 12 }}
-                  />
-
-                  <Button
-                    title="Continue with Google"
-                    variant="outline"
-                    onPress={() => console.log("Google Sign Up")}
-                    icon={
-                      <Ionicons name="logo-google" size={18} color="#FFF" />
-                    }
-                  />
-                </>
-              )}
-
-              {/* Code Input Step */}
-              {step === "code" && (
-                <View style={styles.inputContainer}>
-                  <Ionicons
-                    name="keypad-outline"
-                    size={20}
-                    color="#999999"
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter 6-digit code"
-                    placeholderTextColor="#999999"
-                    value={code}
-                    onChangeText={setCode}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    autoFocus
-                    includeFontPadding={false}
-                    textAlignVertical="center"
-                  />
-                </View>
-              )}
-
-              {/* Success Step - Show success message */}
-              {step === "success" && (
-                <View style={styles.successSection}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={64}
-                    color="#ffffff"
-                    style={styles.successIcon}
-                  />
-                  <Text style={styles.successTitle}>Welcome to REVI!</Text>
-                  <Text style={styles.successMessage}>
-                    Your account has been created {"\n"} successfully.
-                  </Text>
-                  <Button
-                    title="Get Started"
-                    variant="primary"
-                    onPress={() => {
-                      setVisible(false);
-                      setTimeout(() => router.push("/login"), 100);
-                    }}
-                    style={{ marginTop: 24, borderRadius: 30, width: 300 }}
-                  />
-                </View>
-              )}
-
-              {/* Continue Button - only on code step */}
-              {step === "code" && (
-                <Button
-                  title="Continue"
-                  variant="primary"
-                  onPress={handleContinue}
-                  style={{ marginTop: 16, borderRadius: 30 }}
+              {/* First Name */}
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="person-outline"
+                  size={20}
+                  color="#999999"
+                  style={styles.inputIcon}
                 />
-              )}
+                <TextInput
+                  style={styles.input}
+                  placeholder="First name"
+                  placeholderTextColor="#999999"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  autoCapitalize="words"
+                  textAlignVertical="center"
+                />
+              </View>
 
-              {/* Resend Code - only on code step */}
-              {step === "code" && (
+              {/* Last Name */}
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="person-outline"
+                  size={20}
+                  color="#999999"
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Last name"
+                  placeholderTextColor="#999999"
+                  value={lastName}
+                  onChangeText={setLastName}
+                  autoCapitalize="words"
+                  textAlignVertical="center"
+                />
+              </View>
+
+              {/* Username */}
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="at-outline"
+                  size={20}
+                  color="#999999"
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Username"
+                  placeholderTextColor="#999999"
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                  textAlignVertical="center"
+                />
+              </View>
+
+              {/* Email */}
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="mail-outline"
+                  size={20}
+                  color="#999999"
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  placeholderTextColor="#999999"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  textAlignVertical="center"
+                />
+              </View>
+
+              {/* Password */}
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={20}
+                  color="#999999"
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Password"
+                  placeholderTextColor="#999999"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  textAlignVertical="center"
+                />
+              </View>
+
+              {/* Confirm Password */}
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={20}
+                  color="#999999"
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Re-enter password"
+                  placeholderTextColor="#999999"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  textAlignVertical="center"
+                />
+              </View>
+
+              {/* Sign Up Button */}
+              <Button
+                title="Sign Up"
+                variant="primary"
+                onPress={handleContinue}
+                loading={isPending}
+                disabled={isPending}
+                style={{ marginTop: 16, borderRadius: 30 }}
+              />
+
+              {/* Divider */}
+              <View style={styles.dividerContainer}>
+                <View style={styles.divider} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.divider} />
+              </View>
+
+              {/* Social Login Buttons */}
+              <Button
+                title="Continue with Apple"
+                variant="outline"
+                onPress={() => console.log("Apple Sign Up")}
+                icon={<Ionicons name="logo-apple" size={20} color="#ffffff" />}
+                style={{ marginBottom: 12 }}
+              />
+
+              <Button
+                title="Continue with Google"
+                variant="outline"
+                onPress={() => console.log("Google Sign Up")}
+                icon={<Ionicons name="logo-google" size={18} color="#FFF" />}
+              />
+
+              {/* Already have an account */}
+              <View style={styles.loginPrompt}>
+                <Text style={styles.loginPromptText}>
+                  Already have an account?{" "}
+                </Text>
                 <TouchableOpacity
-                  style={styles.resendContainer}
-                  onPress={handleResendCode}
+                  onPress={() => {
+                    setVisible(false);
+                    setTimeout(() => router.push("/login"), 200);
+                  }}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.resendText}>Resend code</Text>
+                  <Text style={styles.loginLink}>Log In</Text>
                 </TouchableOpacity>
-              )}
-
-              {/* Already have account - only on details step */}
-              {step === "details" && (
-                <View style={styles.loginPrompt}>
-                  <Text style={styles.loginPromptText}>
-                    Already have an account?{" "}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setVisible(false);
-                      setTimeout(() => router.push("/login"), 200);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.loginLink}>Log In</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+              </View>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          )}
+
+          {/* ── Success Step ─────────────────────────────────────────── */}
+          {step === "success" && (
+            <View style={styles.successSection}>
+              <Ionicons
+                name="checkmark-circle"
+                size={64}
+                color="#ffffff"
+                style={styles.successIcon}
+              />
+              <Text style={styles.successTitle}>Welcome to REVI!</Text>
+              <Text style={styles.successMessage}>
+                Your account has been created {"\n"} successfully.
+              </Text>
+              <Button
+                title="Get Started"
+                variant="primary"
+                onPress={() => {
+                  setVisible(false);
+                  setTimeout(() => router.replace("/(tabs)/social"), 100);
+                }}
+                style={{ marginTop: 24, borderRadius: 30, width: 300 }}
+              />
+            </View>
+          )}
+        </ScrollView>
       </OverlayModal>
-    </>
+    </View>
   );
 }
 
@@ -372,6 +380,7 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
     zIndex: 0,
+    backgroundColor: "#0F0F10",
   },
   backgroundText: {
     fontSize: 42,
@@ -386,25 +395,13 @@ const styles = StyleSheet.create({
     color: "#A6A6A6",
     letterSpacing: 1,
   },
-  passwordRequirements: {
-    backgroundColor: "#2A2A2A",
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-  },
-  passwordRequirement: {
-    fontSize: 12,
-    fontFamily: Fonts.regular,
-    color: "#999999",
-    marginBottom: 4,
-  },
   backButton: {
     position: "absolute",
     top: 20,
     left: 20,
     zIndex: 10,
-    width: 40,
-    height: 40,
+    width: 35,
+    height: 35,
     borderRadius: 20,
     backgroundColor: "rgba(255, 255, 255, 0.1)",
     alignItems: "center",
@@ -413,10 +410,11 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     marginBottom: 40,
-    paddingTop: 87,
+    paddingTop: 27,
   },
   logoContainer: {
     marginBottom: 24,
+    paddingTop: Platform.OS === "android" ? 20 : 15,
   },
   title: {
     fontSize: 24,

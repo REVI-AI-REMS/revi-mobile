@@ -11,7 +11,7 @@ import {
 } from "@react-navigation/native";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
@@ -21,6 +21,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useColorScheme } from "@/src/hooks/use-color-scheme";
 import { queryClient } from "@/src/lib/queryClient";
+import { useAuthStore } from "@/src/store/auth.store";
 
 // Prevent auto-hiding splash screen
 SplashScreen.preventAutoHideAsync();
@@ -28,6 +29,21 @@ SplashScreen.preventAutoHideAsync();
 export const unstable_settings = {
   anchor: "(tabs)",
 };
+
+// Routes that require authentication
+const PROTECTED_ROUTES = new Set([
+  "(tabs)",
+  "chat-session",
+  "notification",
+  "profile",
+  "post",
+  "modal",
+  "chat",
+  "new-post",
+]);
+
+// Routes that should redirect away when already authenticated
+const AUTH_ROUTES = new Set(["auth", "login"]);
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -38,11 +54,31 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
+  const { isAuthenticated, isLoading } = useAuthStore();
+  const router = useRouter();
+  const segments = useSegments();
+
+  // Hide the native splash only after fonts are loaded AND token hydration is done
   useEffect(() => {
-    if (fontsLoaded) {
+    if (fontsLoaded && !isLoading) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded]);
+  }, [fontsLoaded, isLoading]);
+
+  // Route protection — runs whenever auth state or current route changes
+  useEffect(() => {
+    if (isLoading || !fontsLoaded) return;
+
+    const segment = (segments[0] as string) ?? "";
+
+    if (!isAuthenticated && PROTECTED_ROUTES.has(segment)) {
+      // Not logged in, tried to access a protected screen → send to login
+      router.replace("/login");
+    } else if (isAuthenticated && AUTH_ROUTES.has(segment)) {
+      // Already logged in, ended up on an auth screen → send to app
+      router.replace("/(tabs)/social");
+    }
+  }, [isAuthenticated, isLoading, fontsLoaded, segments, router]);
 
   if (!fontsLoaded) {
     return null;
@@ -96,15 +132,7 @@ export default function RootLayout() {
               name="profile/settings"
               options={{ headerShown: false }}
             />
-            <Stack.Screen
-              name="post/[id]"
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="reels"
-              options={{ headerShown: false, animation: "slide_from_bottom" }}
-            />
-
+            <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
             <Stack.Screen
               name="modal"
               options={{ presentation: "modal", title: "Modal" }}

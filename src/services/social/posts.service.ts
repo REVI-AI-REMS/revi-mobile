@@ -6,6 +6,7 @@ import type {
     PostCreate,
     PostRead,
     ReportRequest,
+    VideoFeedParams,
 } from "./types";
 
 /**
@@ -40,6 +41,19 @@ export const postsService = {
     params: GeospatialFeedParams,
   ): Promise<PostRead[]> => {
     const { data } = await api.get<PostRead[]>("/api/v1/posts/feed", {
+      params,
+    });
+    return data;
+  },
+
+  /**
+   * GET /api/v1/posts/feed/video
+   * TikTok-style ranked video feed. Returns only fully-transcoded video posts.
+   * Ranked by engagement (likes + comments + views).
+   * With lat/lon: restricts to radius_km. Without: global top videos.
+   */
+  getVideoFeed: async (params: VideoFeedParams = {}): Promise<PostRead[]> => {
+    const { data } = await api.get<PostRead[]>("/api/v1/posts/feed/video", {
       params,
     });
     return data;

@@ -1,7 +1,9 @@
 import { Fonts } from "@/src/constants/theme";
 import { useCreatePostMutation } from "@/src/hooks/mutations/use-feed-mutations";
 import { mediaService } from "@/src/services/social/media.service";
+import { useUploadStore } from "@/src/store/upload.store";
 import { Ionicons } from "@expo/vector-icons";
+import { ResizeMode, Video } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -95,8 +97,10 @@ export default function NewPostScreen() {
   );
   // Which image is shown large in the preview pane
   const [focusedUri, setFocusedUri] = useState<string | null>(null);
+  const [focusedIsVideo, setFocusedIsVideo] = useState(false);
 
-  const { mutate: createPost } = useCreatePostMutation();
+  const { mutateAsync: createPostAsync } = useCreatePostMutation();
+  const uploadStore = useUploadStore();
 
   useEffect(() => {
     async function getPermissions() {
@@ -136,6 +140,7 @@ export default function NewPostScreen() {
         setSelectedUris([first.uri]);
         setSelectedAssets([first]);
         setFocusedUri(first.uri);
+        setFocusedIsVideo(first.mediaType === "video");
       }
     } catch (e) {
       console.log("Error loading assets:", e);
@@ -150,15 +155,25 @@ export default function NewPostScreen() {
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ["images"],
+        mediaTypes: ["images", "videos"],
         quality: 0.85,
+        videoMaxDuration: 60,
       });
       if (!result.canceled && result.assets[0]) {
-        const uri = result.assets[0].uri;
-        if (selectedUris.length < 10) {
+        const asset = result.assets[0];
+        const uri = asset.uri;
+        const isVideo = asset.type === "video";
+
+        // If video, clear previous selections and use only the video
+        // If image, add to existing selections
+        if (isVideo) {
+          setSelectedUris([uri]);
+          setSelectedAssets([]);
+        } else if (selectedUris.length < 10) {
           setSelectedUris((prev) => [...prev, uri]);
-          setFocusedUri(uri);
         }
+        setFocusedUri(uri);
+        setFocusedIsVideo(isVideo);
       }
     } catch (e) {
       console.log("Camera error:", e);
@@ -168,10 +183,11 @@ export default function NewPostScreen() {
   // Fallback for Expo Go where MediaLibrary has limited access
   const handlePickFromLibrary = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
+      mediaTypes: ["images", "videos"],
       allowsMultipleSelection: true,
       selectionLimit: 10,
       quality: 0.85,
+      videoMaxDuration: 60,
     });
     if (!result.canceled && result.assets.length > 0) {
       const uris = result.assets.map((a) => a.uri).slice(0, 10);
@@ -188,8 +204,17 @@ export default function NewPostScreen() {
 
     try {
       setUploadStatus("uploading");
-      const contentType = "image/png";
       const ts = Date.now();
+
+      // Tell the global store so the social feed shows the progress card
+      const hasVideo =
+        selectedAssets.some((a) => a.mediaType === "video") ||
+        selectedUris.some((u) => /\.(mp4|mov|m4v)$/i.test(u.toLowerCase()));
+      uploadStore.startUpload(selectedUris[0], hasVideo);
+      uploadStore.setProgress(5);
+
+      // Navigate back immediately — user sees progress in the feed
+      router.back();
 
       // Step 1: Resolve any ph:// (iOS Photo Library) URIs to file:// URIs.
       // MediaLibrary.getAssetInfoAsync gives us the real local path.
@@ -200,48 +225,137 @@ export default function NewPostScreen() {
         }),
       );
 
-      // Step 2: Get SAS URLs for all images in parallel
+      // Determine content type and file extension for each file
+      const fileInfos = uploadUris.map((uri, i) => {
+        const asset = selectedAssets[i];
+        const lowerUri = uri.toLowerCase();
+
+        // Detect video
+        const isVideo =
+          asset?.mediaType === "video" ||
+          !!lowerUri.match(/\.(mp4|mov|m4v|avi|mkv)$/);
+
+        if (isVideo) {
+          // iOS camera produces .mov, normalize to mp4 for Azure/backend
+          return { contentType: "video/mp4", extension: "mp4", isVideo: true };
+        }
+
+        // Detect image MIME type from extension
+        if (lowerUri.match(/\.jpe?g$/)) {
+          return {
+            contentType: "image/jpeg",
+            extension: "jpg",
+            isVideo: false,
+          };
+        }
+        if (lowerUri.match(/\.png$/)) {
+          return { contentType: "image/png", extension: "png", isVideo: false };
+        }
+        if (lowerUri.match(/\.heic$/)) {
+          return {
+            contentType: "image/heic",
+            extension: "heic",
+            isVideo: false,
+          };
+        }
+        if (lowerUri.match(/\.webp$/)) {
+          return {
+            contentType: "image/webp",
+            extension: "webp",
+            isVideo: false,
+          };
+        }
+
+        // Default: JPEG (most phone photos are JPEG)
+        return { contentType: "image/jpeg", extension: "jpg", isVideo: false };
+      });
+
+      // Step 2: Get SAS URLs for all media files in parallel
       const sasResults = await Promise.all(
         uploadUris.map((_, i) =>
-          mediaService.getUploadUrl(`post-${ts}-${i}.png`, contentType),
+          mediaService.getUploadUrl(
+            `post-${ts}-${i}.${fileInfos[i].extension}`,
+            fileInfos[i].contentType,
+          ),
         ),
       );
+      uploadStore.setProgress(20);
 
-      // Step 3: Upload all images to Azure in parallel
+      // Step 3: Upload all media to Azure in parallel
       await Promise.all(
         uploadUris.map((uri, i) =>
-          uploadToAzure(uri, sasResults[i].upload_url, contentType),
+          uploadToAzure(
+            uri,
+            sasResults[i].upload_url,
+            fileInfos[i].contentType,
+          ),
         ),
       );
+      uploadStore.setProgress(60);
 
       const blobUrls = sasResults.map((r) => r.blob_url);
-      const isCarousel = blobUrls.length > 1;
-
-      // Step 4: Create post
-      setUploadStatus("creating");
-      createPost(
-        {
-          caption: caption.trim() || null,
-          media_url: blobUrls[0],
-          media_urls: isCarousel ? blobUrls : null,
-          media_type: isCarousel ? "carousel" : "image",
-          latitude: DEV_COORDS.latitude,
-          longitude: DEV_COORDS.longitude,
-        },
-        {
-          onSuccess: () => {
-            setUploadStatus("idle");
-            router.back();
-          },
-          onError: (err) => {
-            setUploadStatus("idle");
-            setUploadError((err as Error).message ?? "Failed to create post");
-          },
-        },
+      uploadStore.setProgress(70);
+      // Use requires_transcoding from the SAS response as the source of truth
+      const requiresTranscoding = sasResults.some(
+        (r) => r.requires_transcoding,
       );
+      const isCarousel = !requiresTranscoding && blobUrls.length > 1;
+
+      // Per API spec:
+      // video_upload → media_url = raw blob URL, media_urls = null
+      // carousel     → media_url = first image, media_urls = all blob URLs
+      // image        → media_url = blob URL, media_urls = null
+      let mediaType: string;
+      let mediaUrls: string[] | null = null;
+
+      if (requiresTranscoding) {
+        mediaType = "video_upload";
+        mediaUrls = null; // API spec: null for video
+      } else if (isCarousel) {
+        mediaType = "carousel";
+        mediaUrls = blobUrls;
+      } else {
+        mediaType = "image";
+        mediaUrls = null;
+      }
+
+      console.log("[Upload] Creating post:", {
+        mediaType,
+        mediaUrls,
+        blobUrl: blobUrls[0],
+        requiresTranscoding,
+      });
+
+      // Step 4: Create post — use mutateAsync so the result is awaited even
+      // after router.back() unmounts this screen (mutate callbacks are
+      // suppressed on unmount, but awaiting a Promise is not).
+      uploadStore.setStatus("creating");
+      uploadStore.setProgress(80);
+      await createPostAsync({
+        caption: caption.trim() || null,
+        media_url: blobUrls[0],
+        media_urls: mediaUrls,
+        media_type: mediaType,
+        latitude: DEV_COORDS.latitude,
+        longitude: DEV_COORDS.longitude,
+      });
+
+      if (requiresTranscoding) {
+        // Video needs server-side HLS transcoding (~15-30s)
+        uploadStore.setStatus("processing");
+        uploadStore.setProgress(90);
+        // Auto-complete after server transcoding window
+        setTimeout(() => {
+          uploadStore.setProgress(100);
+          uploadStore.setStatus("done");
+        }, 15_000);
+      } else {
+        uploadStore.setProgress(100);
+        uploadStore.setStatus("done");
+      }
     } catch (err) {
       setUploadStatus("idle");
-      setUploadError((err as Error).message ?? "Upload failed");
+      uploadStore.setError((err as Error).message ?? "Upload failed");
     }
   };
 
@@ -378,11 +492,29 @@ export default function NewPostScreen() {
       <View style={styles.previewContainer}>
         {focusedUri ? (
           <>
-            <Image
-              source={{ uri: focusedUri }}
-              style={styles.previewImage}
-              contentFit="cover"
-            />
+            {focusedIsVideo ? (
+              <Video
+                source={{ uri: focusedUri }}
+                style={styles.previewImage}
+                resizeMode={ResizeMode.COVER}
+                shouldPlay
+                isLooping
+                isMuted
+                useNativeControls={false}
+              />
+            ) : (
+              <Image
+                source={{ uri: focusedUri }}
+                style={styles.previewImage}
+                contentFit="cover"
+              />
+            )}
+            {focusedIsVideo && (
+              <View style={styles.videoPreviewBadge}>
+                <Ionicons name="videocam" size={14} color="#FFF" />
+                <Text style={styles.videoPreviewText}>Video</Text>
+              </View>
+            )}
             {selectedUris.length > 1 && (
               <ScrollView
                 horizontal
@@ -478,15 +610,36 @@ export default function NewPostScreen() {
                   setSelectedUris(newUris);
                   setSelectedAssets(newAssets);
                   if (focusedUri === asset.uri) {
-                    setFocusedUri(
-                      newUris.length > 0 ? newUris[newUris.length - 1] : null,
+                    const lastUri =
+                      newUris.length > 0 ? newUris[newUris.length - 1] : null;
+                    const lastAsset =
+                      newAssets.length > 0
+                        ? newAssets[newAssets.length - 1]
+                        : null;
+                    setFocusedUri(lastUri);
+                    setFocusedIsVideo(
+                      lastAsset?.mediaType === "video" ?? false,
                     );
                   }
                 } else {
-                  if (selectedUris.length >= 10) return;
-                  setSelectedUris((prev) => [...prev, asset.uri]);
-                  setSelectedAssets((prev) => [...prev, asset]);
+                  const isVideo = asset.mediaType === "video";
+                  if (isVideo) {
+                    // Video: clear all other selections, only allow one video
+                    setSelectedUris([asset.uri]);
+                    setSelectedAssets([asset]);
+                  } else {
+                    // Image: don't allow adding images when a video is selected
+                    if (focusedIsVideo) {
+                      setSelectedUris([asset.uri]);
+                      setSelectedAssets([asset]);
+                    } else {
+                      if (selectedUris.length >= 10) return;
+                      setSelectedUris((prev) => [...prev, asset.uri]);
+                      setSelectedAssets((prev) => [...prev, asset]);
+                    }
+                  }
                   setFocusedUri(asset.uri);
+                  setFocusedIsVideo(isVideo);
                 }
               }}
             >
@@ -591,6 +744,23 @@ const styles = StyleSheet.create({
   previewImage: {
     width: "100%",
     height: "100%",
+  },
+  videoPreviewBadge: {
+    position: "absolute",
+    bottom: 10,
+    left: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  videoPreviewText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontFamily: Fonts.semiBold,
   },
   emptyPreview: {
     flex: 1,

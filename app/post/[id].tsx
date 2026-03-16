@@ -4,6 +4,7 @@ import {
     PostCardSkeleton,
 } from "@/src/components/social/post-card";
 import { PostOptionsSheet } from "@/src/components/social/post-options-sheet";
+import { ReelsOverlay } from "@/src/components/social/reels-overlay";
 import { Fonts } from "@/src/constants/theme";
 import {
     useFollowMutation,
@@ -34,6 +35,8 @@ export default function PostDetailScreen() {
 
     const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
     const [optionsPost, setOptionsPost] = useState<PostRead | null>(null);
+    const [reelsPost, setReelsPost] = useState<PostRead | null>(null);
+    const [isReelReady, setIsReelReady] = useState(false);
 
     const { mutate: likePost, isPending: likePending } = useLikePostMutation();
     const { mutate: followUser } = useFollowMutation();
@@ -48,6 +51,11 @@ export default function PostDetailScreen() {
 
     const handleFollow = (authorId: string, currentlyFollowing: boolean) => {
         followUser({ userId: authorId, isFollowing: currentlyFollowing });
+    };
+
+    const handleVideoPress = (p: PostRead) => {
+        setIsReelReady(false);
+        setReelsPost(p);
     };
 
     if (isLoading) {
@@ -73,48 +81,64 @@ export default function PostDetailScreen() {
     }
 
     return (
-        <SafeAreaView style={styles.container}>
-            <Stack.Screen
-                options={{
-                    title: "Post",
-                    headerShown: true,
-                    headerTransparent: false,
-                    headerStyle: { backgroundColor: "#0F0F10" },
-                    headerTintColor: "#FFFFFF",
-                    headerTitleStyle: styles.headerTitle,
-                    headerLeft: () => (
-                        <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 8 }}>
-                            <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
-                        </TouchableOpacity>
-                    ),
-                }}
-            />
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-                <PostCard
-                    post={post}
-                    currentUserId={currentUserId}
-                    isFollowing={isFollowing}
-                    likePending={likePending}
-                    onLike={handleLike}
-                    onFollow={handleFollow}
-                    onComment={(postId) => setCommentsPostId(postId)}
-                    onMore={(p) => setOptionsPost(p)}
+        <>
+            <SafeAreaView style={styles.container}>
+                <Stack.Screen
+                    options={{
+                        title: "Post",
+                        headerShown: true,
+                        headerTransparent: false,
+                        headerStyle: { backgroundColor: "#0F0F10" },
+                        headerTintColor: "#FFFFFF",
+                        headerTitleStyle: styles.headerTitle,
+                        headerLeft: () => (
+                            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 8 }}>
+                                <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        ),
+                    }}
                 />
-            </ScrollView>
 
-            <CommentsSheet
-                postId={commentsPostId}
-                currentUserId={currentUserId}
-                onClose={() => setCommentsPostId(null)}
-            />
+                <ScrollView showsVerticalScrollIndicator={false}>
+                    <PostCard
+                        post={post}
+                        currentUserId={currentUserId}
+                        isFollowing={isFollowing}
+                        likePending={likePending}
+                        onLike={handleLike}
+                        onFollow={handleFollow}
+                        onComment={(postId) => setCommentsPostId(postId)}
+                        onMore={(p) => setOptionsPost(p)}
+                        onVideoPress={handleVideoPress}
+                        isVisible={!isReelReady}
+                    />
+                </ScrollView>
 
-            <PostOptionsSheet
-                post={optionsPost}
-                currentUserId={currentUserId}
-                onClose={() => setOptionsPost(null)}
-            />
-        </SafeAreaView>
+                <CommentsSheet
+                    postId={commentsPostId}
+                    currentUserId={currentUserId}
+                    onClose={() => setCommentsPostId(null)}
+                />
+
+                <PostOptionsSheet
+                    post={optionsPost}
+                    currentUserId={currentUserId}
+                    onClose={() => setOptionsPost(null)}
+                />
+            </SafeAreaView>
+
+            {reelsPost && (
+                <ReelsOverlay
+                    initialPost={reelsPost}
+                    currentUserId={currentUserId}
+                    onClose={() => {
+                        setReelsPost(null);
+                        setIsReelReady(false);
+                    }}
+                    onInitialVideoReady={() => setIsReelReady(true)}
+                />
+            )}
+        </>
     );
 }
 

@@ -13,7 +13,8 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
@@ -29,6 +30,8 @@ export default function ForgotPasswordScreen() {
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   useEffect(() => {
@@ -120,14 +123,30 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  const getModalHeight = () => {
-    if (step === "confirm" || step === "success") {
-      return Platform.OS === "android" ? 400 : 450;
+  const getButtonText = () => {
+    switch (step) {
+      case "confirm":
+        return "Continue";
+      case "code":
+        return "Verify Code";
+      case "newPassword":
+        return "Reset Password";
+      case "success":
+        return "Back to Login";
     }
-    if (step === "newPassword") {
-      return Platform.OS === "android" ? 580 : 650;
+  };
+
+  const isButtonEnabled = () => {
+    switch (step) {
+      case "confirm":
+        return true;
+      case "code":
+        return code.length === 6;
+      case "newPassword":
+        return newPassword.length >= 8 && confirmPassword === newPassword;
+      case "success":
+        return true;
     }
-    return Platform.OS === "android" ? 480 : 550;
   };
 
   return (
@@ -242,7 +261,7 @@ export default function ForgotPasswordScreen() {
                         style={[
                           styles.inputContainer,
                           focusedInput === "newPassword" &&
-                            styles.inputContainerFocused,
+                          styles.inputContainerFocused,
                         ]}
                       >
                         <Ionicons
@@ -268,7 +287,7 @@ export default function ForgotPasswordScreen() {
                         style={[
                           styles.inputContainer,
                           focusedInput === "confirmPassword" &&
-                            styles.inputContainerFocused,
+                          styles.inputContainerFocused,
                         ]}
                       >
                         <Ionicons
@@ -382,29 +401,36 @@ export default function ForgotPasswordScreen() {
               }
               scrollEnabled={step !== "success"}
             >
-              {step !== "success" && (
-                <View style={styles.logoContainer}>
-                  <ReviaiLogo width={39} height={37} />
-                </View>
-              )}
-              {step !== "success" && (
-                <Text style={styles.title}>{getTitle()}</Text>
-              )}
-              {step !== "success" && (
-                <Text style={styles.subtitle}>{getSubtitle()}</Text>
-              )}
-            </View>
+              {/* Logo and Header */}
+              <View
+                style={[
+                  styles.header,
+                  step === "success" && { paddingTop: 0, marginBottom: 0 },
+                ]}
+              >
+                {step !== "success" && (
+                  <View style={styles.logoContainer}>
+                    <ReviaiLogo width={39} height={37} />
+                  </View>
+                )}
+                {step !== "success" && (
+                  <Text style={styles.title}>{getTitle()}</Text>
+                )}
+                {step !== "success" && (
+                  <Text style={styles.subtitle}>{getSubtitle()}</Text>
+                )}
+              </View>
 
-            {/* Form Section */}
-            <View style={styles.formSection}>
-              {/* Confirm Step - No input, just text */}
-              {step === "confirm" && (
-                <View style={styles.confirmSection}>
-                  <Text style={styles.confirmText}>
-                    Click continue to reset your password
-                  </Text>
-                </View>
-              )}
+              {/* Form Section */}
+              <View style={styles.formSection}>
+                {/* Confirm Step - No input, just text */}
+                {step === "confirm" && (
+                  <View style={styles.confirmSection}>
+                    <Text style={styles.confirmText}>
+                      Click continue to reset your password
+                    </Text>
+                  </View>
+                )}
 
                 {/* Code Input Step */}
                 {step === "code" && (
@@ -422,7 +448,7 @@ export default function ForgotPasswordScreen() {
                     />
                     <TextInput
                       style={styles.input}
-                      placeholder="New password"
+                      placeholder="Enter verification code"
                       placeholderTextColor="#999999"
                       value={code}
                       onChangeText={setCode}
@@ -443,7 +469,7 @@ export default function ForgotPasswordScreen() {
                       style={[
                         styles.inputContainer,
                         focusedInput === "newPassword" &&
-                          styles.inputContainerFocused,
+                        styles.inputContainerFocused,
                       ]}
                     >
                       <Ionicons
@@ -458,18 +484,30 @@ export default function ForgotPasswordScreen() {
                         placeholderTextColor="#999999"
                         value={newPassword}
                         onChangeText={setNewPassword}
-                        secureTextEntry
+                        secureTextEntry={!showNewPassword}
                         autoCapitalize="none"
+                        keyboardType="default"
+                        textAlignVertical="center"
                         onFocus={() => setFocusedInput("newPassword")}
                         onBlur={() => setFocusedInput(null)}
                         underlineColorAndroid="transparent"
                       />
+                      <TouchableOpacity
+                        onPress={() => setShowNewPassword(!showNewPassword)}
+                        style={styles.eyeIcon}
+                      >
+                        <Ionicons
+                          name={showNewPassword ? "eye-off" : "eye"}
+                          size={20}
+                          color="#999999"
+                        />
+                      </TouchableOpacity>
                     </View>
                     <View
                       style={[
                         styles.inputContainer,
                         focusedInput === "confirmPassword" &&
-                          styles.inputContainerFocused,
+                        styles.inputContainerFocused,
                       ]}
                     >
                       <Ionicons
@@ -484,12 +522,26 @@ export default function ForgotPasswordScreen() {
                         placeholderTextColor="#999999"
                         value={confirmPassword}
                         onChangeText={setConfirmPassword}
-                        secureTextEntry
+                        secureTextEntry={!showConfirmPassword}
                         autoCapitalize="none"
+                        keyboardType="default"
+                        textAlignVertical="center"
                         onFocus={() => setFocusedInput("confirmPassword")}
                         onBlur={() => setFocusedInput(null)}
                         underlineColorAndroid="transparent"
                       />
+                      <TouchableOpacity
+                        onPress={() =>
+                          setShowConfirmPassword(!showConfirmPassword)
+                        }
+                        style={styles.eyeIcon}
+                      >
+                        <Ionicons
+                          name={showConfirmPassword ? "eye-off" : "eye"}
+                          size={20}
+                          color="#999999"
+                        />
+                      </TouchableOpacity>
                     </View>
                     <View style={styles.passwordRequirements}>
                       <Text style={styles.passwordRequirement}>
@@ -506,49 +558,37 @@ export default function ForgotPasswordScreen() {
                 {step === "success" && (
                   <View style={styles.successSection}>
                     <Ionicons
-                      name="lock-closed-outline"
-                      size={20}
-                      color="#999999"
-                      style={styles.inputIcon}
+                      name="checkmark-circle"
+                      size={44}
+                      color="#ffffff"
+                      style={styles.successIcon}
                     />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Re-enter password"
-                      placeholderTextColor="#999999"
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      secureTextEntry
-                      autoCapitalize="none"
-                      includeFontPadding={false}
-                      textAlignVertical="center"
-                    />
-                  </View>
-                  <View style={styles.passwordRequirements}>
-                    <Text style={styles.passwordRequirement}>
-                      Password must be at least 8 characters long
-                    </Text>
-                    <Text style={styles.passwordRequirement}>
-                      Password must contain combination of letters and numbers
+                    <Text style={styles.successTitle}>Password Reset</Text>
+                    <Text style={styles.successText}>
+                      Your password has been successfully reset
                     </Text>
                   </View>
-                </>
-              )}
+                )}
+              </View>
 
-              {/* Success Step - Show success message */}
-              {step === "success" && (
-                <View style={styles.successSection}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={44}
-                    color="#ffffff"
-                    style={styles.successIcon}
-                  />
-                  <View
+              {/* Bottom Actions */}
+              <View style={styles.bottomSection}>
+                <Button
+                  title={getButtonText()}
+                  onPress={handleContinue}
+                  disabled={!isButtonEnabled()}
+                  loading={false}
+                />
+
+                {step === "code" && (
+                  <TouchableOpacity
                     style={{
                       alignItems: "center",
-                      paddingBottom: 16,
                       paddingTop: 16,
+                      paddingBottom: Platform.OS === "android" ? 3 : 0,
                     }}
+                    onPress={handleResendCode}
+                    activeOpacity={0.7}
                   >
                     <Text style={styles.resendText}>Resend code</Text>
                   </TouchableOpacity>
@@ -558,7 +598,7 @@ export default function ForgotPasswordScreen() {
           </TouchableWithoutFeedback>
         )}
       </OverlayModal>
-    </View >
+    </View>
   );
 }
 
@@ -613,7 +653,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     marginBottom: Platform.OS === "android" ? 32 : 40,
-    paddingTop: Platform.OS === "android" ? 70 : 87,
+    paddingTop: Platform.OS === "android" ? 70 : 15,
   },
   logoContainer: {
     marginBottom: Platform.OS === "android" ? 20 : 24,
@@ -706,6 +746,20 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     color: "#FFFFFF",
   },
+  eyeIcon: {
+    position: "absolute",
+    right: 16,
+    padding: 4,
+  },
+  bottomSection: {
+    paddingTop: 24,
+  },
+  successText: {
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    color: "#999999",
+    textAlign: "center",
+    marginTop: 8,
+    paddingHorizontal: 24,
+  },
 });
-
-

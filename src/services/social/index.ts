@@ -6,6 +6,7 @@
 //   import type { PostRead } from '@/src/services/social';
 
 export { adsService } from "./ads.service";
+export { bookmarksService } from "./bookmarks.service";
 export { interactionsService } from "./interactions.service";
 export { internalService } from "./internal.service";
 export { mediaService } from "./media.service";
@@ -18,21 +19,31 @@ export { searchService } from "./search.service";
 export type {
     // Ads
     AdCampaign,
-    AdCampaignCreate, BatchViewRequest, CampaignStatus,
+    AdCampaignCreate,
+    BatchViewRequest,
+    CampaignStatus,
     // Interactions
     CommentCreate,
     CommentRead,
     // Relationships
     FollowRead,
-    FollowerStats, GeospatialFeedParams, LikeCreate,
-    LikeRead, MainFeedParams,
+    FollowerStats,
+    GeospatialFeedParams,
+    LikeCreate,
+    LikeRead,
+    MainFeedParams,
     // Posts
     MediaType,
     // Notifications
-    NotificationRead, PostCreate, PostRead, ReportRequest,
+    NotificationRead,
+    PostCreate,
+    PostRead,
+    ReportRequest,
     // Media
     UploadResponse,
     // Internal
-    UserSync
+    UserSync,
+    // Video feed
+    VideoFeedParams
 } from "./types";
 

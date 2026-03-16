@@ -3,9 +3,8 @@
     "name": "reviaimobile",
     "slug": "reviaimobile",
     "version": "1.0.0",
-    "privacy": "public",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/svgs/reviaimobilelogo.svg",
     "scheme": "reviaimobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -71,14 +70,13 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "f4e948f5-b473-494b-b5fa-bc8a10feed2c"
+        "projectId": "a13ca14b-b945-4aa6-998b-6cdc91468abd"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "updates": {
-      "url": "https://u.expo.dev/f4e948f5-b473-494b-b5fa-bc8a10feed2c"
-    }
+    "updates": {},
+    "owner": "reviai"
   }
 }

@@ -1,6 +1,10 @@
 import { interactionsService } from "@/src/services/social/interactions.service";
 import { postsService } from "@/src/services/social/posts.service";
-import type { MainFeedParams } from "@/src/services/social/types";
+import type {
+    MainFeedParams,
+    PostRead,
+    VideoFeedParams,
+} from "@/src/services/social/types";
 import { useQuery } from "@tanstack/react-query";
 
 // ─── Query Keys ─────────────────────────────────────────────────────────────
@@ -12,6 +16,8 @@ export const feedKeys = {
     [...feedKeys.all, "main", params] as const,
   geospatialFeed: (lat: number, lng: number, radius?: number) =>
     [...feedKeys.all, "geo", lat, lng, radius] as const,
+  videoFeed: (params: VideoFeedParams) =>
+    [...feedKeys.all, "video", params] as const,
   post: (postId: string) => [...feedKeys.all, "post", postId] as const,
   comments: (postId: string) => [...feedKeys.all, "comments", postId] as const,
 };
@@ -31,10 +37,10 @@ export function useMainFeed(params: MainFeedParams) {
   return useQuery({
     queryKey: feedKeys.mainFeed(params),
     queryFn: () => postsService.getMainFeed(params),
-    // Social feed goes stale faster than profile data
     staleTime: 1000 * 60 * 2,
-    // Only run when we have coords
     enabled: Boolean(params.latitude && params.longitude),
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
   });
 }
 
@@ -53,8 +59,29 @@ export function useGeospatialFeed(params: MainFeedParams) {
       params.radius_km,
     ),
     queryFn: () => postsService.getGeospatialFeed(params),
-    staleTime: 1000 * 60 * 1, // 1 min — server caches 60s anyway
+    staleTime: 1000 * 60 * 1,
     enabled: Boolean(params.latitude && params.longitude),
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+  });
+}
+
+/**
+ * TikTok-style ranked video feed from GET /api/v1/posts/feed/video.
+ * Returns only fully-transcoded video posts, ranked by engagement.
+ * Use this in the reels screen instead of filtering the main feed.
+ *
+ * Usage:
+ *   const { data: videos = [] } = useVideoFeed({ latitude: 6.52, longitude: 3.38 });
+ */
+export function useVideoFeed(params: VideoFeedParams = {}, options: any = {}) {
+  return useQuery<PostRead[]>({
+    queryKey: feedKeys.videoFeed(params),
+    queryFn: () => postsService.getVideoFeed(params),
+    staleTime: 1000 * 60 * 2,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    ...options,
   });
 }
 

@@ -1,23 +1,26 @@
 import { SocialHeader } from "@/src/components";
 import { CommentsSheet } from "@/src/components/social/comments-sheet";
-import {
-  PostCard,
-  PostCardSkeleton
-} from "@/src/components/social/post-card";
+import { PostCard, PostCardSkeleton } from "@/src/components/social/post-card";
 import { PostOptionsSheet } from "@/src/components/social/post-options-sheet";
+import { ReelsOverlay } from "@/src/components/social/reels-overlay";
+import { UploadProgressCard } from "@/src/components/social/upload-progress-card";
 import { Fonts } from "@/src/constants/theme";
 import {
   useBatchLogViewsMutation,
   useFollowMutation,
-  useLikePostMutation
+  useLikePostMutation,
 } from "@/src/hooks/mutations/use-feed-mutations";
 import {
-  useGeospatialFeed,
-  useMainFeed
-} from "@/src/hooks/queries/use-feed";
+  useBookmarkMutation,
+  useBookmarks,
+  useRemoveBookmarkMutation,
+} from "@/src/hooks/queries/use-bookmarks";
+import { useGeospatialFeed, useMainFeed } from "@/src/hooks/queries/use-feed";
 import { useUserFollowing } from "@/src/hooks/queries/use-relationships";
 import type { MainFeedParams, PostRead } from "@/src/services/social/types";
+import { useUploadStore } from "@/src/store/upload.store";
 import { Ionicons } from "@expo/vector-icons";
+
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -60,6 +63,8 @@ const TABS: { key: Tab; label: string }[] = [
 
 export default function SocialsScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("trending");
+  const [reelsPost, setReelsPost] = useState<PostRead | null>(null);
+  const uploadStatus = useUploadStore((s) => s.status);
   const router = useRouter();
 
   // ─── Relationship status ───────────────────────────────────────────────────
@@ -91,13 +96,19 @@ export default function SocialsScreen() {
     itemVisiblePercentThreshold: 50,
   }).current;
 
+  const [visiblePostIds, setVisiblePostIds] = useState<Set<string>>(new Set());
+
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      const newVisible = new Set<string>();
       viewableItems.forEach(({ item }) => {
-        if ((item as PostRead)?.id) {
-          viewedIdsRef.current.add((item as PostRead).id);
+        const id = (item as PostRead)?.id;
+        if (id) {
+          viewedIdsRef.current.add(id);
+          newVisible.add(id);
         }
       });
+      setVisiblePostIds(newVisible);
       if (viewedIdsRef.current.size >= 50) {
         batchLogViews([...viewedIdsRef.current]);
         viewedIdsRef.current.clear();
@@ -111,16 +122,62 @@ export default function SocialsScreen() {
   const geoFeedQuery = useGeospatialFeed({ ...DEV_LOCATION, radius_km: 5 });
 
   const {
-    data: posts = [],
+    data: rawPosts = [],
     isLoading,
     isError,
     error,
     refetch,
   } = activeTab === "neighborhoods" ? geoFeedQuery : mainFeedQuery;
 
+  // Sort posts by creation date (newest first)
+  const posts = useMemo(() => {
+    return [...rawPosts].sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return dateB - dateA; // Descending order (newest first)
+    });
+  }, [rawPosts]);
+
+  // Video posts from the already-loaded feed — passed straight to ReelsOverlay
+  // so it NEVER makes a separate API call. Zero delay.
+  const feedVideoPosts = useMemo(
+    () =>
+      posts.filter(
+        (p) =>
+          p.media_type === "video" ||
+          p.media_type === "video_upload" ||
+          p.media_url?.includes(".m3u8"),
+      ),
+    [posts],
+  );
+
   // ─── Mutations ─────────────────────────────────────────────────────────────
   const { mutate: likePost, isPending: likePending } = useLikePostMutation();
   const { mutate: followUser } = useFollowMutation();
+
+  // ─── Bookmarks ───────────────────────────────────────────────────────────
+  // Seed the initial bookmarked-IDs Set from the server; optimistically toggle
+  // on press so the icon updates immediately without waiting for a refetch.
+  const { data: bookmarkedList = [] } = useBookmarks();
+  const [optimisticBookmarks, setOptimisticBookmarks] = useState<Set<string>>(
+    new Set(),
+  );
+  const { mutate: addBookmark } = useBookmarkMutation();
+  const { mutate: removeBookmark } = useRemoveBookmarkMutation();
+
+  // Derive bookmarked IDs from server data, merge with optimistic updates
+  const bookmarkedIds = useMemo(() => {
+    const serverIds = new Set(bookmarkedList.map((p) => p.id));
+    // Merge optimistic updates
+    optimisticBookmarks.forEach((id) => {
+      if (serverIds.has(id)) {
+        serverIds.delete(id); // Optimistically removed
+      } else {
+        serverIds.add(id); // Optimistically added
+      }
+    });
+    return serverIds;
+  }, [bookmarkedList, optimisticBookmarks]);
 
   // ─── Comments sheet ────────────────────────────────────────────────────────
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
@@ -150,11 +207,30 @@ export default function SocialsScreen() {
     setOptionsPost(post);
   }, []);
 
-  const handleVideoPress = useCallback(
-    (post: PostRead) => {
-      router.push(`/reels?postId=${post.id}`);
+  const handleVideoPress = useCallback((post: PostRead) => {
+    setReelsPost(post);
+  }, []);
+
+  const handleBookmark = useCallback(
+    (postId: string, isBookmarked: boolean) => {
+      // Optimistic toggle - track which IDs we're toggling
+      setOptimisticBookmarks((prev) => {
+        const next = new Set(prev);
+        if (next.has(postId)) {
+          next.delete(postId); // Remove from optimistic if already there (undo toggle)
+        } else {
+          next.add(postId); // Add to optimistic (new toggle)
+        }
+        return next;
+      });
+
+      if (isBookmarked) {
+        removeBookmark(postId);
+      } else {
+        addBookmark(postId);
+      }
     },
-    [router],
+    [addBookmark, removeBookmark],
   );
 
   const renderPost = useCallback(
@@ -166,9 +242,12 @@ export default function SocialsScreen() {
         onComment={handleComment}
         onMore={handleMore}
         onVideoPress={handleVideoPress}
+        onBookmark={handleBookmark}
         isFollowing={followingIds.has(item.author_id)}
+        isBookmarked={bookmarkedIds.has(item.id)}
         likePending={likePending}
         currentUserId={currentUserId}
+        isVisible={!reelsPost && visiblePostIds.has(item.id)}
       />
     ),
     [
@@ -177,9 +256,13 @@ export default function SocialsScreen() {
       handleComment,
       handleMore,
       handleVideoPress,
+      handleBookmark,
       followingIds,
+      bookmarkedIds,
       likePending,
       currentUserId,
+      visiblePostIds,
+      reelsPost,
     ],
   );
 
@@ -273,6 +356,9 @@ export default function SocialsScreen() {
         onEndReachedThreshold={0.5}
       />
 
+      {/* Upload Progress Card - Positioned in layout flow above tab bar */}
+      {uploadStatus !== "idle" && <UploadProgressCard />}
+
       {/* Comments Sheet */}
       <CommentsSheet
         postId={commentsPostId}
@@ -286,6 +372,16 @@ export default function SocialsScreen() {
         currentUserId={currentUserId}
         onClose={() => setOptionsPost(null)}
       />
+
+      {/* Reels overlay — renders on top of feed, no navigation, no reload */}
+      {reelsPost && (
+        <ReelsOverlay
+          initialPost={reelsPost}
+          feedVideoPosts={feedVideoPosts}
+          currentUserId={currentUserId}
+          onClose={() => setReelsPost(null)}
+        />
+      )}
     </View>
   );
 }
@@ -294,6 +390,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0F0F10",
+    overflow: "visible",
   },
   updateBanner: {
     height: 8,
@@ -324,6 +421,9 @@ const styles = StyleSheet.create({
   },
   feedContent: {
     paddingBottom: 20,
+  },
+  uploadCardOverlay: {
+    zIndex: 40,
   },
   emptyContainer: {
     flex: 1,

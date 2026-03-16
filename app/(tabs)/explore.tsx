@@ -1,9 +1,13 @@
 import { ScreenHeader } from "@/src/components";
 import { Fonts } from "@/src/constants";
-import { useMainFeed } from "@/src/hooks/queries/use-feed";
+import {
+  feedKeys,
+  useMainFeed,
+} from "@/src/hooks/queries/use-feed";
 import { useSearch } from "@/src/hooks/queries/use-search";
 import type { PostRead, UserSync } from "@/src/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
+import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -18,6 +22,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Animated from "react-native-reanimated";
 
 const { width } = Dimensions.get("window");
 const GRID_GAP = 2;
@@ -25,7 +30,12 @@ const GRID_COLS = 3;
 const THUMB = (width - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
 
 // ─── Dev location (match social feed) ────────────────────────────────────────
-const DEV_LOCATION = { latitude: 6.5244, longitude: 3.3792, radius_km: 20, limit: 60 };
+const DEV_LOCATION = {
+  latitude: 6.5244,
+  longitude: 3.3792,
+  radius_km: 20,
+  limit: 60,
+};
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 function formatCount(n: number): string {
@@ -72,19 +82,33 @@ function UserRow({ user }: { user: UserSync }) {
 
 function PostThumb({ post }: { post: PostRead }) {
   const router = useRouter();
-  const isCarousel = post.media_type === "carousel" && (post.media_urls?.length ?? 0) > 1;
+  const queryClient = useQueryClient();
+  const isCarousel =
+    post.media_type === "carousel" && (post.media_urls?.length ?? 0) > 1;
+
+  const handlePress = () => {
+    // Optimistically seed the post detail query
+    queryClient.setQueryData(feedKeys.post(post.id), post);
+    router.push(`/post/${post.id}`);
+  };
+
   return (
     <TouchableOpacity
       style={styles.thumbWrapper}
       activeOpacity={0.85}
-      onPress={() => router.push(`/post/${post.id}`)}
+      onPress={handlePress}
     >
-      <Image
-        source={{ uri: post.media_url }}
-        style={styles.thumb}
-        contentFit="cover"
-        transition={150}
-      />
+      <Animated.View
+        sharedTransitionTag={`post-media-${post.id}`}
+        style={StyleSheet.absoluteFill}
+      >
+        <Image
+          source={{ uri: post.media_url }}
+          style={styles.thumb}
+          contentFit="cover"
+          transition={150}
+        />
+      </Animated.View>
       {isCarousel && (
         <View style={styles.carouselBadge}>
           <Ionicons name="copy-outline" size={12} color="#FFF" />
@@ -119,7 +143,11 @@ export default function ExploreScreen() {
   }, [query]);
 
   // Search query (only enabled when debouncedQ >= 2 chars)
-  const { data: results, isFetching: searching, isError: searchError } = useSearch(debouncedQ);
+  const {
+    data: results,
+    isFetching: searching,
+    isError: searchError,
+  } = useSearch(debouncedQ);
 
   // Explore grid: trending posts shown when search is empty
   const { data: explorePosts = [] } = useMainFeed(DEV_LOCATION);
@@ -185,7 +213,10 @@ export default function ExploreScreen() {
     }
 
     return (
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Users section */}
         {users.length > 0 && (
           <View style={styles.section}>
@@ -214,7 +245,10 @@ export default function ExploreScreen() {
   const renderIdle = () => {
     if (history.length > 0) {
       return (
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Recent searches */}
           <View style={styles.section}>
             <View style={styles.sectionRow}>
@@ -268,7 +302,12 @@ export default function ExploreScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           explorePosts.length > 0 ? (
-            <Text style={[styles.sectionTitle, { paddingHorizontal: 16, paddingTop: 8 }]}>
+            <Text
+              style={[
+                styles.sectionTitle,
+                { paddingHorizontal: 16, paddingTop: 8 },
+              ]}
+            >
               Explore
             </Text>
           ) : null
@@ -285,11 +324,20 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Search" showMenuButton={false} showBackButton={false} />
+      <ScreenHeader
+        title="Search"
+        showMenuButton={false}
+        showBackButton={false}
+      />
 
       {/* Search bar */}
       <View style={styles.searchBar}>
-        <Ionicons name="search" size={20} color="#666" style={{ marginRight: 10 }} />
+        <Ionicons
+          name="search"
+          size={20}
+          color="#666"
+          style={{ marginRight: 10 }}
+        />
         <TextInput
           ref={inputRef}
           style={styles.searchInput}
@@ -304,7 +352,10 @@ export default function ExploreScreen() {
           blurOnSubmit={false}
         />
         {query.length > 0 && (
-          <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity
+            onPress={clearSearch}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Ionicons name="close-circle" size={20} color="#666" />
           </TouchableOpacity>
         )}

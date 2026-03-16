@@ -20,6 +20,7 @@ export interface PostRead {
   created_at: string;
   latitude: number | null;
   longitude: number | null;
+  is_active?: boolean; // false while video is transcoding
   is_sponsored?: boolean;
   campaign_id?: string | null; // present when is_sponsored=true
   is_liked?: boolean; // client-side, set after like mutations
@@ -47,6 +48,15 @@ export interface MainFeedParams {
   longitude: number;
   radius_km?: number; // default 20.0
   limit?: number;
+}
+
+/** GET /api/v1/posts/feed/video — all params optional */
+export interface VideoFeedParams {
+  latitude?: number | null;
+  longitude?: number | null;
+  radius_km?: number; // default 50 km
+  skip?: number; // default 0
+  limit?: number; // 1-100, default 20
 }
 
 export interface BatchViewRequest {

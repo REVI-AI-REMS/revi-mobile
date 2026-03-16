@@ -1,127 +1,39 @@
 import { ScreenHeader } from "@/src/components";
 import { Fonts } from "@/src/constants/theme";
+import {
+  useMarkNotificationRead,
+  useNotifications,
+} from "@/src/hooks/queries/use-notifications";
+import { NotificationRead } from "@/src/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 import { useRouter } from "expo-router";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-interface NotificationItem {
-  id: string;
-  type: "like" | "comment" | "post_attention" | "multiple_likes";
-  user: {
-    name: string;
-    avatar: string;
-  };
-  message: string;
-  time: string;
-  postImage?: string;
-  additionalUsers?: { name: string; avatar: string }[];
-}
-
-const TODAY_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: "1",
-    type: "like",
-    user: { name: "Ada", avatar: "" },
-    message: "Ada liked your post.",
-    time: "1h",
-    postImage: "",
-  },
-  {
-    id: "2",
-    type: "comment",
-    user: { name: "John", avatar: "" },
-    message: "John commented on your post.",
-    time: "2h",
-    postImage: "",
-  },
-  {
-    id: "3",
-    type: "multiple_likes",
-    user: { name: "", avatar: "" },
-    message: "2 people liked your post about Lekki Phase 1.",
-    time: "2h",
-    postImage: "",
-  },
-  {
-    id: "4",
-    type: "post_attention",
-    user: { name: "", avatar: "" },
-    message: "Your post is getting attention.",
-    time: "4h",
-    postImage: "",
-    additionalUsers: [
-      { name: "User1", avatar: "" },
-      { name: "User2", avatar: "" },
-      { name: "User3", avatar: "" },
-      { name: "User4", avatar: "" },
-      { name: "User5", avatar: "" },
-      { name: "User6", avatar: "" },
-    ],
-  },
-  {
-    id: "5",
-    type: "like",
-    user: { name: "Ada", avatar: "" },
-    message: "Ada liked your post.",
-    time: "10h",
-    postImage: "",
-  },
-];
-
-const YESTERDAY_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: "6",
-    type: "like",
-    user: { name: "Ada", avatar: "" },
-    message: "Ada liked your post.",
-    time: "1h",
-    postImage: "",
-  },
-  {
-    id: "7",
-    type: "comment",
-    user: { name: "John", avatar: "" },
-    message: "John commented on your post.",
-    time: "2h",
-    postImage: "",
-  },
-  {
-    id: "8",
-    type: "multiple_likes",
-    user: { name: "", avatar: "" },
-    message: "2 people liked your post about Lekki Phase 1.",
-    time: "2h",
-    postImage: "",
-  },
-  {
-    id: "9",
-    type: "post_attention",
-    user: { name: "", avatar: "" },
-    message: "Your post is getting attention.",
-    time: "4h",
-    postImage: "",
-    additionalUsers: [
-      { name: "User1", avatar: "" },
-      { name: "User2", avatar: "" },
-      { name: "User3", avatar: "" },
-      { name: "User4", avatar: "" },
-      { name: "User5", avatar: "" },
-      { name: "User6", avatar: "" },
-    ],
-  },
-];
+dayjs.extend(relativeTime);
 
 export default function NotificationScreen() {
   const router = useRouter();
+  const { data: notifications, isLoading, refetch } = useNotifications();
+  const { mutate: markRead } = useMarkNotificationRead();
 
   const handleBackPress = () => {
     router.back();
+  };
+
+  const handleNotificationPress = (item: NotificationRead) => {
+    if (!item.is_read) {
+      markRead(item.id);
+    }
+    // Navigate based on entity_id/type if needed
   };
 
   const renderNotificationIcon = (type: string) => {
@@ -139,48 +51,58 @@ export default function NotificationScreen() {
           </View>
         );
       default:
-        return null;
+        return (
+          <View style={[styles.iconBadge, { backgroundColor: "#666" }]}>
+            <Ionicons name="notifications" size={12} color="#FFFFFF" />
+          </View>
+        );
     }
   };
 
-  const renderNotificationItem = (item: NotificationItem) => (
-    <TouchableOpacity key={item.id} style={styles.notificationItem}>
+  const getNotificationMessage = (item: NotificationRead) => {
+    // Basic mapping since we don't have user info in the notification object directly
+    // Ideally the backend returns a pre-formatted message or we fetch actor info
+    switch (item.type) {
+      case "like":
+        return "Someone liked your post";
+      case "comment":
+        return "Someone commented on your post";
+      case "follow":
+        return "Someone started following you";
+      default:
+        return "You have a new notification";
+    }
+  };
+
+  const renderNotificationItem = ({ item }: { item: NotificationRead }) => (
+    <TouchableOpacity
+      key={item.id}
+      style={[styles.notificationItem, !item.is_read && styles.unreadItem]}
+      onPress={() => handleNotificationPress(item)}
+    >
       <View style={styles.leftContent}>
-        {item.type === "post_attention" ? (
-          <View style={styles.multipleAvatars}>
-            {item.additionalUsers?.slice(0, 6).map((user, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.avatar,
-                  styles.smallAvatar,
-                  { marginLeft: index > 0 ? -8 : 0 },
-                ]}
-              >
-                <Ionicons name="person" size={12} color="#666666" />
-              </View>
-            ))}
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatar}>
+            <Ionicons name="person" size={20} color="#666666" />
           </View>
-        ) : (
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Ionicons name="person" size={20} color="#666666" />
-            </View>
-            {renderNotificationIcon(item.type)}
-          </View>
-        )}
+          {renderNotificationIcon(item.type)}
+        </View>
       </View>
 
       <View style={styles.middleContent}>
-        <Text style={styles.notificationText}>{item.message}</Text>
-        <Text style={styles.timeText}>{item.time}</Text>
+        <Text style={styles.notificationText}>
+          {getNotificationMessage(item)}
+        </Text>
+        <Text style={styles.timeText}>{dayjs(item.created_at).fromNow()}</Text>
       </View>
 
-      <View style={styles.rightContent}>
-        <View style={styles.postThumbnail}>
-          <Ionicons name="home" size={24} color="#666666" />
+      {item.entity_id && (
+        <View style={styles.rightContent}>
+          <View style={styles.postThumbnail}>
+            <Ionicons name="home" size={24} color="#666666" />
+          </View>
         </View>
-      </View>
+      )}
     </TouchableOpacity>
   );
 
@@ -193,17 +115,26 @@ export default function NotificationScreen() {
         backIcon="arrow-back"
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today</Text>
-          {TODAY_NOTIFICATIONS.map(renderNotificationItem)}
+      {isLoading ? (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
         </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Yesterday</Text>
-          {YESTERDAY_NOTIFICATIONS.map(renderNotificationItem)}
-        </View>
-      </ScrollView>
+      ) : (
+        <FlatList
+          data={notifications}
+          renderItem={renderNotificationItem}
+          keyExtractor={(item) => item.id}
+          style={styles.content}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          onRefresh={refetch}
+          refreshing={isLoading}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No notifications yet</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
@@ -216,22 +147,31 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  section: {
-    paddingHorizontal: 16,
-    // paddingTop: 16,
+  loaderContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.semiBold,
-    color: "#FFFFFF",
-    marginBottom: 16,
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    paddingTop: 100,
+  },
+  emptyText: {
+    color: "#666",
+    fontSize: 16,
+    fontFamily: Fonts.regular,
   },
   notificationItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 8,
-    marginBottom: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1C1C1E",
+  },
+  unreadItem: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
   },
   leftContent: {
     marginRight: 12,

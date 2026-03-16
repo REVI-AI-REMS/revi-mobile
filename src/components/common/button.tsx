@@ -1,21 +1,12 @@
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ViewStyle,
-  TextStyle,
-  ActivityIndicator,
-  Platform,
-} from "react-native";
 import { Fonts } from "@/src/constants/theme";
 import {
-  ActivityIndicator,
-  Platform,
-  StyleSheet,
-  Text,
-  TextStyle,
-  TouchableOpacity,
-  ViewStyle,
+    ActivityIndicator,
+    Platform,
+    StyleSheet,
+    Text,
+    TextStyle,
+    TouchableOpacity,
+    ViewStyle,
 } from "react-native";
 
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost";
@@ -77,9 +68,9 @@ export default function Button({
           {icon}
           <Text
             style={textStyleCombined}
-            {...(Platform.OS === 'android' && {
+            {...(Platform.OS === "android" && {
               includeFontPadding: false,
-              textAlignVertical: 'center' as const,
+              textAlignVertical: "center" as const,
             })}
           >
             {title}
@@ -92,28 +83,29 @@ export default function Button({
 
 const styles = StyleSheet.create({
   button: {
-    paddingVertical: Platform.OS === 'android' ? 14 : 16,
-    paddingHorizontal: Platform.OS === 'android' ? 20 : 16,
+    paddingVertical: Platform.OS === "android" ? 14 : 16,
+    paddingHorizontal: Platform.OS === "android" ? 20 : 16,
     borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    minHeight: Platform.OS === 'android' ? 48 : 44,
-    elevation: Platform.OS === 'android' ? 2 : 0,
-    shadowColor: Platform.OS === 'ios' ? '#000' : 'transparent',
-    shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 2 } : { width: 0, height: 0 },
-    shadowOpacity: Platform.OS === 'ios' ? 0.1 : 0,
-    shadowRadius: Platform.OS === 'ios' ? 4 : 0,
+    minHeight: Platform.OS === "android" ? 48 : 44,
+    elevation: Platform.OS === "android" ? 2 : 0,
+    shadowColor: Platform.OS === "ios" ? "#000" : "transparent",
+    shadowOffset:
+      Platform.OS === "ios" ? { width: 0, height: 2 } : { width: 0, height: 0 },
+    shadowOpacity: Platform.OS === "ios" ? 0.1 : 0,
+    shadowRadius: Platform.OS === "ios" ? 4 : 0,
   },
   buttonText: {
     fontSize: 16,
     fontFamily: Fonts.semiBold,
-    textAlign: 'center',
+    textAlign: "center",
     ...Platform.select({
       android: {
         includeFontPadding: false,
-        textAlignVertical: 'center',
+        textAlignVertical: "center",
       },
     }),
   },

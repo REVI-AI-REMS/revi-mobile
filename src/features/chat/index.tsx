@@ -1,23 +1,30 @@
+import ChatActionModal from "@/src/components/chat/ChatActionModal";
 import ChatHeader from "@/src/components/chat/ChatHeader";
 import ChatSessionsSidebar from "@/src/components/chat/ChatSessionsSidebar";
+import ReportModal from "@/src/components/chat/ReportModal";
+import TellStoryModal from "@/src/components/chat/TellStoryModal";
+import SuccessModal from "@/src/components/common/SuccessModal";
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+    Alert,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 interface SuggestionCard {
   id: string;
@@ -71,11 +78,11 @@ export default function ChatHomeScreen() {
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      () => setIsKeyboardVisible(true)
+      () => setIsKeyboardVisible(true),
     );
     const keyboardWillHide = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => setIsKeyboardVisible(false)
+      () => setIsKeyboardVisible(false),
     );
 
     return () => {
@@ -243,108 +250,112 @@ export default function ChatHomeScreen() {
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.container}>
-        {/* Header */}
-        <ChatHeader onMenuPress={() => setSidebarVisible(true)} />
+          {/* Header */}
+          <ChatHeader onMenuPress={() => setSidebarVisible(true)} />
 
-        {/* Sidebar */}
-        <ChatSessionsSidebar
-          visible={sidebarVisible}
-          onClose={() => setSidebarVisible(false)}
-        />
+          {/* Sidebar */}
+          <ChatSessionsSidebar
+            visible={sidebarVisible}
+            onClose={() => setSidebarVisible(false)}
+          />
 
-        {/* Action Modal */}
-        <ChatActionModal
-          visible={actionModalVisible}
-          onClose={() => setActionModalVisible(false)}
-          onActionPress={handleActionPress}
-        />
+          {/* Action Modal */}
+          <ChatActionModal
+            visible={actionModalVisible}
+            onClose={() => setActionModalVisible(false)}
+            onActionPress={handleActionPress}
+          />
 
-        {/* Report Modal */}
-        <ReportModal
-          visible={reportModalVisible}
-          onClose={() => setReportModalVisible(false)}
-          title={reportModalTitle}
-          onSuccess={handleSuccess}
-        />
+          {/* Report Modal */}
+          <ReportModal
+            visible={reportModalVisible}
+            onClose={() => setReportModalVisible(false)}
+            title={reportModalTitle}
+            onSuccess={handleSuccess}
+          />
 
-        {/* Tell Story Modal */}
-        <TellStoryModal
-          visible={tellStoryModalVisible}
-          onClose={() => setTellStoryModalVisible(false)}
-          onSuccess={handleSuccess}
-        />
+          {/* Tell Story Modal */}
+          <TellStoryModal
+            visible={tellStoryModalVisible}
+            onClose={() => setTellStoryModalVisible(false)}
+            onSuccess={handleSuccess}
+          />
 
-        {/* Success Modal */}
-        <SuccessModal
-          visible={successModalVisible}
-          onClose={() => setSuccessModalVisible(false)}
-        />
+          {/* Success Modal */}
+          <SuccessModal
+            visible={successModalVisible}
+            onClose={() => setSuccessModalVisible(false)}
+          />
 
-        {/* Main Content */}
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Greeting */}
-          <View style={styles.greetingSection}>
-            <Text style={styles.greeting}>Hi Angela,</Text>
-            <Text style={styles.question}>Where should we start?</Text>
-          </View>
-
-          {/* Suggestion Cards */}
-          <View style={styles.suggestionsContainer}>
-            {suggestions.map((suggestion) => (
-              <TouchableOpacity
-                key={suggestion.id}
-                style={styles.suggestionCard}
-                onPress={() => handleSuggestionPress(suggestion.title)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.cardIconContainer}>
-                  <Ionicons name={suggestion.icon} size={24} color="#FFFFFF" />
-                </View>
-                <View style={styles.cardContent}>
-                  <Text style={styles.cardTitle}>{suggestion.title}</Text>
-                  <Text style={styles.cardDescription}>
-                    {suggestion.description}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-
-        {/* Bottom Input - Wrapped in SafeAreaView for bottom edge */}
-        <SafeAreaView edges={["bottom"]} style={styles.bottomSafeArea}>
-          <View style={styles.inputContainer}>
-            <TouchableOpacity
-              style={styles.attachButton}
-              onPress={() => setActionModalVisible(true)}
-            >
-              <Ionicons name="add" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Ask anything real estate"
-                placeholderTextColor="#666666"
-                value={message}
-                onChangeText={setMessage}
-                multiline
-                underlineColorAndroid="transparent"
-              />
-              <TouchableOpacity
-                style={styles.sendButton}
-                onPress={handleSendMessage}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="arrow-up" size={20} color="#000000" />
-              </TouchableOpacity>
+          {/* Main Content */}
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Greeting */}
+            <View style={styles.greetingSection}>
+              <Text style={styles.greeting}>Hi Angela,</Text>
+              <Text style={styles.question}>Where should we start?</Text>
             </View>
-          </View>
-        </SafeAreaView>
+
+            {/* Suggestion Cards */}
+            <View style={styles.suggestionsContainer}>
+              {suggestions.map((suggestion) => (
+                <TouchableOpacity
+                  key={suggestion.id}
+                  style={styles.suggestionCard}
+                  onPress={() => handleSuggestionPress(suggestion.title)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.cardIconContainer}>
+                    <Ionicons
+                      name={suggestion.icon}
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                  <View style={styles.cardContent}>
+                    <Text style={styles.cardTitle}>{suggestion.title}</Text>
+                    <Text style={styles.cardDescription}>
+                      {suggestion.description}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Bottom Input - Wrapped in SafeAreaView for bottom edge */}
+          <SafeAreaView edges={["bottom"]} style={styles.bottomSafeArea}>
+            <View style={styles.inputContainer}>
+              <TouchableOpacity
+                style={styles.attachButton}
+                onPress={() => setActionModalVisible(true)}
+              >
+                <Ionicons name="add" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ask anything real estate"
+                  placeholderTextColor="#666666"
+                  value={message}
+                  onChangeText={setMessage}
+                  multiline
+                  underlineColorAndroid="transparent"
+                />
+                <TouchableOpacity
+                  style={styles.sendButton}
+                  onPress={handleSendMessage}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="arrow-up" size={20} color="#000000" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </SafeAreaView>
         </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>

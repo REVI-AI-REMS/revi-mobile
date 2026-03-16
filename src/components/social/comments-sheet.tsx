@@ -6,8 +6,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRef, useState } from "react";
 import {
     ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -129,11 +127,7 @@ export function CommentsSheet({ postId, currentUserId, onClose }: CommentsSheetP
             )}
 
             {/* Input bar */}
-            <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : undefined}
-                keyboardVerticalOffset={20}
-            >
-                {replyTo && (
+            {replyTo && (
                     <View style={commentStyles.replyBanner}>
                         <Text style={commentStyles.replyBannerText}>
                             Replying to{" "}
@@ -176,7 +170,6 @@ export function CommentsSheet({ postId, currentUserId, onClose }: CommentsSheetP
                         )}
                     </TouchableOpacity>
                 </View>
-            </KeyboardAvoidingView>
         </OverlayModal>
     );
 }
