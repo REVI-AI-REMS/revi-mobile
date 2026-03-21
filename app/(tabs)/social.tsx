@@ -19,6 +19,7 @@ import { useGeospatialFeed, useMainFeed } from "@/src/hooks/queries/use-feed";
 import { useUserFollowing } from "@/src/hooks/queries/use-relationships";
 import type { MainFeedParams, PostRead } from "@/src/services/social/types";
 import { useUploadStore } from "@/src/store/upload.store";
+import { useVideoStore } from "@/src/store/video.store";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useRouter } from "expo-router";
@@ -65,6 +66,8 @@ export default function SocialsScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("trending");
   const [reelsPost, setReelsPost] = useState<PostRead | null>(null);
   const uploadStatus = useUploadStore((s) => s.status);
+  const setActiveVideoId = useVideoStore((s) => s.setActiveVideoId);
+  const setVisiblePostIds = useVideoStore((s) => s.setVisiblePostIds);
   const router = useRouter();
 
   // ─── Relationship status ───────────────────────────────────────────────────
@@ -80,6 +83,7 @@ export default function SocialsScreen() {
   // ─── View tracking ─────────────────────────────────────────────────────────
   // Accumulate viewed IDs as user scrolls, flush to API at 50 or on unmount
   const viewedIdsRef = useRef<Set<string>>(new Set());
+  const visibleIdsRef = useRef<Set<string>>(new Set());
   const { mutate: batchLogViews } = useBatchLogViewsMutation();
 
   useEffect(() => {
@@ -93,28 +97,60 @@ export default function SocialsScreen() {
   }, [batchLogViews]);
 
   const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
+    itemVisiblePercentThreshold: 60,
   }).current;
 
-  const [visiblePostIds, setVisiblePostIds] = useState<Set<string>>(new Set());
 
   const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      const newVisible = new Set<string>();
-      viewableItems.forEach(({ item }) => {
-        const id = (item as PostRead)?.id;
-        if (id) {
-          viewedIdsRef.current.add(id);
-          newVisible.add(id);
+    ({
+      viewableItems,
+      changed = [],
+    }: {
+      viewableItems: ViewToken[];
+      changed?: ViewToken[];
+    }) => {
+      let didVisibilityChange = false;
+      let firstVideoId: string | null = null;
+
+      changed.forEach(({ item, isViewable }) => {
+        const post = item as PostRead;
+        const id = post?.id;
+        if (!id) return;
+
+        if (isViewable) {
+          if (!visibleIdsRef.current.has(id)) {
+            visibleIdsRef.current.add(id);
+            didVisibilityChange = true;
+          }
+        } else if (visibleIdsRef.current.delete(id)) {
+          didVisibilityChange = true;
         }
       });
-      setVisiblePostIds(newVisible);
+
+      viewableItems.forEach(({ item }) => {
+        const post = item as PostRead;
+        const id = post?.id;
+        if (id) {
+          viewedIdsRef.current.add(id);
+
+          // Find the first visible video post to make it "active"
+          if (!firstVideoId && (post.media_type === "video" || post.media_type === "video_upload" || post.media_url?.includes(".m3u8"))) {
+            firstVideoId = id;
+          }
+        }
+      });
+
+      if (didVisibilityChange) {
+        setVisiblePostIds([...visibleIdsRef.current]);
+      }
+      setActiveVideoId(firstVideoId);
+
       if (viewedIdsRef.current.size >= 50) {
         batchLogViews([...viewedIdsRef.current]);
         viewedIdsRef.current.clear();
       }
     },
-    [batchLogViews],
+    [batchLogViews, setActiveVideoId, setVisiblePostIds],
   );
 
   // ─── Feed queries ──────────────────────────────────────────────────────────
@@ -151,7 +187,66 @@ export default function SocialsScreen() {
     [posts],
   );
 
-  // ─── Mutations ─────────────────────────────────────────────────────────────
+  // ─── Transcoding Polling ────────────────────────────────────────────────
+  // If we just uploaded a video, poll until it's fully active in the feed.
+  const setUploadProgress = useUploadStore((s) => s.setProgress);
+  const setUploadStatus = useUploadStore((s) => s.setStatus);
+
+  useEffect(() => {
+    if (uploadStatus !== "processing") return;
+
+    console.log("[SocialFeed] Video processing started — polling until confirmed active...");
+    let refreshCount = 0;
+    const MAX_REFRESHES = 22; // ~3 minutes max
+    const POLL_INTERVAL = 8_000; // 8 seconds
+
+    // Animate progress from 90% → 98% gradually
+    const progressInterval = setInterval(() => {
+      // In mobile we just use the store
+      const current = useUploadStore.getState().progress;
+      if (current < 98) setUploadProgress(current + 0.15);
+    }, 1000);
+
+    const performRefresh = async () => {
+      refreshCount++;
+      try {
+        await refetch();
+        // Check if there are NO more "video_upload" posts (they become "video" or "image" once done)
+        // or if they have a .m3u8 media_url.
+        setTimeout(() => {
+          const stillProcessing = posts.some(
+            (p) => p.media_type === "video_upload" && !p.media_url?.includes(".m3u8"),
+          );
+
+          if (!stillProcessing && posts.length > 0) {
+            console.log("[SocialFeed] ✅ Video processing complete!");
+            clearInterval(progressInterval);
+            clearInterval(refreshTimer);
+            setUploadProgress(100);
+            setUploadStatus("done");
+          }
+
+          if (refreshCount >= MAX_REFRESHES) {
+            console.log("[SocialFeed] ⚠️ Max polling reached.");
+            clearInterval(progressInterval);
+            clearInterval(refreshTimer);
+            setUploadProgress(100);
+            setUploadStatus("done");
+          }
+        }, 500);
+      } catch (err) {
+        console.error("[SocialFeed] Refresh failed:", err);
+      }
+    };
+
+    const refreshTimer = setInterval(performRefresh, POLL_INTERVAL);
+    performRefresh();
+
+    return () => {
+      clearInterval(progressInterval);
+      clearInterval(refreshTimer);
+    };
+  }, [uploadStatus, refetch, posts, setUploadProgress, setUploadStatus]);
   const { mutate: likePost, isPending: likePending } = useLikePostMutation();
   const { mutate: followUser } = useFollowMutation();
 
@@ -247,7 +342,6 @@ export default function SocialsScreen() {
         isBookmarked={bookmarkedIds.has(item.id)}
         likePending={likePending}
         currentUserId={currentUserId}
-        isVisible={!reelsPost && visiblePostIds.has(item.id)}
       />
     ),
     [
@@ -261,8 +355,6 @@ export default function SocialsScreen() {
       bookmarkedIds,
       likePending,
       currentUserId,
-      visiblePostIds,
-      reelsPost,
     ],
   );
 
@@ -354,6 +446,11 @@ export default function SocialsScreen() {
           posts.length === 0 ? styles.emptyContainer : styles.feedContent
         }
         onEndReachedThreshold={0.5}
+        removeClippedSubviews={true}
+        windowSize={3}
+        maxToRenderPerBatch={3}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={3}
       />
 
       {/* Upload Progress Card - Positioned in layout flow above tab bar */}

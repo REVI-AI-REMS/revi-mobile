@@ -12,14 +12,20 @@ export {
 } from "./queries/use-feed";
 
 export { bookmarkKeys, useBookmarks } from "./queries/use-bookmarks";
+export { searchKeys, useSearch } from "./queries/use-search";
+export {
+    relationshipKeys,
+    useUserFollowers,
+    useUserFollowing,
+    useUserStats,
+} from "./queries/use-relationships";
 
 // ─── Mutation Hooks ──────────────────────────────────────────────────────────
 export {
     useForgotPasswordMutation,
     useLoginMutation,
     useLogoutMutation,
-    useSignUpMutation,
-    useVerifyCodeMutation
+    useRegisterMutation,
 } from "./mutations/use-auth";
 
 export {

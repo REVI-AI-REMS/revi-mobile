@@ -139,13 +139,7 @@ export default function RootLayout() {
             />
           </Stack>
           <StatusBar
-            style={
-              Platform.OS === "android"
-                ? "light"
-                : colorScheme === "dark"
-                  ? "light"
-                  : "dark"
-            }
+            style="light"
             backgroundColor={
               Platform.OS === "android" ? "#000000" : "transparent"
             }

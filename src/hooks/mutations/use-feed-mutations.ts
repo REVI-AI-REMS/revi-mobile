@@ -163,6 +163,56 @@ export function useAddCommentMutation() {
   });
 }
 
+// ─── Like / Unlike Comment ───────────────────────────────────────────────────
+
+export function useLikeCommentMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    void,
+    Error,
+    { postId: string; commentId: string; isLiked: boolean }
+  >({
+    mutationFn: async ({ commentId, isLiked }) => {
+      if (isLiked) {
+        await interactionsService.unlikeComment(commentId);
+      } else {
+        await interactionsService.likeComment(commentId);
+      }
+    },
+
+    onMutate: async ({ postId, commentId, isLiked }) => {
+      const queryKey = feedKeys.comments(postId);
+      await queryClient.cancelQueries({ queryKey });
+
+      const previousComments = queryClient.getQueryData<any[]>(queryKey);
+
+      // Optimistically toggle is_liked for the specific comment
+      queryClient.setQueryData<any[]>(queryKey, (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((comment) =>
+          comment.id === commentId
+            ? {
+                ...comment,
+                is_liked: !isLiked,
+                like_count: (comment.like_count ?? 0) + (isLiked ? -1 : 1),
+              }
+            : comment,
+        );
+      });
+
+      return { previousComments };
+    },
+
+    onError: (_err, _vars, context) => {
+      const ctx = context as { previousComments?: any[] } | undefined;
+      if (ctx?.previousComments) {
+        queryClient.setQueryData(feedKeys.comments(_vars.postId), ctx.previousComments);
+      }
+    },
+  });
+}
+
 // ─── Report Post ──────────────────────────────────────────────────────────────
 
 export function useReportPostMutation() {

@@ -59,12 +59,15 @@ if (process.env.EXPO_PUBLIC_DEV_MODE === "true") {
 // In dev mode, use X-Dev-User-Id header instead of Bearer token.
 api.interceptors.request.use(
   (config) => {
-    const isDev = process.env.EXPO_PUBLIC_DEV_MODE === "true";
+    // Ensure we treat string "true" or boolean true as Dev Mode
+    const isDev = process.env.EXPO_PUBLIC_DEV_MODE === "true" || process.env.EXPO_PUBLIC_DEV_MODE === true;
 
     if (isDev) {
       const devUserId = process.env.EXPO_PUBLIC_DEV_USER_ID;
       if (devUserId) {
         config.headers["X-Dev-User-Id"] = devUserId;
+        // Also clear Authorization to avoid conflicts
+        delete config.headers.Authorization;
       }
     } else {
       const accessToken = useAuthStore.getState().accessToken;

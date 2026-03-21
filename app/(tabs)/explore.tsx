@@ -1,35 +1,86 @@
-import { ScreenHeader } from "@/src/components";
-import { Fonts } from "@/src/constants";
-import {
-  feedKeys,
-  useMainFeed,
-} from "@/src/hooks/queries/use-feed";
+import { Fonts } from "@/src/constants/theme";
+import { useMainFeed } from "@/src/hooks/queries/use-feed";
 import { useSearch } from "@/src/hooks/queries/use-search";
 import type { PostRead, UserSync } from "@/src/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
-import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
   FlatList,
-  ScrollView,
+  Keyboard,
+  ListRenderItemInfo,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import Animated from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const { width } = Dimensions.get("window");
+// ---- Design Constants (Bridged from reference) -------------------------------
+
+const colors = {
+  bg: "#0F0F10",
+  textPrimary: "#FFFFFF",
+  textSecondary: "#A1A1AA",
+  textTertiary: "#71717A",
+  textMuted: "#52525B",
+  accent: "#A855F7", // Purple accent
+  border: "#27272A",
+};
+
+const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
+};
+
+const radius = {
+  sm: 4,
+  md: 8,
+  lg: 12,
+};
+
+const typography = {
+  h1: { fontSize: 24, fontFamily: Fonts.bold },
+  displaySm: { fontSize: 20, fontFamily: Fonts.bold },
+  bodyMd: { fontSize: 13, fontFamily: Fonts.bold },
+  labelLg: { fontSize: 15, fontFamily: Fonts.regular },
+  labelMd: { fontSize: 13, fontFamily: Fonts.medium },
+  labelSm: { fontSize: 11, fontFamily: Fonts.regular },
+};
+
+const animation = {
+  fast: 200,
+  normal: 300,
+};
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const NUM_COLUMNS = 3;
 const GRID_GAP = 2;
-const GRID_COLS = 3;
-const THUMB = (width - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
+const SCREEN_PADDING = 0; // The grid typically spans full width
+const THUMB_SIZE = (SCREEN_WIDTH - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
+
+const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=333&color=fff&name=U";
+const DEFAULT_BLURHASH = "L6Pj0^jE.AyE_3t7t7R**0o#DgR4";
 
 // ─── Dev location (match social feed) ────────────────────────────────────────
+
 const DEV_LOCATION = {
   latitude: 6.5244,
   longitude: 3.3792,
@@ -37,103 +88,181 @@ const DEV_LOCATION = {
   limit: 60,
 };
 
-// ─── Small helpers ────────────────────────────────────────────────────────────
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
-}
+// ---- Skeleton placeholder component -----------------------------------------
 
-function initials(u: UserSync): string {
-  const fn = u.first_name?.[0] ?? "";
-  const ln = u.last_name?.[0] ?? "";
-  return (fn + ln).toUpperCase() || u.username?.[0]?.toUpperCase() || "?";
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function UserRow({ user }: { user: UserSync }) {
-  const name =
-    [user.first_name, user.last_name].filter(Boolean).join(" ") ||
-    user.username;
+const SkeletonGrid = React.memo(function SkeletonGrid() {
+  const items = Array.from({ length: 12 }, (_, i) => i);
   return (
-    <TouchableOpacity style={styles.userRow} activeOpacity={0.7}>
-      {user.avatar ? (
-        <Image
-          source={{ uri: user.avatar }}
-          style={styles.userAvatar}
-          contentFit="cover"
-        />
-      ) : (
-        <View style={[styles.userAvatar, styles.userAvatarPlaceholder]}>
-          <Text style={styles.userAvatarText}>{initials(user)}</Text>
+    <View style={styles.skeletonContainer}>
+      {Array.from({ length: Math.ceil(items.length / NUM_COLUMNS) }, (_, row) => (
+        <View key={row} style={styles.skeletonRow}>
+          {items
+            .slice(row * NUM_COLUMNS, row * NUM_COLUMNS + NUM_COLUMNS)
+            .map((i) => (
+              <View key={i} style={styles.skeletonThumb} />
+            ))}
         </View>
-      )}
-      <View style={styles.userInfo}>
-        <Text style={styles.userName}>{name}</Text>
-        {user.username ? (
-          <Text style={styles.userHandle}>@{user.username}</Text>
-        ) : null}
-      </View>
-      <Ionicons name="chevron-forward" size={18} color="#3A3A3C" />
-    </TouchableOpacity>
+      ))}
+    </View>
   );
+});
+
+// ---- Memoised sub-components -------------------------------------------------
+
+interface GridThumbnailProps {
+  post: PostRead;
+  onPress?: () => void;
 }
 
-function PostThumb({ post }: { post: PostRead }) {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const isCarousel =
-    post.media_type === "carousel" && (post.media_urls?.length ?? 0) > 1;
-
-  const handlePress = () => {
-    // Optimistically seed the post detail query
-    queryClient.setQueryData(feedKeys.post(post.id), post);
-    router.push(`/post/${post.id}`);
-  };
+const GridThumbnail = React.memo(function GridThumbnail({
+  post,
+  onPress,
+}: GridThumbnailProps) {
+  const isCarousel = post.media_type === "carousel" && (post.media_urls?.length ?? 0) > 1;
 
   return (
-    <TouchableOpacity
-      style={styles.thumbWrapper}
-      activeOpacity={0.85}
-      onPress={handlePress}
-    >
-      <Animated.View
-        sharedTransitionTag={`post-media-${post.id}`}
-        style={StyleSheet.absoluteFill}
-      >
-        <Image
-          source={{ uri: post.media_url }}
-          style={styles.thumb}
-          contentFit="cover"
-          transition={150}
-        />
-      </Animated.View>
+    <Pressable style={styles.thumbWrapper} onPress={onPress}>
+      <Image
+        source={{ uri: post.media_url }}
+        style={styles.thumb}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        recyclingKey={`explore-${post.id}`}
+        placeholder={{ blurhash: DEFAULT_BLURHASH }}
+        transition={0}
+      />
       {isCarousel && (
         <View style={styles.carouselBadge}>
           <Ionicons name="copy-outline" size={12} color="#FFF" />
         </View>
       )}
-      {post.like_count > 0 && (
-        <View style={styles.likesBadge}>
-          <Ionicons name="heart" size={10} color="#FF3B30" />
-          <Text style={styles.likesBadgeText}>{formatCount(post.like_count)}</Text>
-        </View>
-      )}
-    </TouchableOpacity>
+    </Pressable>
   );
+});
+
+interface UserChipProps {
+  user: UserSync;
+  onPress?: () => void;
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+const UserChip = React.memo(function UserChip({ user, onPress }: UserChipProps) {
+  const initials = (user.first_name?.[0] ?? "") + (user.last_name?.[0] ?? "");
+
+  return (
+    <TouchableOpacity style={styles.userChip} activeOpacity={0.7} onPress={onPress}>
+      {user.avatar ? (
+        <Image
+          source={{ uri: user.avatar }}
+          style={styles.userChipAvatar}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          placeholder={{ blurhash: DEFAULT_BLURHASH }}
+        />
+      ) : (
+        <View style={[styles.userChipAvatar, styles.userAvatarPlaceholder]}>
+          <Text style={styles.userAvatarText}>{initials || user.username?.[0]?.toUpperCase() || "?"}</Text>
+        </View>
+      )}
+      <Text style={styles.userChipName} numberOfLines={1}>
+        {user.username}
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
+interface HistoryRowProps {
+  item: string;
+  onTap: (item: string) => void;
+  onRemove: (item: string) => void;
+}
+
+const HistoryRow = React.memo(function HistoryRow({
+  item,
+  onTap,
+  onRemove,
+}: HistoryRowProps) {
+  const handleTap = useCallback(() => onTap(item), [item, onTap]);
+  const handleRemove = useCallback(() => onRemove(item), [item, onRemove]);
+
+  return (
+    <TouchableOpacity
+      style={styles.historyItem}
+      activeOpacity={0.7}
+      onPress={handleTap}
+    >
+      <Ionicons name="time-outline" size={18} color={colors.textTertiary} />
+      <Text style={styles.historyText}>{item}</Text>
+      <TouchableOpacity
+        onPress={handleRemove}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Ionicons name="close" size={16} color={colors.textMuted} />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+});
+
+interface SectionHeaderProps {
+  title: string;
+  trailing?: React.ReactNode;
+}
+
+const SectionHeader = React.memo(function SectionHeader({
+  title,
+  trailing,
+}: SectionHeaderProps) {
+  return (
+    <View style={styles.sectionRow}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {trailing}
+    </View>
+  );
+});
+
+// ---- Main screen ------------------------------------------------------------
 
 export default function ExploreScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [history, setHistory] = useState<string[]>([]);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounce: fire search 400 ms after user stops typing
+  // Main feed data
+  const {
+    data: feedPosts = [],
+    isLoading: feedLoading,
+  } = useMainFeed(DEV_LOCATION);
+
+  // Search results
+  const {
+    data: searchResults,
+    isFetching: searchLoading,
+    isError: searchError,
+  } = useSearch(debouncedQ);
+
+  const filteredPosts = searchResults?.posts ?? [];
+  const filteredUsers = searchResults?.users ?? [];
+
+  // Animated cancel button width
+  const cancelOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    cancelOpacity.value = withTiming(isFocused ? 1 : 0, {
+      duration: animation.normal,
+    });
+  }, [isFocused, cancelOpacity]);
+
+  const cancelStyle = useAnimatedStyle(() => ({
+    opacity: cancelOpacity.value,
+    width: cancelOpacity.value === 0 ? 0 : 70, // Estimate width for "Cancel"
+    marginLeft: cancelOpacity.value === 0 ? 0 : spacing.sm,
+  }));
+
+  // Debounce search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setDebouncedQ(query.trim()), 400);
@@ -142,53 +271,78 @@ export default function ExploreScreen() {
     };
   }, [query]);
 
-  // Search query (only enabled when debouncedQ >= 2 chars)
-  const {
-    data: results,
-    isFetching: searching,
-    isError: searchError,
-  } = useSearch(debouncedQ);
+  const isSearching = debouncedQ.length >= 2;
+  const hasResults = filteredPosts.length > 0 || filteredUsers.length > 0;
 
-  // Explore grid: trending posts shown when search is empty
-  const { data: explorePosts = [] } = useMainFeed(DEV_LOCATION);
+  // Handlers
+  const handleFocus = useCallback(() => setIsFocused(true), []);
 
-  const handleSubmit = () => {
+  const handleCancel = useCallback(() => {
+    setQuery("");
+    setDebouncedQ("");
+    setIsFocused(false);
+    Keyboard.dismiss();
+  }, []);
+
+  const handleClear = useCallback(() => {
+    setQuery("");
+    setDebouncedQ("");
+  }, []);
+
+  const handleSubmit = useCallback(() => {
     const t = query.trim();
     if (t && !history.includes(t)) {
       setHistory((prev) => [t, ...prev].slice(0, 15));
     }
-  };
+  }, [query, history]);
 
-  const handleHistoryTap = (item: string) => {
+  const handleHistoryTap = useCallback((item: string) => {
     setQuery(item);
     setDebouncedQ(item);
     inputRef.current?.focus();
-  };
+  }, []);
 
-  const removeHistory = (item: string) =>
+  const handleHistoryRemove = useCallback((item: string) => {
     setHistory((prev) => prev.filter((h) => h !== item));
+  }, []);
 
-  const clearHistory = () => setHistory([]);
+  const handleClearHistory = useCallback(() => setHistory([]), []);
 
-  const clearSearch = () => {
-    setQuery("");
-    setDebouncedQ("");
-  };
+  // Grid item renderer
+  const renderGridItem = useCallback(
+    ({ item }: ListRenderItemInfo<PostRead>) => (
+      <GridThumbnail
+        post={item}
+        onPress={() => router.push({ pathname: "/post/[id]", params: { id: item.id } })}
+      />
+    ),
+    [router]
+  );
 
-  // ─── Derived state ──────────────────────────────────────────────────────────
-  const isActive = debouncedQ.length >= 2;
-  const posts: PostRead[] = results?.posts ?? [];
-  const users: UserSync[] = results?.users ?? [];
-  const hasResults = posts.length > 0 || users.length > 0;
+  const gridKeyExtractor = useCallback((item: PostRead) => item.id, []);
 
-  // ─── Render states ──────────────────────────────────────────────────────────
+  const columnWrapperStyle = useMemo(
+    () => ({ gap: GRID_GAP }),
+    []
+  );
 
-  const renderSearchResults = () => {
-    if (searching) {
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<PostRead> | null | undefined, index: number) => ({
+      length: THUMB_SIZE,
+      offset: (THUMB_SIZE + GRID_GAP) * Math.floor(index / NUM_COLUMNS),
+      index,
+    }),
+    []
+  );
+
+  // ---- Search results content ------------------------------------------------
+
+  const renderSearchContent = () => {
+    if (searchLoading) {
       return (
         <View style={styles.center}>
-          <ActivityIndicator color="#A855F7" size="large" />
-          <Text style={styles.hint}>Searching…</Text>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={styles.hint}>Searching...</Text>
         </View>
       );
     }
@@ -196,304 +350,370 @@ export default function ExploreScreen() {
     if (searchError) {
       return (
         <View style={styles.center}>
-          <Ionicons name="cloud-offline-outline" size={48} color="#666" />
-          <Text style={styles.hint}>Search failed — check your connection</Text>
+          <Ionicons name="cloud-offline-outline" size={48} color={colors.textTertiary} />
+          <Text style={styles.hint}>Search failed — check connection</Text>
         </View>
       );
     }
 
     if (!hasResults) {
       return (
-        <View style={styles.center}>
-          <Ionicons name="search-outline" size={56} color="#3A3A3C" />
-          <Text style={styles.noResultTitle}>Nothing found</Text>
-          <Text style={styles.hint}>Try different keywords</Text>
-        </View>
+        <Animated.View
+          entering={FadeIn.duration(animation.normal)}
+          style={styles.center}
+        >
+          <Ionicons name="search-outline" size={56} color={colors.textMuted} />
+          <Text style={styles.emptyTitle}>Nothing found</Text>
+          <Text style={styles.emptySubtitle}>Try different keywords</Text>
+        </Animated.View>
       );
     }
 
     return (
-      <ScrollView
+      <FlatList
+        data={filteredPosts}
+        keyExtractor={gridKeyExtractor}
+        numColumns={NUM_COLUMNS}
+        columnWrapperStyle={filteredPosts.length > 0 ? columnWrapperStyle : undefined}
+        renderItem={renderGridItem}
+        getItemLayout={getItemLayout}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-      >
-        {/* Users section */}
-        {users.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>People</Text>
-            {users.map((u) => (
-              <UserRow key={u.id} user={u} />
-            ))}
-          </View>
-        )}
+        windowSize={5}
+        maxToRenderPerBatch={5}
+        updateCellsBatchingPeriod={50}
+        removeClippedSubviews
+        contentContainerStyle={styles.gridContent}
+        ListHeaderComponent={
+          <>
+            {/* Users horizontal scroll */}
+            {filteredUsers.length > 0 && (
+              <Animated.View
+                entering={FadeIn.duration(animation.normal)}
+                style={styles.section}
+              >
+                <SectionHeader title="People" />
+                <FlatList
+                  data={filteredUsers}
+                  keyExtractor={(u) => u.id}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.usersRow}
+                  renderItem={({ item }) => (
+                    <UserChip
+                      user={item}
+                      onPress={() => console.log("User tapped:", item.id)}
+                    />
+                  )}
+                />
+              </Animated.View>
+            )}
 
-        {/* Posts section */}
-        {posts.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Posts</Text>
-            <View style={styles.grid}>
-              {posts.map((p) => (
-                <PostThumb key={p.id} post={p} />
-              ))}
-            </View>
-          </View>
-        )}
-      </ScrollView>
+            {/* Posts section header */}
+            {filteredPosts.length > 0 && (
+              <SectionHeader title="Posts" />
+            )}
+          </>
+        }
+      />
     );
   };
 
-  const renderIdle = () => {
-    if (history.length > 0) {
-      return (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Recent searches */}
-          <View style={styles.section}>
-            <View style={styles.sectionRow}>
-              <Text style={styles.sectionTitle}>Recent</Text>
-              <TouchableOpacity onPress={clearHistory}>
-                <Text style={styles.clearText}>Clear all</Text>
-              </TouchableOpacity>
-            </View>
-            {history.map((item) => (
-              <TouchableOpacity
-                key={item}
-                style={styles.historyItem}
-                onPress={() => handleHistoryTap(item)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="time-outline" size={18} color="#666" />
-                <Text style={styles.historyText}>{item}</Text>
-                <TouchableOpacity
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  onPress={() => removeHistory(item)}
-                >
-                  <Ionicons name="close" size={16} color="#3A3A3C" />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            ))}
-          </View>
+  // ---- Idle content (no search active) ---------------------------------------
 
-          {/* Explore grid below history */}
-          {explorePosts.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Explore</Text>
-              <View style={styles.grid}>
-                {explorePosts.map((p) => (
-                  <PostThumb key={p.id} post={p} />
-                ))}
-              </View>
-            </View>
-          )}
-        </ScrollView>
+  const renderIdleContent = () => {
+    if (isFocused && history.length > 0) {
+      return (
+        <Animated.View
+          entering={FadeIn.duration(animation.fast)}
+          exiting={FadeOut.duration(animation.fast)}
+          style={styles.historyContainer}
+        >
+          <SectionHeader
+            title="Recent Searches"
+            trailing={
+              <TouchableOpacity onPress={handleClearHistory}>
+                <Text style={styles.clearAllText}>Clear all</Text>
+              </TouchableOpacity>
+            }
+          />
+          {history.map((item) => (
+            <HistoryRow
+              key={item}
+              item={item}
+              onTap={handleHistoryTap}
+              onRemove={handleHistoryRemove}
+            />
+          ))}
+        </Animated.View>
       );
     }
 
-    // No history → just the explore grid
+    if (feedLoading && feedPosts.length === 0) {
+      return <SkeletonGrid />;
+    }
+
     return (
       <FlatList
-        data={explorePosts}
-        keyExtractor={(p) => p.id}
-        numColumns={GRID_COLS}
-        columnWrapperStyle={styles.gridRow}
-        renderItem={({ item }) => <PostThumb post={item} />}
+        data={feedPosts}
+        keyExtractor={gridKeyExtractor}
+        numColumns={NUM_COLUMNS}
+        columnWrapperStyle={columnWrapperStyle}
+        renderItem={renderGridItem}
+        getItemLayout={getItemLayout}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          explorePosts.length > 0 ? (
-            <Text
-              style={[
-                styles.sectionTitle,
-                { paddingHorizontal: 16, paddingTop: 8 },
-              ]}
-            >
-              Explore
-            </Text>
-          ) : null
-        }
+        windowSize={5}
+        maxToRenderPerBatch={5}
+        updateCellsBatchingPeriod={50}
+        removeClippedSubviews
+        contentContainerStyle={styles.gridContent}
+        // ListHeaderComponent={
+        //   <SectionHeader title="Explore" />
+        // }
         ListEmptyComponent={
-          <View style={styles.center}>
-            <ActivityIndicator color="#A855F7" />
-          </View>
+          feedLoading ? <SkeletonGrid /> : (
+            <View style={styles.center}>
+              <Ionicons name="images-outline" size={48} color={colors.textMuted} />
+              <Text style={styles.hint}>No posts yet</Text>
+            </View>
+          )
         }
-        contentContainerStyle={{ paddingBottom: 20 }}
       />
     );
   };
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader
-        title="Search"
-        showMenuButton={false}
-        showBackButton={false}
-      />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Header row */}
+      <View style={styles.headerRow}>
 
-      {/* Search bar */}
-      <View style={styles.searchBar}>
-        <Ionicons
-          name="search"
-          size={20}
-          color="#666"
-          style={{ marginRight: 10 }}
-        />
-        <TextInput
-          ref={inputRef}
-          style={styles.searchInput}
-          placeholder="Search posts, people…"
-          placeholderTextColor="#666"
-          value={query}
-          onChangeText={setQuery}
-          onSubmitEditing={handleSubmit}
-          returnKeyType="search"
-          autoCapitalize="none"
-          autoCorrect={false}
-          blurOnSubmit={false}
-        />
-        {query.length > 0 && (
-          <TouchableOpacity
-            onPress={clearSearch}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="close-circle" size={20} color="#666" />
-          </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>Search</Text>
+
+      </View>
+
+      {/* Search bar area */}
+      <View style={styles.searchBarContainer}>
+        <View style={styles.searchBar}>
+          <Ionicons
+            name="search"
+            size={20}
+            color={colors.textTertiary}
+          />
+          <TextInput
+            ref={inputRef}
+            style={styles.searchInput}
+            placeholder="Search properties, people..."
+            placeholderTextColor={colors.textTertiary}
+            value={query}
+            onChangeText={setQuery}
+            onFocus={handleFocus}
+            onSubmitEditing={handleSubmit}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+            blurOnSubmit={false}
+            selectionColor={colors.accent}
+          />
+          {query.length > 0 && (
+            <TouchableOpacity
+              onPress={handleClear}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.clearButton}
+            >
+              <Ionicons
+                name="close-circle"
+                size={18}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {isFocused && (
+          <Animated.View style={cancelStyle}>
+            <TouchableOpacity
+              onPress={handleCancel}
+              style={styles.cancelButton}
+            >
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Animated.View>
         )}
       </View>
 
-      {/* Content */}
+      {/* Body */}
       <View style={styles.body}>
-        {isActive ? renderSearchResults() : renderIdle()}
+        {isSearching ? renderSearchContent() : renderIdleContent()}
       </View>
     </View>
   );
 }
 
+// ---- Styles -----------------------------------------------------------------
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0F0F10" },
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  // Header
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    // gap: 8,
+  },
+  headerTitle: {
+    ...typography.h1,
+    color: colors.textPrimary,
+  },
+  headerIconButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Search bar
+  searchBarContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 16,
+  },
   searchBar: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1C1C1E",
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 40,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
-    fontFamily: Fonts.regular,
-    color: "#FFF",
+    ...typography.labelLg,
+    color: colors.textPrimary,
+    paddingVertical: 0,
   },
-  body: { flex: 1 },
-  center: {
-    flex: 1,
+  clearButton: {
+    width: 32,
+    height: 32,
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
-    paddingTop: 80,
   },
-  hint: {
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-    color: "#666",
-    textAlign: "center",
-    paddingHorizontal: 32,
+  cancelButton: {
+    height: 40,
+    justifyContent: "center",
+    paddingLeft: 4,
   },
-  noResultTitle: {
-    fontSize: 20,
-    fontFamily: Fonts.bold,
-    color: "#FFF",
+  cancelText: {
+    ...typography.labelLg,
+    color: colors.accent,
   },
-  // ─── Sections ──────────────────────────────────────────────────────────────
-  section: { paddingBottom: 8 },
+
+  // Body
+  body: {
+    flex: 1,
+  },
+
+  // Sections
+  section: {
+    paddingBottom: 8,
+  },
   sectionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingBottom: 10,
-    paddingTop: 4,
+    paddingVertical: 12,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontFamily: Fonts.bold,
-    color: "#FFF",
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    paddingTop: 4,
+    ...typography.bodyMd,
+    color: colors.textSecondary,
+    textTransform: "uppercase" as const,
+    letterSpacing: 1,
   },
-  clearText: {
-    fontSize: 13,
-    fontFamily: Fonts.medium,
-    color: "#A855F7",
+  clearAllText: {
+    ...typography.labelMd,
+    color: colors.accent,
   },
-  // ─── History ───────────────────────────────────────────────────────────────
+
+  // History
+  historyContainer: {
+    flex: 1,
+  },
   historyItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   historyText: {
     flex: 1,
-    fontSize: 15,
-    fontFamily: Fonts.regular,
-    color: "#FFF",
+    ...typography.labelLg,
+    color: colors.textPrimary,
   },
-  // ─── Users ─────────────────────────────────────────────────────────────────
-  userRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+
+  // Users horizontal row
+  usersRow: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: 12,
+    paddingBottom: 12,
   },
-  userAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  userChip: {
+    alignItems: "center",
+    width: 72,
+  },
+  userChipAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginBottom: 4,
+    backgroundColor: "#27272A",
   },
   userAvatarPlaceholder: {
-    backgroundColor: "#2C2C2E",
     alignItems: "center",
     justifyContent: "center",
   },
   userAvatarText: {
-    fontSize: 16,
-    fontFamily: Fonts.semiBold,
-    color: "#FFF",
+    fontSize: 20,
+    fontFamily: Fonts.bold,
+    color: colors.textPrimary,
   },
-  userInfo: { flex: 1 },
-  userName: {
-    fontSize: 15,
-    fontFamily: Fonts.semiBold,
-    color: "#FFF",
+  userChipName: {
+    ...typography.labelSm,
+    color: colors.textSecondary,
+    textAlign: "center",
+    width: 72,
   },
-  userHandle: {
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-    color: "#666",
-    marginTop: 2,
-  },
-  // ─── Grid ──────────────────────────────────────────────────────────────────
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: GRID_GAP,
-    paddingHorizontal: 0,
+
+  // Grid
+  gridContent: {
+    paddingBottom: 24,
   },
   gridRow: { gap: GRID_GAP },
   thumbWrapper: {
-    width: THUMB,
-    height: THUMB,
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
     position: "relative",
+    overflow: "hidden",
   },
-  thumb: { width: "100%", height: "100%" },
+  thumb: {
+    width: "100%",
+    height: "100%",
+  },
   carouselBadge: {
     position: "absolute",
     top: 6,
@@ -502,21 +722,43 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     padding: 3,
   },
-  likesBadge: {
-    position: "absolute",
-    bottom: 6,
-    left: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+
+  // Skeleton
+  skeletonContainer: {
+    padding: 0,
+    gap: GRID_GAP,
   },
-  likesBadgeText: {
-    fontSize: 10,
-    fontFamily: Fonts.semiBold,
-    color: "#FFF",
+  skeletonRow: {
+    flexDirection: "row",
+    gap: GRID_GAP,
+  },
+  skeletonThumb: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    backgroundColor: "#1C1C1E",
+  },
+
+  // Empty state
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingTop: 80,
+  },
+  emptyTitle: {
+    ...typography.displaySm,
+    color: colors.textPrimary,
+  },
+  emptySubtitle: {
+    ...typography.labelLg,
+    color: colors.textTertiary,
+    textAlign: "center",
+    paddingHorizontal: 40,
+  },
+  hint: {
+    ...typography.labelMd,
+    color: colors.textTertiary,
+    textAlign: "center",
   },
 });

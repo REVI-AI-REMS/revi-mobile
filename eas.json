@@ -20,6 +20,13 @@
         "enterpriseProvisioning": "universal"
       }
     },
+    "apk": {
+      "developmentClient": false,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "production": {
       "autoIncrement": true,
       "channel": "production"

@@ -1,6 +1,7 @@
 import { Fonts } from "@/src/constants/theme";
 import { useCreatePostMutation } from "@/src/hooks/mutations/use-feed-mutations";
 import { mediaService } from "@/src/services/social/media.service";
+import type { MediaType } from "@/src/services/social/types";
 import { useUploadStore } from "@/src/store/upload.store";
 import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
@@ -10,19 +11,19 @@ import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Dimensions,
-    FlatList,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -42,7 +43,7 @@ async function resolvePhUri(uri: string, assetId?: string): Promise<string> {
     // getAssetInfoAsync accepts either an Asset object or an AssetId string
     const info = await MediaLibrary.getAssetInfoAsync(assetId ?? uri);
     if (info?.localUri) return info.localUri;
-  } catch (_) {
+  } catch {
     // fall through
   }
   // Last-resort: export to cache via FileSystem
@@ -95,6 +96,7 @@ export default function NewPostScreen() {
   const [selectedAssets, setSelectedAssets] = useState<MediaLibrary.Asset[]>(
     [],
   );
+  const [selectedVideoUris, setSelectedVideoUris] = useState<string[]>([]);
   // Which image is shown large in the preview pane
   const [focusedUri, setFocusedUri] = useState<string | null>(null);
   const [focusedIsVideo, setFocusedIsVideo] = useState(false);
@@ -116,13 +118,7 @@ export default function NewPostScreen() {
     getPermissions();
   }, [permissionResponse, requestPermission]);
 
-  useEffect(() => {
-    if (permissionResponse?.status === "granted") {
-      loadAssets();
-    }
-  }, [permissionResponse, activeTab]);
-
-  const loadAssets = async () => {
+  const loadAssets = useCallback(async () => {
     if (permissionResponse?.status !== "granted") return;
     let mediaType: MediaLibrary.MediaTypeValue[] = ["photo", "video"];
     if (activeTab === "Photos") mediaType = ["photo"];
@@ -139,12 +135,27 @@ export default function NewPostScreen() {
         const first = loaded[0];
         setSelectedUris([first.uri]);
         setSelectedAssets([first]);
+        setSelectedVideoUris(first.mediaType === "video" ? [first.uri] : []);
         setFocusedUri(first.uri);
         setFocusedIsVideo(first.mediaType === "video");
       }
     } catch (e) {
       console.log("Error loading assets:", e);
     }
+  }, [permissionResponse?.status, activeTab, selectedUris.length]);
+
+  useEffect(() => {
+    if (permissionResponse?.status === "granted") {
+      loadAssets();
+    }
+  }, [permissionResponse, loadAssets]);
+
+  const isVideoUri = (uri: string | null): boolean => {
+    if (!uri) return false;
+    if (selectedVideoUris.includes(uri)) return true;
+    const fromAsset = selectedAssets.find((a) => a.uri === uri);
+    if (fromAsset?.mediaType === "video") return true;
+    return /\.(mp4|mov|m4v|avi|mkv)$/i.test(uri.toLowerCase());
   };
 
   const handleCamera = async () => {
@@ -169,8 +180,15 @@ export default function NewPostScreen() {
         if (isVideo) {
           setSelectedUris([uri]);
           setSelectedAssets([]);
+          setSelectedVideoUris([uri]);
         } else if (selectedUris.length < 10) {
-          setSelectedUris((prev) => [...prev, uri]);
+          if (focusedIsVideo || selectedVideoUris.length > 0) {
+            setSelectedUris([uri]);
+            setSelectedAssets([]);
+          } else {
+            setSelectedUris((prev) => [...prev, uri]);
+          }
+          setSelectedVideoUris([]);
         }
         setFocusedUri(uri);
         setFocusedIsVideo(isVideo);
@@ -190,10 +208,20 @@ export default function NewPostScreen() {
       videoMaxDuration: 60,
     });
     if (!result.canceled && result.assets.length > 0) {
-      const uris = result.assets.map((a) => a.uri).slice(0, 10);
-      setSelectedUris(uris);
+      const videoAsset = result.assets.find((a) => a.type === "video");
+      if (videoAsset) {
+        setSelectedUris([videoAsset.uri]);
+        setSelectedVideoUris([videoAsset.uri]);
+        setFocusedUri(videoAsset.uri);
+        setFocusedIsVideo(true);
+      } else {
+        const uris = result.assets.map((a) => a.uri).slice(0, 10);
+        setSelectedUris(uris);
+        setSelectedVideoUris([]);
+        setFocusedUri(uris[0]);
+        setFocusedIsVideo(false);
+      }
       setSelectedAssets([]);
-      setFocusedUri(uris[0]);
     }
   };
 
@@ -208,6 +236,7 @@ export default function NewPostScreen() {
 
       // Tell the global store so the social feed shows the progress card
       const hasVideo =
+        selectedVideoUris.length > 0 ||
         selectedAssets.some((a) => a.mediaType === "video") ||
         selectedUris.some((u) => /\.(mp4|mov|m4v)$/i.test(u.toLowerCase()));
       uploadStore.startUpload(selectedUris[0], hasVideo);
@@ -218,10 +247,31 @@ export default function NewPostScreen() {
 
       // Step 1: Resolve any ph:// (iOS Photo Library) URIs to file:// URIs.
       // MediaLibrary.getAssetInfoAsync gives us the real local path.
-      const uploadUris = await Promise.all(
+      let resolvedUris = await Promise.all(
         selectedUris.map((uri, i) => {
           const assetId = selectedAssets[i]?.id;
           return resolvePhUri(uri, assetId);
+        }),
+      );
+
+      // HEIC to JPEG conversion (common on iOS)
+      const { manipulateAsync, SaveFormat } = await import("expo-image-manipulator");
+      const uploadUris = await Promise.all(
+        resolvedUris.map(async (uri) => {
+          if (uri.toLowerCase().endsWith(".heic")) {
+            console.log(`[Upload] Converting HEIC to JPEG: ${uri}`);
+            try {
+              const result = await manipulateAsync(uri, [{ resize: { width: 1600 } }], {
+                compress: 0.9,
+                format: SaveFormat.JPEG,
+              });
+              return result.uri;
+            } catch (err) {
+              console.error("[Upload] HEIC conversion failed:", err);
+              return uri;
+            }
+          }
+          return uri;
         }),
       );
 
@@ -232,6 +282,7 @@ export default function NewPostScreen() {
 
         // Detect video
         const isVideo =
+          selectedVideoUris.includes(selectedUris[i]) ||
           asset?.mediaType === "video" ||
           !!lowerUri.match(/\.(mp4|mov|m4v|avi|mkv)$/);
 
@@ -305,7 +356,7 @@ export default function NewPostScreen() {
       // video_upload → media_url = raw blob URL, media_urls = null
       // carousel     → media_url = first image, media_urls = all blob URLs
       // image        → media_url = blob URL, media_urls = null
-      let mediaType: string;
+      let mediaType: MediaType;
       let mediaUrls: string[] | null = null;
 
       if (requiresTranscoding) {
@@ -342,13 +393,9 @@ export default function NewPostScreen() {
 
       if (requiresTranscoding) {
         // Video needs server-side HLS transcoding (~15-30s)
+        // Polling is now handled in SocialsScreen (app/(tabs)/social.tsx)
         uploadStore.setStatus("processing");
         uploadStore.setProgress(90);
-        // Auto-complete after server transcoding window
-        setTimeout(() => {
-          uploadStore.setProgress(100);
-          uploadStore.setStatus("done");
-        }, 15_000);
       } else {
         uploadStore.setProgress(100);
         uploadStore.setStatus("done");
@@ -525,7 +572,10 @@ export default function NewPostScreen() {
                 {selectedUris.map((uri, i) => (
                   <TouchableOpacity
                     key={uri}
-                    onPress={() => setFocusedUri(uri)}
+                    onPress={() => {
+                      setFocusedUri(uri);
+                      setFocusedIsVideo(isVideoUri(uri));
+                    }}
                     style={styles.stripThumbWrapper}
                   >
                     <Image
@@ -607,18 +657,22 @@ export default function NewPostScreen() {
                   const newAssets = selectedAssets.filter(
                     (a) => a.id !== asset.id,
                   );
+                  const newVideoUris = selectedVideoUris.filter(
+                    (u) => u !== asset.uri,
+                  );
                   setSelectedUris(newUris);
                   setSelectedAssets(newAssets);
+                  setSelectedVideoUris(newVideoUris);
                   if (focusedUri === asset.uri) {
                     const lastUri =
                       newUris.length > 0 ? newUris[newUris.length - 1] : null;
-                    const lastAsset =
-                      newAssets.length > 0
-                        ? newAssets[newAssets.length - 1]
-                        : null;
                     setFocusedUri(lastUri);
                     setFocusedIsVideo(
-                      lastAsset?.mediaType === "video" ?? false,
+                      !!lastUri &&
+                        (newVideoUris.includes(lastUri) ||
+                          /\.(mp4|mov|m4v|avi|mkv)$/i.test(
+                            lastUri.toLowerCase(),
+                          )),
                     );
                   }
                 } else {
@@ -627,15 +681,20 @@ export default function NewPostScreen() {
                     // Video: clear all other selections, only allow one video
                     setSelectedUris([asset.uri]);
                     setSelectedAssets([asset]);
+                    setSelectedVideoUris([asset.uri]);
                   } else {
                     // Image: don't allow adding images when a video is selected
                     if (focusedIsVideo) {
                       setSelectedUris([asset.uri]);
                       setSelectedAssets([asset]);
+                      setSelectedVideoUris([]);
                     } else {
                       if (selectedUris.length >= 10) return;
                       setSelectedUris((prev) => [...prev, asset.uri]);
                       setSelectedAssets((prev) => [...prev, asset]);
+                      setSelectedVideoUris((prev) =>
+                        prev.filter((u) => u !== asset.uri),
+                      );
                     }
                   }
                   setFocusedUri(asset.uri);
