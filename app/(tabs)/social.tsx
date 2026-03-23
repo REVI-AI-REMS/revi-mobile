@@ -25,6 +25,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   StyleSheet,
   Text,
@@ -39,7 +40,7 @@ const DEV_LOCATION: MainFeedParams = {
   latitude: 6.5244, // Lagos, Nigeria
   longitude: 3.3792,
   radius_km: 20,
-  limit: 20,
+  limit: 10, // ← reduced from 20 for faster first paint
 };
 
 function FeedSkeleton() {
@@ -71,8 +72,7 @@ export default function SocialsScreen() {
   const router = useRouter();
 
   // ─── Relationship status ───────────────────────────────────────────────────
-  // Load who the current user already follows so Follow buttons initialise
-  // correctly on every mount, not just after an in-session toggle.
+  // Deferred: 5s staleTime so it doesn't race with the main feed on cold start
   const currentUserId = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
   const { data: followingList = [] } = useUserFollowing(currentUserId);
   const followingIds = useMemo(
@@ -81,7 +81,6 @@ export default function SocialsScreen() {
   );
 
   // ─── View tracking ─────────────────────────────────────────────────────────
-  // Accumulate viewed IDs as user scrolls, flush to API at 50 or on unmount
   const viewedIdsRef = useRef<Set<string>>(new Set());
   const visibleIdsRef = useRef<Set<string>>(new Set());
   const { mutate: batchLogViews } = useBatchLogViewsMutation();
@@ -153,29 +152,44 @@ export default function SocialsScreen() {
     [batchLogViews, setActiveVideoId, setVisiblePostIds],
   );
 
-  // ─── Feed queries ──────────────────────────────────────────────────────────
+  // ─── Feed queries (infinite scroll) ────────────────────────────────────────
   const mainFeedQuery = useMainFeed(DEV_LOCATION);
-  const geoFeedQuery = useGeospatialFeed({ ...DEV_LOCATION, radius_km: 5 });
+
+  // Geo feed — only enabled when user is on the "Nearby" tab
+  const geoFeedQuery = useGeospatialFeed({
+    ...DEV_LOCATION,
+    radius_km: 5,
+  });
+
+  const activeFeedQuery = activeTab === "neighborhoods" ? geoFeedQuery : mainFeedQuery;
 
   const {
-    data: rawPosts = [],
+    data: feedData,
     isLoading,
     isError,
     error,
     refetch,
-  } = activeTab === "neighborhoods" ? geoFeedQuery : mainFeedQuery;
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = activeFeedQuery;
+
+  // Flatten pages into a single sorted array
+  const rawPosts = useMemo(
+    () => feedData?.pages.flat() ?? [],
+    [feedData?.pages],
+  );
 
   // Sort posts by creation date (newest first)
   const posts = useMemo(() => {
     return [...rawPosts].sort((a, b) => {
       const dateA = new Date(a.created_at).getTime();
       const dateB = new Date(b.created_at).getTime();
-      return dateB - dateA; // Descending order (newest first)
+      return dateB - dateA;
     });
   }, [rawPosts]);
 
   // Video posts from the already-loaded feed — passed straight to ReelsOverlay
-  // so it NEVER makes a separate API call. Zero delay.
   const feedVideoPosts = useMemo(
     () =>
       posts.filter(
@@ -187,8 +201,14 @@ export default function SocialsScreen() {
     [posts],
   );
 
+  // ─── Infinite scroll handler ───────────────────────────────────────────────
+  const handleEndReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   // ─── Transcoding Polling ────────────────────────────────────────────────
-  // If we just uploaded a video, poll until it's fully active in the feed.
   const setUploadProgress = useUploadStore((s) => s.setProgress);
   const setUploadStatus = useUploadStore((s) => s.setStatus);
 
@@ -202,7 +222,6 @@ export default function SocialsScreen() {
 
     // Animate progress from 90% → 98% gradually
     const progressInterval = setInterval(() => {
-      // In mobile we just use the store
       const current = useUploadStore.getState().progress;
       if (current < 98) setUploadProgress(current + 0.15);
     }, 1000);
@@ -211,8 +230,6 @@ export default function SocialsScreen() {
       refreshCount++;
       try {
         await refetch();
-        // Check if there are NO more "video_upload" posts (they become "video" or "image" once done)
-        // or if they have a .m3u8 media_url.
         setTimeout(() => {
           const stillProcessing = posts.some(
             (p) => p.media_type === "video_upload" && !p.media_url?.includes(".m3u8"),
@@ -251,8 +268,6 @@ export default function SocialsScreen() {
   const { mutate: followUser } = useFollowMutation();
 
   // ─── Bookmarks ───────────────────────────────────────────────────────────
-  // Seed the initial bookmarked-IDs Set from the server; optimistically toggle
-  // on press so the icon updates immediately without waiting for a refetch.
   const { data: bookmarkedList = [] } = useBookmarks();
   const [optimisticBookmarks, setOptimisticBookmarks] = useState<Set<string>>(
     new Set(),
@@ -263,12 +278,11 @@ export default function SocialsScreen() {
   // Derive bookmarked IDs from server data, merge with optimistic updates
   const bookmarkedIds = useMemo(() => {
     const serverIds = new Set(bookmarkedList.map((p) => p.id));
-    // Merge optimistic updates
     optimisticBookmarks.forEach((id) => {
       if (serverIds.has(id)) {
-        serverIds.delete(id); // Optimistically removed
+        serverIds.delete(id);
       } else {
-        serverIds.add(id); // Optimistically added
+        serverIds.add(id);
       }
     });
     return serverIds;
@@ -308,13 +322,12 @@ export default function SocialsScreen() {
 
   const handleBookmark = useCallback(
     (postId: string, isBookmarked: boolean) => {
-      // Optimistic toggle - track which IDs we're toggling
       setOptimisticBookmarks((prev) => {
         const next = new Set(prev);
         if (next.has(postId)) {
-          next.delete(postId); // Remove from optimistic if already there (undo toggle)
+          next.delete(postId);
         } else {
-          next.add(postId); // Add to optimistic (new toggle)
+          next.add(postId);
         }
         return next;
       });
@@ -358,13 +371,22 @@ export default function SocialsScreen() {
     ],
   );
 
+  // ─── Footer spinner while fetching next page ──────────────────────────────
+  const ListFooterComponent = useMemo(() => {
+    if (!isFetchingNextPage) return null;
+    return (
+      <View style={styles.footerSpinner}>
+        <ActivityIndicator size="small" color="#A855F7" />
+      </View>
+    );
+  }, [isFetchingNextPage]);
+
   // ─── Empty / Loading / Error ───────────────────────────────────────────────
   const ListEmptyComponent = () => {
     if (isLoading) {
       return <FeedSkeleton />;
     }
     if (isError) {
-      // Pull the HTTP status and server message for easy debugging
       const axiosError = error as {
         response?: { status: number; data?: { detail?: string } };
       } | null;
@@ -431,7 +453,7 @@ export default function SocialsScreen() {
         ))}
       </View>
 
-      {/* Feed */}
+      {/* Feed — infinite scroll */}
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
@@ -441,10 +463,12 @@ export default function SocialsScreen() {
         onRefresh={refetch}
         refreshing={isLoading && posts.length > 0}
         ListEmptyComponent={ListEmptyComponent}
+        ListFooterComponent={ListFooterComponent}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={
           posts.length === 0 ? styles.emptyContainer : styles.feedContent
         }
+        onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         removeClippedSubviews={true}
         windowSize={3}
@@ -453,7 +477,7 @@ export default function SocialsScreen() {
         initialNumToRender={3}
       />
 
-      {/* Upload Progress Card - Positioned in layout flow above tab bar */}
+      {/* Upload Progress Card */}
       {uploadStatus !== "idle" && <UploadProgressCard />}
 
       {/* Comments Sheet */}
@@ -470,7 +494,7 @@ export default function SocialsScreen() {
         onClose={() => setOptionsPost(null)}
       />
 
-      {/* Reels overlay — renders on top of feed, no navigation, no reload */}
+      {/* Reels overlay */}
       {reelsPost && (
         <ReelsOverlay
           initialPost={reelsPost}
@@ -554,5 +578,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: Fonts.semiBold,
     color: "#FFFFFF",
+  },
+  footerSpinner: {
+    paddingVertical: 20,
+    alignItems: "center",
   },
 });

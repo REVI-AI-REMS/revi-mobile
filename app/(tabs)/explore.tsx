@@ -231,11 +231,16 @@ export default function ExploreScreen() {
   const inputRef = useRef<TextInput>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Main feed data
+  // Main feed data (useInfiniteQuery — flatten pages)
   const {
-    data: feedPosts = [],
+    data: feedData,
     isLoading: feedLoading,
   } = useMainFeed(DEV_LOCATION);
+
+  const feedPosts = React.useMemo(
+    () => feedData?.pages.flat() ?? [],
+    [feedData?.pages],
+  );
 
   // Search results
   const {

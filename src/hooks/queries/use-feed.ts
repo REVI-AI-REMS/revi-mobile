@@ -5,7 +5,15 @@ import type {
     PostRead,
     VideoFeedParams,
 } from "@/src/services/social/types";
-import { useQuery } from "@tanstack/react-query";
+import {
+    keepPreviousData,
+    useInfiniteQuery,
+    useQuery,
+} from "@tanstack/react-query";
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 10; // fetch 10 posts per page for fast first paint
 
 // ─── Query Keys ─────────────────────────────────────────────────────────────
 // Centralised as const so cache invalidation is type-safe everywhere
@@ -25,44 +33,73 @@ export const feedKeys = {
 // ─── Hooks ──────────────────────────────────────────────────────────────────
 
 /**
- * Personalised hybrid main feed.
- * The API returns a flat array (not paginated) — the server blends
- * followed posts + discovery posts in a single response.
- * Call again with a fresh timestamp to get a refreshed feed.
+ * Personalised hybrid main feed with **infinite scroll**.
+ * Fetches PAGE_SIZE posts per page. Call `fetchNextPage` when the user
+ * scrolls near the bottom of the list.
  *
  * Usage:
- *   const { data: posts = [], isLoading, refetch } = useMainFeed({ latitude, longitude });
+ *   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch }
+ *     = useMainFeed({ latitude, longitude });
+ *   const posts = data?.pages.flat() ?? [];
  */
 export function useMainFeed(params: MainFeedParams) {
-  return useQuery({
+  return useInfiniteQuery<PostRead[]>({
     queryKey: feedKeys.mainFeed(params),
-    queryFn: () => postsService.getMainFeed(params),
+    queryFn: ({ pageParam = 0 }) =>
+      postsService.getMainFeed({
+        ...params,
+        skip: pageParam as number,
+        limit: params.limit ?? PAGE_SIZE,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      // If the last page returned fewer items than PAGE_SIZE, we've
+      // reached the end of the feed — return undefined to signal "no more".
+      const limit = params.limit ?? PAGE_SIZE;
+      if (lastPage.length < limit) return undefined;
+      // Otherwise the next offset = total items fetched so far
+      return allPages.reduce((acc, page) => acc + page.length, 0);
+    },
     staleTime: 1000 * 60 * 2,
     enabled: Boolean(params.latitude && params.longitude),
     retry: 3,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    placeholderData: keepPreviousData,
   });
 }
 
 /**
  * Pure geospatial feed — posts within radius_km of coords.
- * Redis-cached on server for 60s per location bucket.
+ * Also paginated with infinite scroll.
  *
  * Usage:
- *   const { data: posts = [] } = useGeospatialFeed({ latitude, longitude, radius_km: 5 });
+ *   const { data, fetchNextPage, hasNextPage } = useGeospatialFeed(params);
+ *   const posts = data?.pages.flat() ?? [];
  */
 export function useGeospatialFeed(params: MainFeedParams) {
-  return useQuery({
+  return useInfiniteQuery<PostRead[]>({
     queryKey: feedKeys.geospatialFeed(
       params.latitude,
       params.longitude,
       params.radius_km,
     ),
-    queryFn: () => postsService.getGeospatialFeed(params),
+    queryFn: ({ pageParam = 0 }) =>
+      postsService.getGeospatialFeed({
+        ...params,
+        skip: pageParam as number,
+        limit: params.limit ?? PAGE_SIZE,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const limit = params.limit ?? PAGE_SIZE;
+      if (lastPage.length < limit) return undefined;
+      return allPages.reduce((acc, page) => acc + page.length, 0);
+    },
     staleTime: 1000 * 60 * 1,
     enabled: Boolean(params.latitude && params.longitude),
     retry: 3,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    placeholderData: keepPreviousData,
   });
 }
 

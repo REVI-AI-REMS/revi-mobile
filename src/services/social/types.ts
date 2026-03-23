@@ -40,6 +40,7 @@ export interface GeospatialFeedParams {
   latitude: number;
   longitude: number;
   radius_km?: number; // default 5.0
+  skip?: number; // offset for pagination
   limit?: number; // 1-100, default 20
 }
 
@@ -47,6 +48,7 @@ export interface MainFeedParams {
   latitude: number;
   longitude: number;
   radius_km?: number; // default 20.0
+  skip?: number; // offset for pagination
   limit?: number;
 }
 

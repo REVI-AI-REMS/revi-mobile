@@ -7,9 +7,9 @@ const BASE_URL =
 
 export const api = axios.create({
   baseURL: BASE_URL,
-  // 15s timeout — if the server cold-starts, the request will timeout and
-  // React Query will retry with backoff rather than blocking for 35s.
-  timeout: 15_000,
+  // 10s timeout — if the server cold-starts, React Query will retry
+  // with backoff rather than blocking for 15s.
+  timeout: 10_000,
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
