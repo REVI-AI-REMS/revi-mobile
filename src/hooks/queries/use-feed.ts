@@ -60,10 +60,10 @@ export function useMainFeed(params: MainFeedParams) {
       // Otherwise the next offset = total items fetched so far
       return allPages.reduce((acc, page) => acc + page.length, 0);
     },
-    staleTime: 1000 * 60 * 2,
+    staleTime: 1000 * 30, // 30s — content refreshes faster on re-focus
     enabled: Boolean(params.latitude && params.longitude),
-    retry: 3,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    retry: 2,
+    retryDelay: 2000, // flat 2s - recover quickly from cold starts
     placeholderData: keepPreviousData,
   });
 }
@@ -95,10 +95,10 @@ export function useGeospatialFeed(params: MainFeedParams) {
       if (lastPage.length < limit) return undefined;
       return allPages.reduce((acc, page) => acc + page.length, 0);
     },
-    staleTime: 1000 * 60 * 1,
+    staleTime: 1000 * 30,
     enabled: Boolean(params.latitude && params.longitude),
-    retry: 3,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    retry: 2,
+    retryDelay: 2000,
     placeholderData: keepPreviousData,
   });
 }

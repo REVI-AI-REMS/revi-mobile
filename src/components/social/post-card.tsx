@@ -625,10 +625,13 @@ export const PostCardComponent = React.memo(({
             <Pressable onPress={handleExpandCaption}>
               <Text
                 style={styles.captionText}
-                numberOfLines={captionExpanded ? undefined : 1}
+                numberOfLines={captionExpanded ? undefined : 2}
               >
                 {post.caption}
               </Text>
+              {!captionExpanded && (
+                <Text style={styles.readMoreText}>more</Text>
+              )}
             </Pressable>
           )}
           {(post.like_count > 0 || isLiked) && (() => {
@@ -860,6 +863,13 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     lineHeight: 18,
     color: "#888",
+  },
+  readMoreText: {
+    fontSize: 13,
+    fontFamily: Fonts.semiBold,
+    lineHeight: 18,
+    color: "#555",
+    marginTop: 2,
   },
   likeCountText: {
     fontSize: 12,

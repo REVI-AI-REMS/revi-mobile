@@ -23,8 +23,8 @@ export function useUserFollowing(userId: string | null | undefined) {
     queryFn: () => relationshipsService.getFollowing(userId!),
     enabled: Boolean(userId),
     staleTime: 1000 * 60 * 5,
-    retry: 3,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    retry: 2,
+    retryDelay: 2000,
   });
 }
 
@@ -36,8 +36,8 @@ export function useUserFollowers(userId: string | null | undefined) {
     queryFn: () => relationshipsService.getFollowers(userId!),
     enabled: Boolean(userId),
     staleTime: 1000 * 60 * 5,
-    retry: 3,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    retry: 2,
+    retryDelay: 2000,
   });
 }
 
@@ -49,7 +49,7 @@ export function useUserStats(userId: string | null | undefined) {
     queryFn: () => relationshipsService.getUserStats(userId!),
     enabled: Boolean(userId),
     staleTime: 1000 * 60 * 2,
-    retry: 3,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+    retry: 2,
+    retryDelay: 2000,
   });
 }
