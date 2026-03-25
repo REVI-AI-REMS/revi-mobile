@@ -71,6 +71,12 @@ export default function SocialsScreen() {
   const setVisiblePostIds = useVideoStore((s) => s.setVisiblePostIds);
   const router = useRouter();
 
+  // ─── Viewport-aware media loading ──────────────────────────────────────────
+  // Posts are added here once they near the viewport. The set only grows —
+  // once media starts loading it never gets "unloaded".
+  const mediaReadyIdsRef = useRef<Set<string>>(new Set());
+  const [mediaReadyIds, setMediaReadyIds] = useState<Set<string>>(new Set());
+
   // ─── Relationship status ───────────────────────────────────────────────────
   // Deferred: 5s staleTime so it doesn't race with the main feed on cold start
   const currentUserId = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
@@ -94,11 +100,6 @@ export default function SocialsScreen() {
       }
     };
   }, [batchLogViews]);
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 60,
-  }).current;
-
 
   const onViewableItemsChanged = useCallback(
     ({
@@ -152,14 +153,54 @@ export default function SocialsScreen() {
     [batchLogViews, setActiveVideoId, setVisiblePostIds],
   );
 
+  // Fires at 1 % visible — starts media download just before the post scrolls in
+  const onMediaPreload = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      const ref = mediaReadyIdsRef.current;
+      let added = false;
+      viewableItems.forEach(({ item }) => {
+        const id = (item as PostRead)?.id;
+        if (id && !ref.has(id)) {
+          ref.add(id);
+          added = true;
+        }
+      });
+      if (added) setMediaReadyIds(new Set(ref));
+    },
+    [],
+  );
+
+  // Stable callback refs so the pairs object never changes identity
+  const viewTrackingRef = useRef(onViewableItemsChanged);
+  viewTrackingRef.current = onViewableItemsChanged;
+  const mediaPreloadRef = useRef(onMediaPreload);
+  mediaPreloadRef.current = onMediaPreload;
+
+  const viewabilityConfigCallbackPairs = useRef([
+    {
+      viewabilityConfig: { itemVisiblePercentThreshold: 1 },
+      onViewableItemsChanged: (info: {
+        viewableItems: ViewToken[];
+        changed: ViewToken[];
+      }) => mediaPreloadRef.current(info),
+    },
+    {
+      viewabilityConfig: { itemVisiblePercentThreshold: 60 },
+      onViewableItemsChanged: (info: {
+        viewableItems: ViewToken[];
+        changed: ViewToken[];
+      }) => viewTrackingRef.current(info),
+    },
+  ]);
+
   // ─── Feed queries (infinite scroll) ────────────────────────────────────────
   const mainFeedQuery = useMainFeed(DEV_LOCATION);
 
-  // Geo feed — only enabled when user is on the "Nearby" tab
-  const geoFeedQuery = useGeospatialFeed({
-    ...DEV_LOCATION,
-    radius_km: 5,
-  });
+  // Geo feed — only fetches when user is on the "Nearby" tab
+  const geoFeedQuery = useGeospatialFeed(
+    { ...DEV_LOCATION, radius_km: 5 },
+    activeTab === "neighborhoods",
+  );
 
   const activeFeedQuery = activeTab === "neighborhoods" ? geoFeedQuery : mainFeedQuery;
 
@@ -174,20 +215,21 @@ export default function SocialsScreen() {
     isFetchingNextPage,
   } = activeFeedQuery;
 
-  // Flatten pages into a single sorted array
-  const rawPosts = useMemo(
-    () => feedData?.pages.flat() ?? [],
-    [feedData?.pages],
-  );
-
-  // Sort posts by creation date (newest first)
+  // Flatten pages, deduplicate (pages can overlap after refetch), sort newest-first
   const posts = useMemo(() => {
-    return [...rawPosts].sort((a, b) => {
-      const dateA = new Date(a.created_at).getTime();
-      const dateB = new Date(b.created_at).getTime();
-      return dateB - dateA;
-    });
-  }, [rawPosts]);
+    const flat = feedData?.pages.flat() ?? [];
+    const seen = new Set<string>();
+    const unique: PostRead[] = [];
+    for (const p of flat) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        unique.push(p);
+      }
+    }
+    return unique.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+  }, [feedData?.pages]);
 
   // Video posts from the already-loaded feed — passed straight to ReelsOverlay
   const feedVideoPosts = useMemo(
@@ -201,9 +243,22 @@ export default function SocialsScreen() {
     [posts],
   );
 
+  // Seed first few posts so media loads immediately without waiting for
+  // the viewability callback (avoids a one-frame skeleton flash).
+  useEffect(() => {
+    if (posts.length > 0 && mediaReadyIdsRef.current.size === 0) {
+      posts.slice(0, 4).forEach((p) => mediaReadyIdsRef.current.add(p.id));
+      setMediaReadyIds(new Set(mediaReadyIdsRef.current));
+    }
+  }, [posts]);
+
   // ─── Infinite scroll handler ───────────────────────────────────────────────
+  const lastEndReachedRef = useRef(0);
   const handleEndReached = useCallback(() => {
+    const now = Date.now();
+    if (now - lastEndReachedRef.current < 1500) return; // 1.5 s cooldown
     if (hasNextPage && !isFetchingNextPage) {
+      lastEndReachedRef.current = now;
       fetchNextPage();
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
@@ -355,6 +410,7 @@ export default function SocialsScreen() {
         isBookmarked={bookmarkedIds.has(item.id)}
         likePending={likePending}
         currentUserId={currentUserId}
+        isNearViewport={mediaReadyIdsRef.current.has(item.id)}
       />
     ),
     [
@@ -458,8 +514,8 @@ export default function SocialsScreen() {
         data={posts}
         keyExtractor={(item) => item.id}
         renderItem={renderPost}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
+        extraData={mediaReadyIds}
+        viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs.current}
         onRefresh={refetch}
         refreshing={isLoading && posts.length > 0}
         ListEmptyComponent={ListEmptyComponent}

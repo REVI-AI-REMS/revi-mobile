@@ -76,7 +76,7 @@ export function useMainFeed(params: MainFeedParams) {
  *   const { data, fetchNextPage, hasNextPage } = useGeospatialFeed(params);
  *   const posts = data?.pages.flat() ?? [];
  */
-export function useGeospatialFeed(params: MainFeedParams) {
+export function useGeospatialFeed(params: MainFeedParams, enabled = true) {
   return useInfiniteQuery<PostRead[]>({
     queryKey: feedKeys.geospatialFeed(
       params.latitude,
@@ -96,7 +96,7 @@ export function useGeospatialFeed(params: MainFeedParams) {
       return allPages.reduce((acc, page) => acc + page.length, 0);
     },
     staleTime: 1000 * 30,
-    enabled: Boolean(params.latitude && params.longitude),
+    enabled: enabled && Boolean(params.latitude && params.longitude),
     retry: 2,
     retryDelay: 2000,
     placeholderData: keepPreviousData,

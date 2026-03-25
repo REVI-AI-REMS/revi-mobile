@@ -104,7 +104,7 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
-        const { accessToken, refreshToken } = get();
+        const { accessToken, refreshToken, user } = get();
 
         // Nothing persisted — treat as logged-out
         if (!accessToken && !refreshToken) {
@@ -112,7 +112,18 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
-        // Try to validate the existing access token
+        // ── Fast path ──────────────────────────────────────────────────────
+        // Persisted tokens + user → unblock the UI immediately.
+        // Token validity is verified lazily: the first API call that 401s
+        // triggers the response-interceptor which refreshes + replays the
+        // request transparently.  This turns a 15-30 s blocking cold-start
+        // into a zero-wait startup for returning users.
+        if (accessToken && user) {
+          set({ isAuthenticated: true, isLoading: false });
+          return;
+        }
+
+        // ── Slow path (tokens exist, user missing — rare) ───────────────
         if (accessToken) {
           try {
             const user = await authService.me(accessToken);

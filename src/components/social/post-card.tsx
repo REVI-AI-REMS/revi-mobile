@@ -41,7 +41,8 @@ const typography = { displayMd: { fontSize: 24, fontFamily: Fonts.semiBold } };
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const IMAGE_HEIGHT = SCREEN_WIDTH * (5 / 4);
-const BLURHASH = "LKO2?U%2Tw=w]~RBVZRi};RPxuwH";
+// Skeleton fill style — reused by ImagePost and the off-viewport placeholder
+const SKELETON_FILL = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 };
 
 export function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -190,7 +191,7 @@ const CarouselGrid = React.memo<CarouselGridProps>(
             style={StyleSheet.absoluteFill}
             cachePolicy="memory-disk"
             contentFit="cover"
-            placeholder={{ blurhash: BLURHASH }}
+            transition={300}
             recyclingKey={`carousel-${postId}-0`}
           />
         </Pressable>
@@ -200,7 +201,7 @@ const CarouselGrid = React.memo<CarouselGridProps>(
             style={StyleSheet.absoluteFill}
             cachePolicy="memory-disk"
             contentFit="cover"
-            placeholder={{ blurhash: BLURHASH }}
+            transition={300}
             recyclingKey={`carousel-${postId}-1`}
           />
         </Pressable>
@@ -217,7 +218,7 @@ const CarouselGrid = React.memo<CarouselGridProps>(
             style={StyleSheet.absoluteFill}
             cachePolicy="memory-disk"
             contentFit="cover"
-            placeholder={{ blurhash: BLURHASH }}
+            transition={300}
             recyclingKey={`carousel-${postId}-0`}
           />
         </Pressable>
@@ -228,7 +229,7 @@ const CarouselGrid = React.memo<CarouselGridProps>(
               style={StyleSheet.absoluteFill}
               cachePolicy="memory-disk"
               contentFit="cover"
-              placeholder={{ blurhash: BLURHASH }}
+              transition={300}
               recyclingKey={`carousel-${postId}-1`}
             />
           </Pressable>
@@ -238,7 +239,7 @@ const CarouselGrid = React.memo<CarouselGridProps>(
               style={StyleSheet.absoluteFill}
               cachePolicy="memory-disk"
               contentFit="cover"
-              placeholder={{ blurhash: BLURHASH }}
+              transition={300}
               recyclingKey={`carousel-${postId}-2`}
             />
           </Pressable>
@@ -259,7 +260,7 @@ const CarouselGrid = React.memo<CarouselGridProps>(
             style={StyleSheet.absoluteFill}
             cachePolicy="memory-disk"
             contentFit="cover"
-            placeholder={{ blurhash: BLURHASH }}
+            transition={300}
             recyclingKey={`carousel-${postId}-0`}
           />
         </Pressable>
@@ -269,7 +270,7 @@ const CarouselGrid = React.memo<CarouselGridProps>(
             style={StyleSheet.absoluteFill}
             cachePolicy="memory-disk"
             contentFit="cover"
-            placeholder={{ blurhash: BLURHASH }}
+            transition={300}
             recyclingKey={`carousel-${postId}-1`}
           />
         </Pressable>
@@ -281,7 +282,7 @@ const CarouselGrid = React.memo<CarouselGridProps>(
             style={StyleSheet.absoluteFill}
             cachePolicy="memory-disk"
             contentFit="cover"
-            placeholder={{ blurhash: BLURHASH }}
+            transition={300}
             recyclingKey={`carousel-${postId}-2`}
           />
         </Pressable>
@@ -291,7 +292,7 @@ const CarouselGrid = React.memo<CarouselGridProps>(
             style={StyleSheet.absoluteFill}
             cachePolicy="memory-disk"
             contentFit="cover"
-            placeholder={{ blurhash: BLURHASH }}
+            transition={300}
             recyclingKey={`carousel-${postId}-3`}
           />
           {remaining > 0 && (
@@ -313,20 +314,25 @@ interface ImagePostProps {
   onTap: () => void;
 }
 
-const ImagePost = React.memo<ImagePostProps>(({ post, onTap }: ImagePostProps) => (
-  <Pressable onPress={onTap}>
-    <Image
-      source={{ uri: post.media_url }}
-      style={styles.media}
-      cachePolicy="memory-disk"
-      contentFit="cover"
-      placeholder={{ blurhash: BLURHASH }}
-      transition={0}
-      recyclingKey={`feed-${post.id}`}
-      priority="high"
-    />
-  </Pressable>
-));
+const ImagePost = React.memo<ImagePostProps>(({ post, onTap }: ImagePostProps) => {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <Pressable onPress={onTap} style={styles.media}>
+      {/* Shimmer skeleton visible while the image downloads from Azure */}
+      {!loaded && <SkeletonBlock style={SKELETON_FILL} />}
+      <Image
+        source={{ uri: post.media_url }}
+        style={StyleSheet.absoluteFill}
+        cachePolicy="memory-disk"
+        contentFit="cover"
+        transition={300}
+        recyclingKey={`feed-${post.id}`}
+        priority="normal"
+        onLoad={() => setLoaded(true)}
+      />
+    </Pressable>
+  );
+});
 ImagePost.displayName = "ImagePost";
 
 // ─── FeedVideoPost ──────────────────────────────────────────────────────────
@@ -418,6 +424,10 @@ export interface PostCardProps {
   isBookmarked?: boolean;
   likePending: boolean;
   currentUserId: string;
+  /** When false, media is replaced by a lightweight placeholder (skeleton).
+   *  Flips to true once the post nears the viewport — keeps Azure downloads
+   *  from competing on first load. */
+  isNearViewport?: boolean;
 }
 
 export const PostCardComponent = React.memo(({
@@ -432,6 +442,7 @@ export const PostCardComponent = React.memo(({
   isBookmarked = false,
   likePending,
   currentUserId,
+  isNearViewport = true,
 }: PostCardProps) => {
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -547,7 +558,12 @@ export const PostCardComponent = React.memo(({
         </View>
       </View>
 
-      {isVideo ? (
+      {!isNearViewport ? (
+        /* Animated skeleton — no network request, no video player mount */
+        <View style={styles.media}>
+          <SkeletonBlock style={SKELETON_FILL} />
+        </View>
+      ) : isVideo ? (
         <FeedVideoPost
           post={post}
           isActive={isVideoActive}
