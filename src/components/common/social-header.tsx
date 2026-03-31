@@ -1,5 +1,4 @@
 import SocialLogo from "@/assets/svgs/socialreviai.svg";
-import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -7,13 +6,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 interface SocialHeaderProps {
   onAddPress?: () => void;
   onNotificationPress?: () => void;
-  title?: string;
 }
 
 export default function SocialHeader({
   onAddPress,
   onNotificationPress,
-  title = "ReviAi",
 }: SocialHeaderProps) {
   return (
     <SafeAreaView edges={["top"]} style={styles.headerContainer}>
@@ -24,7 +21,7 @@ export default function SocialHeader({
 
         <View style={styles.center}>
           <SocialLogo width={68} height={25} />
-          {/* <Text style={styles.headerTitle}>{title}</Text> */}
+
         </View>
 
         <TouchableOpacity
@@ -58,10 +55,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.bold,
-    color: "#FFFFFF",
   },
 });

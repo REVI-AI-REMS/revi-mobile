@@ -58,12 +58,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    // height: 56,
     paddingVertical: 12,
     borderBottomColor: "#181818",
     borderBottomWidth: 1,
-    // borderTopColor: "#2C2C2E",
-    // borderTopWidth: 1,
   },
   headerButton: {
     padding: 4,

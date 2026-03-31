@@ -94,7 +94,6 @@ export default function EditProfileScreen() {
                                     placeholder="username"
                                     placeholderTextColor="#666666"
                                     autoCapitalize="none"
-                                    includeFontPadding={false}
                                     textAlignVertical="center"
                                 />
                             </View>
@@ -109,7 +108,6 @@ export default function EditProfileScreen() {
                                     onChangeText={setDisplayName}
                                     placeholder="Display Name"
                                     placeholderTextColor="#666666"
-                                    includeFontPadding={false}
                                     textAlignVertical="center"
                                 />
                             </View>
@@ -144,9 +142,7 @@ const styles = StyleSheet.create({
     avatarContainer: {
         marginBottom: 32,
     },
-    avatarWrapper: {
-        position: "relative",
-    },
+    avatarWrapper: {},
     avatarPlaceholder: {
         width: 100,
         height: 100,

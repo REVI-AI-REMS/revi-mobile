@@ -65,4 +65,9 @@ export const interactionsService = {
   unlikeComment: async (commentId: string): Promise<void> => {
     await api.delete(`/api/v1/interactions/comments/${commentId}/like`);
   },
+
+  /** DELETE /api/v1/interactions/comments/{comment_id} */
+  deleteComment: async (commentId: string): Promise<void> => {
+    await api.delete(`/api/v1/interactions/comments/${commentId}`);
+  },
 };

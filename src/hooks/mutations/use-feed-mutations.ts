@@ -213,7 +213,52 @@ export function useLikeCommentMutation() {
   });
 }
 
-// ─── Report Post ──────────────────────────────────────────────────────────────
+// ─── Delete Comment ───────��──────────────────────────────────────────────────
+
+export function useDeleteCommentMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, { postId: string; commentId: string }>({
+    mutationFn: ({ commentId }) => interactionsService.deleteComment(commentId),
+
+    onMutate: async ({ postId, commentId }) => {
+      const queryKey = feedKeys.comments(postId);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<any[]>(queryKey);
+
+      queryClient.setQueryData<any[]>(queryKey, (old) =>
+        Array.isArray(old) ? old.filter((c) => c.id !== commentId) : old,
+      );
+
+      queryClient.setQueriesData<any>({ queryKey: feedKeys.all }, (data: any) => {
+        if (!data?.pages) return data;
+        return {
+          ...data,
+          pages: data.pages.map((page: PostRead[]) =>
+            page.map((p) =>
+              p.id === postId ? { ...p, comment_count: Math.max(0, p.comment_count - 1) } : p,
+            ),
+          ),
+        };
+      });
+
+      return { previous };
+    },
+
+    onError: (_err, { postId }, context) => {
+      const ctx = context as { previous?: any[] } | undefined;
+      if (ctx?.previous) {
+        queryClient.setQueryData(feedKeys.comments(postId), ctx.previous);
+      }
+    },
+
+    onSettled: (_data, _err, { postId }) => {
+      queryClient.invalidateQueries({ queryKey: feedKeys.comments(postId) });
+    },
+  });
+}
+
+// ���── Report Post ──────────────────────────────────────────────────────────────
 
 export function useReportPostMutation() {
   return useMutation({
