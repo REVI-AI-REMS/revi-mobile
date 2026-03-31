@@ -1,14 +1,12 @@
 import OverlayModal from "@/src/components/common/overlay-modal";
 import { Fonts } from "@/src/constants/theme";
-import {
-    useAddCommentMutation,
-    useLikeCommentMutation,
-} from "@/src/hooks/mutations/use-feed-mutations";
+import { useAddCommentMutation, useDeleteCommentMutation } from "@/src/hooks/mutations/use-feed-mutations";
 import { useComments } from "@/src/hooks/queries/use-feed";
 import { Ionicons } from "@expo/vector-icons";
 import { useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     ScrollView,
     StyleSheet,
     Text,
@@ -32,7 +30,19 @@ export function CommentsSheet({ postId, currentUserId, onClose }: CommentsSheetP
     const inputRef = useRef<TextInput>(null);
     const { data: comments = [], isLoading } = useComments(postId ?? "");
     const { mutate: addComment, isPending: submitting } = useAddCommentMutation();
-    const { mutate: toggleCommentLike } = useLikeCommentMutation();
+    const { mutate: deleteComment } = useDeleteCommentMutation();
+
+    const handleDelete = (commentId: string) => {
+        if (!postId) return;
+        Alert.alert("Delete Comment", "Are you sure you want to delete this comment?", [
+            { text: "Cancel", style: "cancel" },
+            {
+                text: "Delete",
+                style: "destructive",
+                onPress: () => deleteComment({ postId, commentId }),
+            },
+        ]);
+    };
 
     const handleReply = (commentId: string, authorId: string) => {
         setReplyTo({ id: commentId, author: `@${authorId.slice(0, 8)}` });
@@ -43,11 +53,6 @@ export function CommentsSheet({ postId, currentUserId, onClose }: CommentsSheetP
     const handleCancelReply = () => {
         setReplyTo(null);
         setText("");
-    };
-
-    const handleToggleLike = (commentId: string, isLiked: boolean) => {
-        if (!postId) return;
-        toggleCommentLike({ postId, commentId, isLiked });
     };
 
     const handleSubmit = () => {
@@ -98,59 +103,41 @@ export function CommentsSheet({ postId, currentUserId, onClose }: CommentsSheetP
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {comments.map((c) => {
-                        const isLiked = (c as any).is_liked ?? false;
-                        const likeCount = (c as any).like_count ?? 0;
-
-                        return (
-                            <View key={c.id} style={commentStyles.commentRow}>
-                                <View style={commentStyles.commentAvatar}>
-                                    <Ionicons name="person" size={18} color="#555" />
+                    {comments.map((c) => (
+                        <View key={c.id} style={commentStyles.commentRow}>
+                            <View style={commentStyles.commentAvatar} />
+                            <View style={commentStyles.commentBody}>
+                                <View style={commentStyles.commentMeta}>
+                                    <Text style={commentStyles.commentAuthor}>
+                                        @{c.author_id.slice(0, 8)}
+                                    </Text>
+                                    <Text style={commentStyles.commentTime}>
+                                        {formatRelativeTime(c.created_at)}
+                                    </Text>
                                 </View>
-                                <View style={commentStyles.commentBody}>
-                                    <View style={commentStyles.commentMeta}>
-                                        <Text style={commentStyles.commentAuthor}>
-                                            @{c.author_id.slice(0, 8)}
-                                        </Text>
-                                        <Text style={commentStyles.commentTime}>
-                                            {formatRelativeTime(c.created_at)}
-                                        </Text>
-                                    </View>
-                                    <Text style={commentStyles.commentText}>{c.content}</Text>
-                                    <View style={commentStyles.commentActions}>
+                                <Text style={commentStyles.commentText}>{c.content}</Text>
+                                <View style={commentStyles.commentActions}>
+                                    <TouchableOpacity style={commentStyles.commentAction}>
+                                        <Ionicons name="heart-outline" size={15} color="#666666" />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={commentStyles.commentAction}
+                                        onPress={() => handleReply(c.id, c.author_id)}
+                                    >
+                                        <Text style={commentStyles.replyText}>Reply</Text>
+                                    </TouchableOpacity>
+                                    {c.author_id === currentUserId && (
                                         <TouchableOpacity
                                             style={commentStyles.commentAction}
-                                            onPress={() => handleToggleLike(c.id, isLiked)}
+                                            onPress={() => handleDelete(c.id)}
                                         >
-                                            <Ionicons
-                                                name={isLiked ? "heart" : "heart-outline"}
-                                                size={15}
-                                                color={isLiked ? "#FF3B30" : "#666666"}
-                                            />
-                                            {likeCount > 0 && (
-                                                <Text style={[commentStyles.likeCount, isLiked && { color: "#FF3B30" }]}>
-                                                    {likeCount}
-                                                </Text>
-                                            )}
+                                            <Ionicons name="trash-outline" size={14} color="#FF3B30" />
                                         </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={commentStyles.commentAction}
-                                            onPress={() => handleReply(c.id, c.author_id)}
-                                        >
-                                            <Text style={commentStyles.replyText}>Reply</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={commentStyles.commentAction}>
-                                            <Ionicons
-                                                name="ellipsis-horizontal"
-                                                size={15}
-                                                color="#666666"
-                                            />
-                                        </TouchableOpacity>
-                                    </View>
+                                    )}
                                 </View>
                             </View>
-                        );
-                    })}
+                        </View>
+                    ))}
                 </ScrollView>
             )}
 
@@ -345,11 +332,5 @@ const commentStyles = StyleSheet.create({
     replyBannerHandle: {
         fontFamily: Fonts.semiBold,
         color: "#FFFFFF",
-    },
-    likeCount: {
-        fontSize: 12,
-        fontFamily: Fonts.medium,
-        color: "#666666",
-        minWidth: 12,
     },
 });
