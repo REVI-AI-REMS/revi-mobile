@@ -1,5 +1,6 @@
 import { ScreenHeader } from "@/src/components";
-import { Fonts } from "@/src/constants/theme";
+import { colors, layout, spacing, typography } from "@/src/constants/design";
+import { formatCount } from "@/src/data/mock";
 import { useSearch, useUserStats } from "@/src/hooks";
 import { useFollowMutation } from "@/src/hooks/mutations/use-feed-mutations";
 import { useUserFollowing } from "@/src/hooks/queries/use-relationships";
@@ -11,7 +12,6 @@ import * as React from "react";
 import { useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   ListRenderItemInfo,
   Pressable,
@@ -24,57 +24,12 @@ import {
 
 const currentUserId = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-
-const colors = {
-  bg: "#0F0F10",
-  bgSecondary: "#1C1C1E",
-  textPrimary: "#FFFFFF",
-  textSecondary: "#A1A1AA",
-  textTertiary: "#71717A",
-  textMuted: "#52525B",
-  border: "#27272A",
-  accent: "#6366F1",
-};
-
-const spacing = {
-  xxs: 4,
-  xs: 8,
-  sm: 12,
-  md: 16,
-  lg: 20,
-  xl: 24,
-  xxl: 32,
-  section: 48,
-};
-
-const layout = {
-  gridColumns: 3,
-  gridGap: 2,
-  screenPadding: 16,
-  get gridThumbSize() {
-    return (
-      (SCREEN_WIDTH - (this.gridColumns - 1) * this.gridGap) /
-      this.gridColumns
-    );
-  },
-};
-
 const NUM_COLUMNS = layout.gridColumns;
 const GRID_GAP = layout.gridGap;
 const THUMB_SIZE = layout.gridThumbSize;
 const AVATAR_SIZE = 80;
 
-const DEFAULT_AVATAR =
-  "https://ui-avatars.com/api/?background=333&color=fff&name=U";
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
-}
+const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=333&color=fff&name=U";
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
@@ -105,13 +60,11 @@ const GridThumbnail = React.memo(function GridThumbnail({
     post.media_type === "video_upload" ||
     post.media_url?.includes(".m3u8");
 
-  const imageUri = isVideo ? null : post.media_url;
-
   return (
     <Pressable onPress={onPress} style={styles.gridCell}>
-      {imageUri ? (
+      {!isVideo && post.media_url ? (
         <ExpoImage
-          source={{ uri: imageUri }}
+          source={{ uri: post.media_url }}
           style={styles.gridImage}
           contentFit="cover"
           cachePolicy="memory-disk"
@@ -120,11 +73,7 @@ const GridThumbnail = React.memo(function GridThumbnail({
         />
       ) : (
         <View style={styles.gridVideoPlaceholder}>
-          <Ionicons
-            name="play-circle-outline"
-            size={24}
-            color="rgba(255,255,255,0.4)"
-          />
+          <Ionicons name="play-circle-outline" size={24} color="rgba(255,255,255,0.4)" />
         </View>
       )}
       {isVideo && (
@@ -142,16 +91,12 @@ export default function UserProfileScreen() {
   const router = useRouter();
   const { userId } = useLocalSearchParams<{ userId: string }>();
 
-  // Data
   const { data: searchData } = useSearch(userId ?? "");
   const { data: stats } = useUserStats(userId ?? null);
   const { data: followingList } = useUserFollowing(currentUserId || null);
   const followMutation = useFollowMutation();
 
-  const gridPosts = useMemo(
-    () => searchData?.posts ?? [],
-    [searchData?.posts],
-  );
+  const gridPosts = useMemo(() => searchData?.posts ?? [], [searchData?.posts]);
 
   const isFollowing = useMemo(() => {
     if (!followingList || !userId) return false;
@@ -159,11 +104,6 @@ export default function UserProfileScreen() {
       (f: { following_id: string }) => f.following_id === userId,
     );
   }, [followingList, userId]);
-
-  // Handlers
-  const handleBack = useCallback(() => {
-    router.back();
-  }, [router]);
 
   const handleFollowToggle = useCallback(() => {
     if (!userId) return;
@@ -202,7 +142,6 @@ export default function UserProfileScreen() {
   const ListHeaderComponent = useMemo(
     () => (
       <View>
-        {/* Profile Info */}
         <View style={styles.profileSection}>
           <View style={styles.avatarWrapper}>
             <ExpoImage
@@ -220,25 +159,16 @@ export default function UserProfileScreen() {
             <StatItem value={stats?.following_count ?? 0} label="Following" />
           </View>
 
-          {/* Follow / Unfollow Button */}
           {currentUserId && currentUserId !== userId && (
             <Pressable
-              style={[
-                styles.followButton,
-                isFollowing && styles.followButtonOutline,
-              ]}
+              style={[styles.followButton, isFollowing && styles.followButtonOutline]}
               onPress={handleFollowToggle}
               disabled={followMutation.isPending}
             >
               {followMutation.isPending ? (
                 <ActivityIndicator size="small" color={colors.textPrimary} />
               ) : (
-                <Text
-                  style={[
-                    styles.followButtonText,
-                    isFollowing && styles.followButtonTextOutline,
-                  ]}
-                >
+                <Text style={[styles.followButtonText, isFollowing && styles.followButtonTextOutline]}>
                   {isFollowing ? "Unfollow" : "Follow"}
                 </Text>
               )}
@@ -246,25 +176,12 @@ export default function UserProfileScreen() {
           )}
         </View>
 
-        {/* Grid Divider */}
         <View style={styles.gridDivider}>
-          <Ionicons
-            name="grid-outline"
-            size={22}
-            color={colors.textPrimary}
-          />
+          <Ionicons name="grid-outline" size={22} color={colors.textPrimary} />
         </View>
       </View>
     ),
-    [
-      displayName,
-      gridPosts.length,
-      stats,
-      isFollowing,
-      handleFollowToggle,
-      followMutation.isPending,
-      userId,
-    ],
+    [displayName, gridPosts.length, stats, isFollowing, handleFollowToggle, followMutation.isPending, userId],
   );
 
   const ListEmptyComponent = useMemo(
@@ -281,7 +198,7 @@ export default function UserProfileScreen() {
     <View style={styles.container}>
       <ScreenHeader
         title={displayName}
-        onBackPress={handleBack}
+        onBackPress={() => router.back()}
         showBackButton
         showMenuButton={false}
       />
@@ -291,9 +208,7 @@ export default function UserProfileScreen() {
         keyExtractor={keyExtractor}
         renderItem={renderGridItem}
         numColumns={NUM_COLUMNS}
-        columnWrapperStyle={
-          gridPosts.length > 0 ? columnWrapperStyle : undefined
-        }
+        columnWrapperStyle={gridPosts.length > 0 ? columnWrapperStyle : undefined}
         getItemLayout={getItemLayout}
         ListHeaderComponent={ListHeaderComponent}
         ListEmptyComponent={ListEmptyComponent}
@@ -315,7 +230,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-
   scrollContent: {
     paddingBottom: 120,
   },
@@ -338,11 +252,9 @@ const styles = StyleSheet.create({
   avatar: {
     width: "100%",
     height: "100%",
-    borderRadius: AVATAR_SIZE / 2,
   },
   displayName: {
-    fontSize: 22,
-    fontFamily: Fonts.bold,
+    ...typography.displaySm,
     color: colors.textPrimary,
     marginBottom: spacing.md,
   },
@@ -359,16 +271,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statValue: {
-    fontSize: 18,
-    fontFamily: Fonts.bold,
-    lineHeight: 22,
+    ...typography.h2,
     color: colors.textPrimary,
     marginBottom: spacing.xxs,
   },
   statLabel: {
-    fontSize: 11,
-    fontFamily: Fonts.regular,
-    lineHeight: 16,
+    ...typography.caption,
     color: colors.textMuted,
   },
 
@@ -385,12 +293,10 @@ const styles = StyleSheet.create({
   followButtonOutline: {
     backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: "#333333",
+    borderColor: colors.border,
   },
   followButtonText: {
-    fontSize: 13,
-    fontFamily: Fonts.medium,
-    lineHeight: 16,
+    ...typography.labelMd,
     color: colors.textPrimary,
   },
   followButtonTextOutline: {
@@ -441,8 +347,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   emptyStateTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.bold,
+    ...typography.h2,
     color: colors.textSecondary,
     textAlign: "center",
   },

@@ -1,225 +1,236 @@
 import { ScreenHeader } from "@/src/components";
-import { Fonts } from "@/src/constants/theme";
+import { colors, radius, spacing, typography } from "@/src/constants/design";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
-} from "react-native";
+import { memo } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 
-export default function ReviewsScreen() {
-    const router = useRouter();
+// ─── Sub-components ──────────────────────────────────────────────────────────
 
-    const handleBackPress = () => {
-        router.back();
-    };
+const StarRating = memo(function StarRating({ rating }: { rating: number }) {
+    return (
+        <View style={styles.stars}>
+            {Array.from({ length: 5 }, (_, i) => (
+                <Ionicons
+                    key={i}
+                    name={i < rating ? "star" : "star-outline"}
+                    size={13}
+                    color="#FFD700"
+                />
+            ))}
+        </View>
+    );
+});
 
-    const ReviewItem = ({
-        name,
-        date,
-        rating,
-        text
-    }: {
-        name: string;
-        date: string;
-        rating: number;
-        text: string;
-    }) => (
+const ReviewItem = memo(function ReviewItem({
+    name,
+    date,
+    rating,
+    text,
+}: {
+    name: string;
+    date: string;
+    rating: number;
+    text: string;
+}) {
+    return (
         <View style={styles.reviewItem}>
             <View style={styles.reviewHeader}>
                 <View style={styles.reviewerInfo}>
                     <View style={styles.avatar}>
-                        <Ionicons name="person" size={20} color="#666666" />
+                        <Ionicons name="person" size={18} color={colors.textMuted} />
                     </View>
                     <Text style={styles.reviewerName}>{name}</Text>
                 </View>
-
                 <View style={styles.ratingInfo}>
-                    <View style={styles.stars}>
-                        {[...Array(5)].map((_, i) => (
-                            <Ionicons
-                                key={i}
-                                name={i < rating ? "star" : "star-outline"}
-                                size={14}
-                                color="#FFD700"
-                                style={styles.star}
-                            />
-                        ))}
-                    </View>
+                    <StarRating rating={rating} />
                     <Text style={styles.reviewDate}>{date}</Text>
                 </View>
             </View>
-
             <Text style={styles.reviewText}>{text}</Text>
         </View>
     );
+});
+
+// ─── Screen ──────────────────────────────────────────────────────────────────
+
+const MOCK_REVIEWS = [
+    {
+        id: "1",
+        name: "John Ade",
+        date: "9/10/2025",
+        rating: 5,
+        text: "Excellent work! John arrived on time and fixed my leaking pipe quickly and professionally. Very clean workspace and explained everything clearly.",
+    },
+    {
+        id: "2",
+        name: "Sarah O.",
+        date: "8/25/2025",
+        rating: 4,
+        text: "Great service overall. Very professional and thorough. Would definitely recommend and use again.",
+    },
+    {
+        id: "3",
+        name: "Mike T.",
+        date: "8/12/2025",
+        rating: 5,
+        text: "Outstanding experience from start to finish. Prompt, knowledgeable, and left the place spotless.",
+    },
+];
+
+export default function ReviewsScreen() {
+    const router = useRouter();
 
     return (
         <View style={styles.container}>
             <ScreenHeader
                 title="Reviews"
-                onBackPress={handleBackPress}
-                showBackButton={true}
+                onBackPress={() => router.back()}
+                showBackButton
             />
 
             <ScrollView
-                style={styles.content}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.contentContainer}
+                contentContainerStyle={styles.scrollContent}
             >
+                {/* Header Row */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Reviews</Text>
-                    <View style={styles.seeAllBadge}>
-                        <Text style={styles.seeAllText}>See all (50)</Text>
+                    <View style={styles.countBadge}>
                         <View style={styles.overlapAvatars}>
-                            {[1, 2, 3].map((_, i) => (
-                                <View key={i} style={[styles.miniAvatar, { marginLeft: -8 }]}>
-                                    <Ionicons name="person" size={10} color="#666666" />
+                            {[0, 1, 2].map((i) => (
+                                <View key={i} style={[styles.miniAvatar, i > 0 && { marginLeft: -8 }]}>
+                                    <Ionicons name="person" size={10} color={colors.textMuted} />
                                 </View>
                             ))}
                         </View>
+                        <Text style={styles.countText}>See all ({MOCK_REVIEWS.length * 17})</Text>
                     </View>
                 </View>
 
+                {/* Reviews List */}
                 <View style={styles.reviewsList}>
-                    <ReviewItem
-                        name="John Ade"
-                        date="9/10/2025"
-                        rating={5}
-                        text="Excellent work! John arrived on time and fixed my leaking pipe quickly and professionally. Very clean workspace and explained everything clearly."
-                    />
-                    <View style={styles.separator} />
-                    <ReviewItem
-                        name="John Ade"
-                        date="9/10/2025"
-                        rating={5}
-                        text="Excellent work! John arrived on time and fixed my leaking pipe quickly and professionally. Very clean workspace and explained everything clearly."
-                    />
-                    <View style={styles.separator} />
-                    <ReviewItem
-                        name="John Ade"
-                        date="9/10/2025"
-                        rating={5}
-                        text="Excellent work! John arrived on time and fixed my leaking pipe quickly and professionally. Very clean workspace and explained everything clearly."
-                    />
+                    {MOCK_REVIEWS.map((review, index) => (
+                        <View key={review.id}>
+                            {index > 0 && <View style={styles.separator} />}
+                            <ReviewItem
+                                name={review.name}
+                                date={review.date}
+                                rating={review.rating}
+                                text={review.text}
+                            />
+                        </View>
+                    ))}
                 </View>
             </ScrollView>
         </View>
     );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#0F0F10",
+        backgroundColor: colors.bg,
     },
-    content: {
-        flex: 1,
+    scrollContent: {
+        paddingBottom: 48,
     },
-    contentContainer: {
-        paddingBottom: 40,
-    },
+
+    // Section header
     sectionHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        marginBottom: 8,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.md,
+        marginBottom: spacing.xs,
     },
     sectionTitle: {
-        fontSize: 16,
-        fontFamily: Fonts.regular,
-        color: "#FFFFFF",
+        ...typography.h3,
+        color: colors.textPrimary,
     },
-    seeAllBadge: {
+    countBadge: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#2C2C2E",
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-        gap: 8,
+        backgroundColor: colors.bgTertiary,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs - 2,
+        borderRadius: radius.full,
+        gap: spacing.xs,
     },
-    seeAllText: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: "#FFFFFF",
+    countText: {
+        ...typography.bodySm,
+        color: colors.textPrimary,
     },
     overlapAvatars: {
         flexDirection: "row",
-        paddingLeft: 8,
     },
     miniAvatar: {
         width: 20,
         height: 20,
         borderRadius: 10,
-        backgroundColor: "#3A3A3C",
+        backgroundColor: colors.bgSecondary,
         alignItems: "center",
         justifyContent: "center",
         borderWidth: 1,
-        borderColor: "#2C2C2E",
+        borderColor: colors.bgTertiary,
     },
+
+    // Reviews
     reviewsList: {
-        paddingHorizontal: 16,
+        paddingHorizontal: spacing.md,
     },
     reviewItem: {
-        paddingVertical: 16,
+        paddingVertical: spacing.md,
     },
     reviewHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "flex-start",
-        marginBottom: 12,
+        marginBottom: spacing.sm,
     },
     reviewerInfo: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 12,
+        gap: spacing.sm,
     },
     avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: "#E5C8A8", // Placeholder skin tone color
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: "#E5C8A8",
         alignItems: "center",
         justifyContent: "center",
     },
     reviewerName: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: "#FFFFFF",
+        ...typography.labelMd,
+        color: colors.textPrimary,
     },
     ratingInfo: {
         alignItems: "flex-end",
-        gap: 4,
+        gap: spacing.xxs,
     },
     stars: {
         flexDirection: "row",
-        backgroundColor: "#1C1C1E",
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    star: {
-        marginHorizontal: 1,
+        gap: 1,
+        backgroundColor: colors.bgSecondary,
+        paddingHorizontal: spacing.xs,
+        paddingVertical: spacing.xxs,
+        borderRadius: radius.sm,
     },
     reviewDate: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: "#666666",
+        ...typography.caption,
+        color: colors.textMuted,
     },
     reviewText: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: "#A0A0A0",
+        ...typography.bodyMd,
+        color: colors.textSecondary,
         lineHeight: 22,
     },
     separator: {
-        height: 1,
-        backgroundColor: "#1C1C1E",
-        width: "100%",
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: colors.border,
     },
 });
