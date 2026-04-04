@@ -1,258 +1,198 @@
 import { ScreenHeader } from "@/src/components";
-import { Fonts } from "@/src/constants/theme";
+import { colors, layout, radius, spacing, typography } from "@/src/constants/design";
+import { formatCount } from "@/src/data/mock";
+import { useAuthStore } from "@/src/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
+import { Image as ExpoImage } from "expo-image";
 import { useRouter } from "expo-router";
-import {
-    Dimensions,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-const { width } = Dimensions.get("window");
+const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=333&color=fff&name=U";
 
 export default function MyProfileScreen() {
     const router = useRouter();
+    const user = useAuthStore((s) => s.user);
 
-    const handleBackPress = () => {
-        router.back();
-    };
+    const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "No name set";
 
     return (
         <View style={styles.container}>
             <ScreenHeader
                 title="Profile"
-                onBackPress={handleBackPress}
-                showBackButton={true}
+                onBackPress={() => router.back()}
+                showBackButton
             />
 
             <ScrollView
-                style={styles.content}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.contentContainer}
+                contentContainerStyle={styles.scrollContent}
             >
-                {/* Profile Header Section */}
+                {/* Profile Header */}
                 <View style={styles.profileHeader}>
-                    <View style={styles.avatarContainer}>
-                        <View style={styles.avatarWrapper}>
-                            {/* Placeholder for actual image, using a gray background for now */}
-                            <View style={styles.avatarPlaceholder}>
-                                <Ionicons name="person" size={50} color="#666666" />
-                            </View>
-                            {/* Camera Icon Overlay */}
-                            <TouchableOpacity style={styles.cameraButton}>
-                                <Ionicons name="camera-outline" size={16} color="#FF2D55" />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    <Text style={styles.username}>@victory_paul</Text>
-                    <Text style={styles.displayName}>Victory Paul</Text>
-
                     <TouchableOpacity
-                        style={styles.editProfileButton}
+                        style={styles.avatarContainer}
                         onPress={() => router.push("/profile/edit-profile")}
+                        activeOpacity={0.8}
                     >
-                        <Text style={styles.editProfileText}>Edit Profile</Text>
-                        <Ionicons name="pencil" size={14} color="#000000" style={{ marginLeft: 4 }} />
+                        <ExpoImage
+                            source={{ uri: user?.avatar ?? DEFAULT_AVATAR }}
+                            style={styles.avatar}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                        />
+                        <View style={styles.cameraButton}>
+                            <Ionicons name="camera-outline" size={14} color="#FF2D55" />
+                        </View>
                     </TouchableOpacity>
 
-                    {/* Stats Row */}
-                    <View style={styles.statsContainer}>
+                    <Text style={styles.handle}>@{user?.username ?? "—"}</Text>
+                    <Text style={styles.displayName}>{displayName}</Text>
+
+                    <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => router.push("/profile/edit-profile")}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={styles.editButtonText}>Edit Profile</Text>
+                        <Ionicons name="pencil" size={13} color="#000000" />
+                    </TouchableOpacity>
+
+                    {/* Stats */}
+                    <View style={styles.statsRow}>
                         <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>182.1k</Text>
+                            <Text style={styles.statNumber}>{formatCount(0)}</Text>
                             <Text style={styles.statLabel}>Followers</Text>
                         </View>
                         <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>182</Text>
+                            <Text style={styles.statNumber}>{formatCount(0)}</Text>
                             <Text style={styles.statLabel}>Following</Text>
                         </View>
                         <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>50</Text>
+                            <Text style={styles.statNumber}>{formatCount(0)}</Text>
                             <Text style={styles.statLabel}>Posts</Text>
                         </View>
                     </View>
                 </View>
 
-                {/* Feed Section - Mock Post */}
-                <View style={styles.feedSection}>
-                    <View style={styles.postHeader}>
-                        <View style={styles.postUserRow}>
-                            <View style={styles.smallAvatar}>
-                                <Ionicons name="person" size={16} color="#666666" />
-                            </View>
-                            <Text style={styles.postUsername}>Victory Paul</Text>
-                            <Text style={styles.postTime}>• 10h</Text>
-                        </View>
-                        <TouchableOpacity>
-                            <Ionicons name="ellipsis-horizontal" size={20} color="#999999" />
-                        </TouchableOpacity>
-                    </View>
+                {/* Posts Grid Placeholder */}
+                <View style={styles.gridDivider}>
+                    <Ionicons name="grid-outline" size={22} color={colors.textPrimary} />
+                </View>
 
-                    <View style={styles.postImageContainer}>
-                        {/* Using a placeholder view for the house image */}
-                        <View style={styles.postImagePlaceholder} />
-                        <View style={styles.imageCountBadge}>
-                            <Text style={styles.imageCountText}>1/12</Text>
-                        </View>
-                    </View>
+                <View style={styles.emptyState}>
+                    <Ionicons name="images-outline" size={48} color={colors.textMuted} />
+                    <Text style={styles.emptyTitle}>No posts yet</Text>
+                    <Text style={styles.emptySubtitle}>Your posts will appear here</Text>
                 </View>
             </ScrollView>
         </View>
     );
 }
 
+const AVATAR_SIZE = 90;
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#0F0F10",
+        backgroundColor: colors.bg,
     },
-    content: {
-        flex: 1,
+    scrollContent: {
+        paddingBottom: 48,
     },
-    contentContainer: {
-        paddingBottom: 40,
-    },
+
+    // Profile header
     profileHeader: {
         alignItems: "center",
-        paddingTop: 20,
-        paddingBottom: 24,
-        borderBottomWidth: 1,
-        borderBottomColor: "#1C1C1E",
+        paddingTop: spacing.xl,
+        paddingBottom: spacing.xxl,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: colors.border,
     },
     avatarContainer: {
-        marginBottom: 12,
+        marginBottom: spacing.sm,
     },
-    avatarWrapper: {
-        position: "relative",
-    },
-    avatarPlaceholder: {
-        width: 90,
-        height: 90,
-        borderRadius: 45,
-        backgroundColor: "#2C2C2E",
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 2,
-        borderColor: "#1C1C1E",
+    avatar: {
+        width: AVATAR_SIZE,
+        height: AVATAR_SIZE,
+        borderRadius: AVATAR_SIZE / 2,
+        backgroundColor: colors.bgTertiary,
     },
     cameraButton: {
         position: "absolute",
         bottom: 0,
         right: 0,
-        backgroundColor: "#FFFFFF",
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: colors.white,
         alignItems: "center",
         justifyContent: "center",
         borderWidth: 2,
-        borderColor: "#0F0F10",
+        borderColor: colors.bg,
     },
-    username: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: "#999999",
-        marginBottom: 4,
+    handle: {
+        ...typography.bodySm,
+        color: colors.textTertiary,
+        marginBottom: spacing.xxs,
     },
     displayName: {
-        fontSize: 20,
-        fontFamily: Fonts.bold,
-        color: "#FFFFFF",
-        marginBottom: 16,
+        ...typography.h1,
+        color: colors.textPrimary,
+        marginBottom: spacing.md,
     },
-    editProfileButton: {
+    editButton: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#FFFFFF",
-        paddingVertical: 8,
-        paddingHorizontal: 20,
-        borderRadius: 20,
-        marginBottom: 24,
+        gap: spacing.xxs,
+        backgroundColor: colors.white,
+        paddingVertical: spacing.xs,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radius.full,
+        marginBottom: spacing.xl,
     },
-    editProfileText: {
-        fontSize: 14,
-        fontFamily: Fonts.semiBold,
+    editButtonText: {
+        ...typography.labelMd,
         color: "#000000",
     },
-    statsContainer: {
+
+    // Stats
+    statsRow: {
         flexDirection: "row",
         justifyContent: "center",
-        width: "100%",
         gap: 32,
     },
     statItem: {
         alignItems: "center",
+        gap: spacing.xxs,
     },
     statNumber: {
-        fontSize: 18,
-        fontFamily: Fonts.bold,
-        color: "#FFFFFF",
-        marginBottom: 4,
+        ...typography.h2,
+        color: colors.textPrimary,
     },
     statLabel: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: "#666666",
+        ...typography.caption,
+        color: colors.textTertiary,
     },
-    feedSection: {
-        marginTop: 0,
-    },
-    postHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-    },
-    postUserRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-    },
-    smallAvatar: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: "#2C2C2E",
+
+    // Grid
+    gridDivider: {
+        height: 48,
         alignItems: "center",
         justifyContent: "center",
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderColor: colors.border,
     },
-    postUsername: {
-        fontSize: 14,
-        fontFamily: Fonts.semiBold,
-        color: "#FFFFFF",
+    emptyState: {
+        alignItems: "center",
+        paddingVertical: spacing.section,
+        gap: spacing.sm,
     },
-    postTime: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: "#666666",
+    emptyTitle: {
+        ...typography.h3,
+        color: colors.textSecondary,
     },
-    postImageContainer: {
-        width: width,
-        height: width, // Square aspect ratio or adjust as needed
-        backgroundColor: "#1C1C1E",
-        position: "relative",
-    },
-    postImagePlaceholder: {
-        width: "100%",
-        height: "100%",
-        backgroundColor: "#2C2C2E", // Placeholder color
-    },
-    imageCountBadge: {
-        position: "absolute",
-        top: 16,
-        right: 16,
-        backgroundColor: "rgba(0, 0, 0, 0.6)",
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    imageCountText: {
-        color: "#FFFFFF",
-        fontSize: 12,
-        fontFamily: Fonts.semiBold,
+    emptySubtitle: {
+        ...typography.bodySm,
+        color: colors.textMuted,
     },
 });

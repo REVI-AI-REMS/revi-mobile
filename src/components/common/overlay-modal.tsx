@@ -18,6 +18,7 @@ interface OverlayModalProps {
   showCloseButton?: boolean;
   height?: number | string;
   dismissOnBackdrop?: boolean;
+  avoidKeyboard?: boolean;
 }
 
 export default function OverlayModal({
@@ -27,6 +28,7 @@ export default function OverlayModal({
   showCloseButton = true,
   height = "auto",
   dismissOnBackdrop = false,
+  avoidKeyboard = true,
 }: OverlayModalProps) {
   return (
     <Modal
@@ -38,7 +40,7 @@ export default function OverlayModal({
     >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={avoidKeyboard && Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.backdrop}>
           {/* Backdrop - tap to close only if dismissOnBackdrop is true */}
