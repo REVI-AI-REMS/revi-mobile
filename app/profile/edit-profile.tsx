@@ -1,122 +1,92 @@
 import { ScreenHeader } from "@/src/components";
-import { Fonts } from "@/src/constants/theme";
+import { colors, radius, spacing, typography } from "@/src/constants/design";
 import { Ionicons } from "@expo/vector-icons";
+import { Image as ExpoImage } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import {
-    Dimensions,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput, // Changed from Text to TextInput
-    TouchableOpacity,
-    View,
-} from "react-native";
-
-const { width } = Dimensions.get("window");
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 export default function EditProfileScreen() {
     const router = useRouter();
-
-    // State for form fields
     const [username, setUsername] = useState("victory_paul");
     const [displayName, setDisplayName] = useState("Victory Paul");
     const [image, setImage] = useState<string | null>(null);
 
-    const handleBackPress = () => {
-        router.back();
-    };
-
-    const handleSave = () => {
-        // Implement save logic here
-        console.log("Saving profile:", { username, displayName, image });
-        router.back();
-    };
-
     const pickImage = async () => {
-        // No permissions request is necessary for launching the image library
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
             allowsEditing: true,
             aspect: [1, 1],
             quality: 1,
         });
-
-        if (!result.canceled) {
-            setImage(result.assets[0].uri);
-        }
+        if (!result.canceled) setImage(result.assets[0].uri);
     };
 
     return (
         <View style={styles.container}>
             <ScreenHeader
                 title="Edit Profile"
-                onBackPress={handleBackPress}
-                showBackButton={true}
-            // Optional: Add Save button to header if preferred, otherwise we use the button below
+                onBackPress={() => router.back()}
+                showBackButton
             />
 
             <ScrollView
-                style={styles.content}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.contentContainer}
+                contentContainerStyle={styles.scrollContent}
             >
-                {/* Profile Header Section */}
-                <View style={styles.profileHeader}>
+                <View style={styles.body}>
+                    {/* Avatar */}
                     <TouchableOpacity onPress={pickImage} style={styles.avatarContainer}>
-                        <View style={styles.avatarWrapper}>
-                            {image ? (
-                                <Image source={{ uri: image }} style={styles.avatarImage} />
-                            ) : (
-                                <View style={styles.avatarPlaceholder}>
-                                    <Ionicons name="person" size={50} color="#666666" />
-                                </View>
-                            )}
-
-                            {/* Camera Icon Overlay */}
-                            <View style={styles.cameraButton}>
-                                <Ionicons name="camera-outline" size={16} color="#FF2D55" />
+                        {image ? (
+                            <ExpoImage
+                                source={{ uri: image }}
+                                style={styles.avatar}
+                                contentFit="cover"
+                                cachePolicy="memory-disk"
+                            />
+                        ) : (
+                            <View style={styles.avatarPlaceholder}>
+                                <Ionicons name="person" size={44} color={colors.textMuted} />
                             </View>
+                        )}
+                        <View style={styles.cameraButton}>
+                            <Ionicons name="camera-outline" size={15} color="#FF2D55" />
                         </View>
                     </TouchableOpacity>
 
-                    <View style={styles.formContainer}>
+                    {/* Form */}
+                    <View style={styles.form}>
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Username</Text>
-                            <View style={styles.inputContainer}>
+                            <View style={styles.inputRow}>
                                 <Text style={styles.atSymbol}>@</Text>
                                 <TextInput
                                     style={styles.input}
                                     value={username}
                                     onChangeText={setUsername}
                                     placeholder="username"
-                                    placeholderTextColor="#666666"
+                                    placeholderTextColor={colors.textMuted}
                                     autoCapitalize="none"
-                                    includeFontPadding={false}
-                                    textAlignVertical="center"
                                 />
                             </View>
                         </View>
 
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Display Name</Text>
-                            <View style={styles.inputContainer}>
+                            <View style={styles.inputRow}>
                                 <TextInput
                                     style={styles.input}
                                     value={displayName}
                                     onChangeText={setDisplayName}
                                     placeholder="Display Name"
-                                    placeholderTextColor="#666666"
-                                    includeFontPadding={false}
-                                    textAlignVertical="center"
+                                    placeholderTextColor={colors.textMuted}
                                 />
                             </View>
                         </View>
                     </View>
 
-                    <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+                    <TouchableOpacity style={styles.saveButton} onPress={() => router.back()}>
                         <Text style={styles.saveButtonText}>Save Changes</Text>
                     </TouchableOpacity>
                 </View>
@@ -128,104 +98,99 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#0F0F10",
+        backgroundColor: colors.bg,
     },
-    content: {
-        flex: 1,
+    scrollContent: {
+        paddingBottom: 48,
     },
-    contentContainer: {
-        paddingBottom: 40,
-    },
-    profileHeader: {
+    body: {
         alignItems: "center",
-        paddingTop: 20,
-        paddingBottom: 24,
+        paddingTop: spacing.xl,
     },
+
+    // Avatar
     avatarContainer: {
-        marginBottom: 32,
+        marginBottom: spacing.xxl,
     },
-    avatarWrapper: {
-        position: "relative",
+    avatar: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        borderWidth: 2,
+        borderColor: colors.bgSecondary,
     },
     avatarPlaceholder: {
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: "#2C2C2E",
+        backgroundColor: colors.bgTertiary,
         alignItems: "center",
         justifyContent: "center",
         borderWidth: 2,
-        borderColor: "#1C1C1E",
-    },
-    avatarImage: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        borderWidth: 2,
-        borderColor: "#1C1C1E",
+        borderColor: colors.bgSecondary,
     },
     cameraButton: {
         position: "absolute",
         bottom: 0,
         right: 0,
-        backgroundColor: "#FFFFFF",
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: colors.white,
         alignItems: "center",
         justifyContent: "center",
-        borderWidth: 3,
-        borderColor: "#0F0F10",
+        borderWidth: 2,
+        borderColor: colors.bg,
     },
-    formContainer: {
-        width: '100%',
-        paddingHorizontal: 20,
-        gap: 20,
-        marginBottom: 32,
+
+    // Form
+    form: {
+        width: "100%",
+        paddingHorizontal: spacing.md,
+        gap: spacing.lg,
+        marginBottom: spacing.xxl,
     },
     inputGroup: {
-        gap: 8,
+        gap: spacing.xs,
     },
     label: {
-        fontSize: 14,
-        fontFamily: Fonts.medium,
-        color: "#999999",
-        marginLeft: 4,
+        ...typography.labelMd,
+        color: colors.textSecondary,
+        marginLeft: spacing.xxs,
     },
-    inputContainer: {
+    inputRow: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#1C1C1E",
-        borderRadius: 12,
-        paddingHorizontal: 16,
+        backgroundColor: colors.bgSecondary,
+        borderRadius: radius.md,
+        paddingHorizontal: spacing.md,
         height: 50,
         borderWidth: 1,
-        borderColor: "#2C2C2E",
+        borderColor: colors.border,
     },
     atSymbol: {
-        fontSize: 16,
-        fontFamily: Fonts.regular,
-        color: "#666666",
+        ...typography.bodyMd,
+        color: colors.textMuted,
         marginRight: 2,
     },
     input: {
         flex: 1,
-        fontSize: 16,
-        fontFamily: Fonts.regular,
-        color: "#FFFFFF",
-        height: '100%',
+        ...typography.bodyMd,
+        color: colors.textPrimary,
+        height: "100%",
     },
+
+    // Save
     saveButton: {
-        backgroundColor: "#FFFFFF",
-        paddingVertical: 14,
-        paddingHorizontal: 32,
-        borderRadius: 30,
-        width: '90%',
-        alignItems: 'center',
+        backgroundColor: colors.white,
+        paddingVertical: spacing.sm + 2,
+        paddingHorizontal: spacing.xxl,
+        borderRadius: radius.full,
+        width: "90%",
+        alignItems: "center",
     },
     saveButtonText: {
-        fontSize: 16,
-        fontFamily: Fonts.bold,
+        ...typography.labelLg,
         color: "#000000",
     },
 });

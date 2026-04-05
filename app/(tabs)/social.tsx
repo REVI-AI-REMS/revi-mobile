@@ -22,10 +22,10 @@ import { useUploadStore } from "@/src/store/upload.store";
 import { useVideoStore } from "@/src/store/video.store";
 import { Ionicons } from "@expo/vector-icons";
 
+import { generateVideoThumbnail } from "@/src/utils/video-thumbnail";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   StyleSheet,
   Text,
@@ -40,7 +40,7 @@ const DEV_LOCATION: MainFeedParams = {
   latitude: 6.5244, // Lagos, Nigeria
   longitude: 3.3792,
   radius_km: 20,
-  limit: 10, // ← reduced from 20 for faster first paint
+  limit: 20,
 };
 
 function FeedSkeleton() {
@@ -69,16 +69,12 @@ export default function SocialsScreen() {
   const uploadStatus = useUploadStore((s) => s.status);
   const setActiveVideoId = useVideoStore((s) => s.setActiveVideoId);
   const setVisiblePostIds = useVideoStore((s) => s.setVisiblePostIds);
+  const setPreloadVideoIds = useVideoStore((s) => s.setPreloadVideoIds);
   const router = useRouter();
 
-  // ─── Viewport-aware media loading ──────────────────────────────────────────
-  // Posts are added here once they near the viewport. The set only grows —
-  // once media starts loading it never gets "unloaded".
-  const mediaReadyIdsRef = useRef<Set<string>>(new Set());
-  const [mediaReadyIds, setMediaReadyIds] = useState<Set<string>>(new Set());
-
   // ─── Relationship status ───────────────────────────────────────────────────
-  // Deferred: 5s staleTime so it doesn't race with the main feed on cold start
+  // Load who the current user already follows so Follow buttons initialise
+  // correctly on every mount, not just after an in-session toggle.
   const currentUserId = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
   const { data: followingList = [] } = useUserFollowing(currentUserId);
   const followingIds = useMemo(
@@ -87,6 +83,7 @@ export default function SocialsScreen() {
   );
 
   // ─── View tracking ─────────────────────────────────────────────────────────
+  // Accumulate viewed IDs as user scrolls, flush to API at 50 or on unmount
   const viewedIdsRef = useRef<Set<string>>(new Set());
   const visibleIdsRef = useRef<Set<string>>(new Set());
   const { mutate: batchLogViews } = useBatchLogViewsMutation();
@@ -101,6 +98,7 @@ export default function SocialsScreen() {
     };
   }, [batchLogViews]);
 
+  // 60% threshold — drives visible/active state (playback)
   const onViewableItemsChanged = useCallback(
     ({
       viewableItems,
@@ -132,9 +130,12 @@ export default function SocialsScreen() {
         const id = post?.id;
         if (id) {
           viewedIdsRef.current.add(id);
-
-          // Find the first visible video post to make it "active"
-          if (!firstVideoId && (post.media_type === "video" || post.media_type === "video_upload" || post.media_url?.includes(".m3u8"))) {
+          if (
+            !firstVideoId &&
+            (post.media_type === "video" ||
+              post.media_type === "video_upload" ||
+              post.media_url?.includes(".m3u8"))
+          ) {
             firstVideoId = id;
           }
         }
@@ -153,85 +154,106 @@ export default function SocialsScreen() {
     [batchLogViews, setActiveVideoId, setVisiblePostIds],
   );
 
-  // Fires at 1 % visible — starts media download just before the post scrolls in
-  const onMediaPreload = useCallback(
+  // 5% threshold — fires as post edges into viewport, loads video source early
+  const onPreloadItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      const ref = mediaReadyIdsRef.current;
-      let added = false;
-      viewableItems.forEach(({ item }) => {
-        const id = (item as PostRead)?.id;
-        if (id && !ref.has(id)) {
-          ref.add(id);
-          added = true;
-        }
-      });
-      if (added) setMediaReadyIds(new Set(ref));
+      const ids = viewableItems
+        .map(({ item }) => (item as PostRead).id)
+        .filter(Boolean);
+      setPreloadVideoIds(ids);
     },
-    [],
+    [setPreloadVideoIds],
   );
 
-  // Stable callback refs so the pairs object never changes identity
-  const viewTrackingRef = useRef(onViewableItemsChanged);
-  viewTrackingRef.current = onViewableItemsChanged;
-  const mediaPreloadRef = useRef(onMediaPreload);
-  mediaPreloadRef.current = onMediaPreload;
+  // Stable ref wrappers so viewabilityConfigCallbackPairs never changes identity
+  const onViewableItemsChangedRef = useRef(onViewableItemsChanged);
+  const onPreloadItemsChangedRef = useRef(onPreloadItemsChanged);
+  useEffect(() => {
+    onViewableItemsChangedRef.current = onViewableItemsChanged;
+  });
+  useEffect(() => {
+    onPreloadItemsChangedRef.current = onPreloadItemsChanged;
+  });
 
   const viewabilityConfigCallbackPairs = useRef([
     {
-      viewabilityConfig: { itemVisiblePercentThreshold: 1 },
-      onViewableItemsChanged: (info: {
-        viewableItems: ViewToken[];
-        changed: ViewToken[];
-      }) => mediaPreloadRef.current(info),
+      viewabilityConfig: { itemVisiblePercentThreshold: 60 },
+      onViewableItemsChanged: (
+        info: Parameters<typeof onViewableItemsChanged>[0],
+      ) => onViewableItemsChangedRef.current(info),
     },
     {
-      viewabilityConfig: { itemVisiblePercentThreshold: 60 },
-      onViewableItemsChanged: (info: {
-        viewableItems: ViewToken[];
-        changed: ViewToken[];
-      }) => viewTrackingRef.current(info),
+      viewabilityConfig: { itemVisiblePercentThreshold: 5 },
+      onViewableItemsChanged: (info: { viewableItems: ViewToken[] }) =>
+        onPreloadItemsChangedRef.current(info),
     },
-  ]);
+  ]).current;
 
-  // ─── Feed queries (infinite scroll) ────────────────────────────────────────
+  // ─── Feed queries ──────────────────────────────────────────────────────────
   const mainFeedQuery = useMainFeed(DEV_LOCATION);
+  const geoFeedQuery = useGeospatialFeed({ ...DEV_LOCATION, radius_km: 5 });
 
-  // Geo feed — only fetches when user is on the "Nearby" tab
-  const geoFeedQuery = useGeospatialFeed(
-    { ...DEV_LOCATION, radius_km: 5 },
-    activeTab === "neighborhoods",
-  );
+  const { data, isLoading, isError, error, refetch } =
+    activeTab === "neighborhoods" ? geoFeedQuery : mainFeedQuery;
 
-  const activeFeedQuery = activeTab === "neighborhoods" ? geoFeedQuery : mainFeedQuery;
-
-  const {
-    data: feedData,
-    isLoading,
-    isError,
-    error,
-    refetch,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = activeFeedQuery;
-
-  // Flatten pages, deduplicate (pages can overlap after refetch), sort newest-first
+  // Flatten pages and sort newest-first in one memo so rawPosts never escapes
   const posts = useMemo(() => {
-    const flat = feedData?.pages.flat() ?? [];
-    const seen = new Set<string>();
-    const unique: PostRead[] = [];
-    for (const p of flat) {
-      if (!seen.has(p.id)) {
-        seen.add(p.id);
-        unique.push(p);
-      }
-    }
-    return unique.sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    const flat: PostRead[] = data?.pages.flat() ?? [];
+    return flat.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
-  }, [feedData?.pages]);
+  }, [data]);
+
+  // ─── Pre-generate thumbnails ───────────────────────────────────────────────
+  // Start as soon as feed data arrives — NOT when the user scrolls to a post.
+  // By the time they reach a video, the thumbnail is already in the store.
+  const setThumbnail = useVideoStore((s) => s.setThumbnail);
+  const thumbnailsRef = useRef(useVideoStore.getState().thumbnails);
+
+  useEffect(() => {
+    // Keep ref current without adding store slice to deps (avoids re-running on each thumbnail write)
+    thumbnailsRef.current = useVideoStore.getState().thumbnails;
+  });
+
+  useEffect(() => {
+    const videoPosts = posts.filter(
+      (p) =>
+        (p.media_type === "video" || p.media_url?.includes(".m3u8")) &&
+        !thumbnailsRef.current[p.id],
+    );
+    if (!videoPosts.length) return;
+
+    let cancelled = false;
+    const CONCURRENCY = 3; // 3 parallel — fast without hammering the device
+
+    const run = async () => {
+      for (let i = 0; i < videoPosts.length; i += CONCURRENCY) {
+        if (cancelled) break;
+        await Promise.allSettled(
+          videoPosts.slice(i, i + CONCURRENCY).map(async (post) => {
+            if (cancelled || thumbnailsRef.current[post.id]) return;
+            const uri = await generateVideoThumbnail(post.media_url);
+            if (uri && !cancelled) {
+              setThumbnail(post.id, uri);
+              thumbnailsRef.current = {
+                ...thumbnailsRef.current,
+                [post.id]: uri,
+              };
+            }
+          }),
+        );
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [posts, setThumbnail]);
 
   // Video posts from the already-loaded feed — passed straight to ReelsOverlay
+  // so it NEVER makes a separate API call. Zero delay.
   const feedVideoPosts = useMemo(
     () =>
       posts.filter(
@@ -243,40 +265,21 @@ export default function SocialsScreen() {
     [posts],
   );
 
-  // Seed first few posts so media loads immediately without waiting for
-  // the viewability callback (avoids a one-frame skeleton flash).
-  useEffect(() => {
-    if (posts.length > 0 && mediaReadyIdsRef.current.size === 0) {
-      posts.slice(0, 4).forEach((p) => mediaReadyIdsRef.current.add(p.id));
-      setMediaReadyIds(new Set(mediaReadyIdsRef.current));
-    }
-  }, [posts]);
-
-  // ─── Infinite scroll handler ───────────────────────────────────────────────
-  const lastEndReachedRef = useRef(0);
-  const handleEndReached = useCallback(() => {
-    const now = Date.now();
-    if (now - lastEndReachedRef.current < 1500) return; // 1.5 s cooldown
-    if (hasNextPage && !isFetchingNextPage) {
-      lastEndReachedRef.current = now;
-      fetchNextPage();
-    }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
   // ─── Transcoding Polling ────────────────────────────────────────────────
+  // If we just uploaded a video, poll until it's fully active in the feed.
   const setUploadProgress = useUploadStore((s) => s.setProgress);
   const setUploadStatus = useUploadStore((s) => s.setStatus);
 
   useEffect(() => {
     if (uploadStatus !== "processing") return;
 
-    console.log("[SocialFeed] Video processing started — polling until confirmed active...");
     let refreshCount = 0;
     const MAX_REFRESHES = 22; // ~3 minutes max
     const POLL_INTERVAL = 8_000; // 8 seconds
 
     // Animate progress from 90% → 98% gradually
     const progressInterval = setInterval(() => {
+      // In mobile we just use the store
       const current = useUploadStore.getState().progress;
       if (current < 98) setUploadProgress(current + 0.15);
     }, 1000);
@@ -285,13 +288,16 @@ export default function SocialsScreen() {
       refreshCount++;
       try {
         await refetch();
+        // Check if there are NO more "video_upload" posts (they become "video" or "image" once done)
+        // or if they have a .m3u8 media_url.
         setTimeout(() => {
           const stillProcessing = posts.some(
-            (p) => p.media_type === "video_upload" && !p.media_url?.includes(".m3u8"),
+            (p) =>
+              p.media_type === "video_upload" &&
+              !p.media_url?.includes(".m3u8"),
           );
 
           if (!stillProcessing && posts.length > 0) {
-            console.log("[SocialFeed] ✅ Video processing complete!");
             clearInterval(progressInterval);
             clearInterval(refreshTimer);
             setUploadProgress(100);
@@ -299,7 +305,6 @@ export default function SocialsScreen() {
           }
 
           if (refreshCount >= MAX_REFRESHES) {
-            console.log("[SocialFeed] ⚠️ Max polling reached.");
             clearInterval(progressInterval);
             clearInterval(refreshTimer);
             setUploadProgress(100);
@@ -307,7 +312,7 @@ export default function SocialsScreen() {
           }
         }, 500);
       } catch (err) {
-        console.error("[SocialFeed] Refresh failed:", err);
+        // Refresh failed silently
       }
     };
 
@@ -323,6 +328,8 @@ export default function SocialsScreen() {
   const { mutate: followUser } = useFollowMutation();
 
   // ─── Bookmarks ───────────────────────────────────────────────────────────
+  // Seed the initial bookmarked-IDs Set from the server; optimistically toggle
+  // on press so the icon updates immediately without waiting for a refetch.
   const { data: bookmarkedList = [] } = useBookmarks();
   const [optimisticBookmarks, setOptimisticBookmarks] = useState<Set<string>>(
     new Set(),
@@ -333,11 +340,12 @@ export default function SocialsScreen() {
   // Derive bookmarked IDs from server data, merge with optimistic updates
   const bookmarkedIds = useMemo(() => {
     const serverIds = new Set(bookmarkedList.map((p) => p.id));
+    // Merge optimistic updates
     optimisticBookmarks.forEach((id) => {
       if (serverIds.has(id)) {
-        serverIds.delete(id);
+        serverIds.delete(id); // Optimistically removed
       } else {
-        serverIds.add(id);
+        serverIds.add(id); // Optimistically added
       }
     });
     return serverIds;
@@ -375,14 +383,25 @@ export default function SocialsScreen() {
     setReelsPost(post);
   }, []);
 
+  const handleAuthorPress = useCallback(
+    (authorId: string) => {
+      router.push({
+        pathname: "/profile/[userId]",
+        params: { userId: authorId },
+      });
+    },
+    [router],
+  );
+
   const handleBookmark = useCallback(
     (postId: string, isBookmarked: boolean) => {
+      // Optimistic toggle - track which IDs we're toggling
       setOptimisticBookmarks((prev) => {
         const next = new Set(prev);
         if (next.has(postId)) {
-          next.delete(postId);
+          next.delete(postId); // Remove from optimistic if already there (undo toggle)
         } else {
-          next.add(postId);
+          next.add(postId); // Add to optimistic (new toggle)
         }
         return next;
       });
@@ -406,11 +425,11 @@ export default function SocialsScreen() {
         onMore={handleMore}
         onVideoPress={handleVideoPress}
         onBookmark={handleBookmark}
+        onAuthorPress={handleAuthorPress}
         isFollowing={followingIds.has(item.author_id)}
         isBookmarked={bookmarkedIds.has(item.id)}
         likePending={likePending}
         currentUserId={currentUserId}
-        isNearViewport={mediaReadyIdsRef.current.has(item.id)}
       />
     ),
     [
@@ -420,6 +439,7 @@ export default function SocialsScreen() {
       handleMore,
       handleVideoPress,
       handleBookmark,
+      handleAuthorPress,
       followingIds,
       bookmarkedIds,
       likePending,
@@ -427,22 +447,13 @@ export default function SocialsScreen() {
     ],
   );
 
-  // ─── Footer spinner while fetching next page ──────────────────────────────
-  const ListFooterComponent = useMemo(() => {
-    if (!isFetchingNextPage) return null;
-    return (
-      <View style={styles.footerSpinner}>
-        <ActivityIndicator size="small" color="#A855F7" />
-      </View>
-    );
-  }, [isFetchingNextPage]);
-
   // ─── Empty / Loading / Error ───────────────────────────────────────────────
   const ListEmptyComponent = () => {
     if (isLoading) {
       return <FeedSkeleton />;
     }
     if (isError) {
+      // Pull the HTTP status and server message for easy debugging
       const axiosError = error as {
         response?: { status: number; data?: { detail?: string } };
       } | null;
@@ -509,31 +520,23 @@ export default function SocialsScreen() {
         ))}
       </View>
 
-      {/* Feed — infinite scroll */}
+      {/* Feed */}
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
         renderItem={renderPost}
-        extraData={mediaReadyIds}
-        viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs.current}
+        viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs}
         onRefresh={refetch}
         refreshing={isLoading && posts.length > 0}
         ListEmptyComponent={ListEmptyComponent}
-        ListFooterComponent={ListFooterComponent}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={
           posts.length === 0 ? styles.emptyContainer : styles.feedContent
         }
-        onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
-        removeClippedSubviews={true}
-        windowSize={3}
-        maxToRenderPerBatch={3}
-        updateCellsBatchingPeriod={50}
-        initialNumToRender={3}
       />
 
-      {/* Upload Progress Card */}
+      {/* Upload Progress Card - Positioned in layout flow above tab bar */}
       {uploadStatus !== "idle" && <UploadProgressCard />}
 
       {/* Comments Sheet */}
@@ -550,7 +553,7 @@ export default function SocialsScreen() {
         onClose={() => setOptionsPost(null)}
       />
 
-      {/* Reels overlay */}
+      {/* Reels overlay — renders on top of feed, no navigation, no reload */}
       {reelsPost && (
         <ReelsOverlay
           initialPost={reelsPost}
@@ -634,9 +637,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: Fonts.semiBold,
     color: "#FFFFFF",
-  },
-  footerSpinner: {
-    paddingVertical: 20,
-    alignItems: "center",
   },
 });
