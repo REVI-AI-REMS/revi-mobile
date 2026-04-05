@@ -92,7 +92,6 @@ export default function ChatHomeScreen() {
   }, []);
 
   const handleSuggestionPress = (title: string) => {
-    console.log("Suggestion pressed:", title);
     // Close modal if open
     if (actionModalVisible) {
       setActionModalVisible(false);
@@ -117,7 +116,6 @@ export default function ChatHomeScreen() {
 
   const handleSendMessage = () => {
     if (message.trim()) {
-      console.log("Sending message:", message);
       router.push({
         pathname: "/(tabs)/conversation",
         params: { query: message },
@@ -143,11 +141,9 @@ export default function ChatHomeScreen() {
       const result = await ImagePicker.launchCameraAsync();
 
       if (!result.canceled) {
-        console.log("Camera result:", result.assets[0]);
         // Handle the image (e.g., upload or add to message)
       }
     } catch (error) {
-      console.log("Camera error:", error);
       alert("Camera not available on this device/simulator.");
     }
   };
@@ -165,7 +161,6 @@ export default function ChatHomeScreen() {
         return;
       }
 
-      console.log("Opening gallery...");
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"], // Correct usage: array of strings or single string 'images'
         allowsEditing: true,
@@ -173,11 +168,9 @@ export default function ChatHomeScreen() {
       });
 
       if (!result.canceled) {
-        console.log("Photo result:", result.assets[0]);
         // Handle the image
       }
     } catch (error) {
-      console.error("Error picking photo:", error);
       Alert.alert("Error", "Failed to open photos. Please try again.");
     }
   };
@@ -185,16 +178,13 @@ export default function ChatHomeScreen() {
   const handleFiles = async () => {
     // causing trouble? removing for now: if (isLoading) return;
     // setIsLoading(true);
-    console.log("Opening file picker...");
     try {
       const result = await DocumentPicker.getDocumentAsync({});
 
       if (!result.canceled) {
-        console.log("File result:", result.assets[0]);
         // Handle the file
       }
     } catch (err: any) {
-      console.error("Document picker error:", err);
       if (
         err.message &&
         err.message.includes("Different document picking in progress")
@@ -212,7 +202,6 @@ export default function ChatHomeScreen() {
   };
 
   const handleActionPress = (action: string) => {
-    console.log("Action pressed:", action);
     setActionModalVisible(false);
 
     // Add a delay to allow modal to close before opening native pickers
@@ -327,35 +316,33 @@ export default function ChatHomeScreen() {
             </View>
           </ScrollView>
 
-          {/* Bottom Input - Wrapped in SafeAreaView for bottom edge */}
-          <SafeAreaView edges={["bottom"]} style={styles.bottomSafeArea}>
-            <View style={styles.inputContainer}>
+          {/* Bottom Input — tab bar already handles safe area, no extra wrapper */}
+          <View style={styles.inputContainer}>
+            <TouchableOpacity
+              style={styles.attachButton}
+              onPress={() => setActionModalVisible(true)}
+              activeOpacity={0.6}
+            >
+              <Ionicons name="add" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="Ask anything real estate"
+                placeholderTextColor="#666666"
+                value={message}
+                onChangeText={setMessage}
+                multiline
+              />
               <TouchableOpacity
-                style={styles.attachButton}
-                onPress={() => setActionModalVisible(true)}
+                style={styles.sendButton}
+                onPress={handleSendMessage}
+                activeOpacity={0.7}
               >
-                <Ionicons name="add" size={24} color="#FFFFFF" />
+                <Ionicons name="arrow-up" size={20} color="#000000" />
               </TouchableOpacity>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ask anything real estate"
-                  placeholderTextColor="#666666"
-                  value={message}
-                  onChangeText={setMessage}
-                  multiline
-                  underlineColorAndroid="transparent"
-                />
-                <TouchableOpacity
-                  style={styles.sendButton}
-                  onPress={handleSendMessage}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="arrow-up" size={20} color="#000000" />
-                </TouchableOpacity>
-              </View>
             </View>
-          </SafeAreaView>
+          </View>
         </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
@@ -365,9 +352,6 @@ export default function ChatHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  bottomSafeArea: {
-    backgroundColor: "#0F0F10", // Match your app background
   },
   content: {
     flex: 1,
@@ -431,39 +415,36 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopColor: "#1C1C1E",
-    gap: 10,
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 4,
+    gap: 8,
   },
   attachButton: {
-    width: Platform.OS === "android" ? 44 : 50,
-    height: Platform.OS === "android" ? 44 : 50,
-    borderRadius: 100,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: "#1C1C1E",
     alignItems: "center",
     justifyContent: "center",
   },
   inputWrapper: {
     flex: 1,
-    position: "relative",
     backgroundColor: "#1C1C1E",
-    borderRadius: 30,
+    borderRadius: 22,
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 50,
+    minHeight: 44,
   },
   input: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: Platform.OS === "android" ? 8 : 10,
+    paddingVertical: 10,
     paddingRight: 48,
     fontSize: 16,
     fontFamily: Fonts.regular,
     color: "#FFFFFF",
-    maxHeight: 120,
-    textAlignVertical: "center",
-    includeFontPadding: false,
+    maxHeight: 100,
   },
   sendButton: {
     position: "absolute",

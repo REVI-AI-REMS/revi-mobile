@@ -48,6 +48,8 @@ interface AuthState {
   isAuthenticated: boolean;
   /** true while restoring session on app launch — keep splash visible */
   isLoading: boolean;
+  /** true once user has accepted terms — persisted so it survives app restarts */
+  hasAcceptedTerms: boolean;
 
   // ── Actions ────────────────────────────────────────────────────────────────
   /** Store a fresh token pair (e.g. after login or token refresh) */
@@ -56,6 +58,8 @@ interface AuthState {
   setUser: (user: AuthUser) => void;
   /** Merge partial updates into the current user */
   updateUser: (updates: Partial<AuthUser>) => void;
+  /** Record that the user has accepted the terms and conditions */
+  acceptTerms: () => void;
   /**
    * Called once on app start (via onRehydrateStorage).
    * Validates the persisted access token; silently refreshes if expired.
@@ -79,11 +83,14 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       isAuthenticated: false,
       isLoading: true, // true until hydrate() resolves
+      hasAcceptedTerms: false,
 
       setTokens: (accessToken, refreshToken) =>
         set({ accessToken, refreshToken }),
 
       setUser: (user) => set({ user, isAuthenticated: true }),
+
+      acceptTerms: () => set({ hasAcceptedTerms: true }),
 
       updateUser: (updates) =>
         set((state) => ({
@@ -206,6 +213,7 @@ export const useAuthStore = create<AuthState>()(
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
+        hasAcceptedTerms: state.hasAcceptedTerms,
       }),
       // After AsyncStorage restores the persisted state, validate the tokens.
       // By the time this fires, get() returns the fresh persisted tokens.
