@@ -1,7 +1,7 @@
 import ReviaiLogo from "@/assets/svgs/reviaimobilelogo.svg";
 import Button from "@/components/ui/Button";
 import OverlayModal from "@/components/common/OverlayModal";
-import { Fonts } from "@/src/constants/theme";
+import { Fonts } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";

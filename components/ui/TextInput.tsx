@@ -7,8 +7,8 @@ import {
   Platform,
   TextInputProps as RNTextInputProps,
 } from 'react-native';
-import { Fonts, Typography, BorderRadius } from '@/src/constants/theme';
-import { spacing, platformTextStyles } from '@/src/utils/platform';
+import { Fonts, Typography, BorderRadius } from '@/constants/theme';
+import { spacing, platformTextStyles } from '@/utils/platform';
 
 interface TextInputProps extends RNTextInputProps {
   label?: string;

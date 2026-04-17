@@ -1,7 +1,7 @@
-import { Fonts } from "@/src/constants/theme";
-import { useMainFeed } from "@/src/hooks/queries/use-feed";
-import { useSearch } from "@/src/hooks/queries/use-search";
-import type { PostRead, UserSync } from "@/src/services/social/types";
+import { Fonts } from "@/constants/theme";
+import { useMainFeed } from "@/hooks/queries/use-feed";
+import { useSearch } from "@/hooks/queries/use-search";
+import type { PostRead, UserSync } from "@/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";

@@ -1,4 +1,4 @@
-import { colors, radius, spacing, typography } from "@/src/constants/design";
+import { colors, radius, spacing, typography } from "@/constants/design";
 import { Ionicons } from "@expo/vector-icons";
 import { useRef, useState } from "react";
 import {

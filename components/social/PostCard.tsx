@@ -1,8 +1,8 @@
-import { colors, radius, spacing, typography } from "@/src/constants/design";
-import { Fonts } from "@/src/constants/theme";
-import type { PostRead } from "@/src/services/social/types";
+import { colors, radius, spacing, typography } from "@/constants/design";
+import { Fonts } from "@/constants/theme";
+import type { PostRead } from "@/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
-import { generateVideoThumbnail } from "@/src/utils/video-thumbnail";
+import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
 import { Image } from "expo-image";

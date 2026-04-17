@@ -1,10 +1,10 @@
-import { interactionsService } from "@/src/services/social/interactions.service";
-import { postsService } from "@/src/services/social/posts.service";
+import { interactionsService } from "@/services/social/interactions.service";
+import { postsService } from "@/services/social/posts.service";
 import type {
     MainFeedParams,
     PostRead,
     VideoFeedParams,
-} from "@/src/services/social/types";
+} from "@/services/social/types";
 import {
     keepPreviousData,
     useInfiniteQuery,

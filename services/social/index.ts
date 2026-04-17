@@ -2,8 +2,8 @@
 // Import from here — not from individual files directly.
 //
 // Usage:
-//   import { postsService } from '@/src/services/social';
-//   import type { PostRead } from '@/src/services/social';
+//   import { postsService } from '@/services/social';
+//   import type { PostRead } from '@/services/social';
 
 export { adsService } from "./ads.service";
 export { bookmarksService } from "./bookmarks.service";

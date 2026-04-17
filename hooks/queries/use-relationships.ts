@@ -1,4 +1,4 @@
-import { relationshipsService } from "@/src/services/social/relationships.service";
+import { relationshipsService } from "@/services/social/relationships.service";
 import { useQuery } from "@tanstack/react-query";
 
 // ─── Cache Keys ───────────────────────────────────────────────────────────────

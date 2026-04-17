@@ -1,9 +1,9 @@
-import { Fonts } from "@/src/constants/theme";
-import { useBookmarks, useSearch, useUserStats } from "@/src/hooks";
-import type { PostRead } from "@/src/services/social/types";
+import { Fonts } from "@/constants/theme";
+import { useBookmarks, useSearch, useUserStats } from "@/hooks";
+import type { PostRead } from "@/services/social/types";
 import { useAuthStore } from "@/stores/auth.store";
 import { useVideoStore } from "@/stores/video.store";
-import { generateVideoThumbnail } from "@/src/utils/video-thumbnail";
+import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import { useRouter } from "expo-router";

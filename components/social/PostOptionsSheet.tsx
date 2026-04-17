@@ -1,7 +1,7 @@
 import OverlayModal from "@/components/common/OverlayModal";
-import { Fonts } from "@/src/constants/theme";
-import { useDeletePostMutation, useReportPostMutation } from "@/src/hooks/mutations/use-feed-mutations";
-import type { PostRead } from "@/src/services/social/types";
+import { Fonts } from "@/constants/theme";
+import { useDeletePostMutation, useReportPostMutation } from "@/hooks/mutations/use-feed-mutations";
+import type { PostRead } from "@/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import {

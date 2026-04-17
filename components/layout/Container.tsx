@@ -7,7 +7,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing } from '@/src/utils/platform';
+import { spacing } from '@/utils/platform';
 
 interface ContainerProps {
   children: React.ReactNode;

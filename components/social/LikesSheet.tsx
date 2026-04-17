@@ -1,5 +1,5 @@
 import OverlayModal from "@/components/common/OverlayModal";
-import { Fonts } from "@/src/constants/theme";
+import { Fonts } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 

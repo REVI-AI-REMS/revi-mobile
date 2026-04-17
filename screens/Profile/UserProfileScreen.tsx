@@ -1,10 +1,10 @@
 import { ScreenHeader } from "@/components";
-import { colors, layout, spacing, typography } from "@/src/constants/design";
-import { formatCount } from "@/src/data/mock";
-import { useSearch, useUserStats } from "@/src/hooks";
-import { useFollowMutation } from "@/src/hooks/mutations/use-feed-mutations";
-import { useUserFollowing } from "@/src/hooks/queries/use-relationships";
-import type { PostRead } from "@/src/services/social/types";
+import { colors, layout, spacing, typography } from "@/constants/design";
+import { formatCount } from "@/data/mock";
+import { useSearch, useUserStats } from "@/hooks";
+import { useFollowMutation } from "@/hooks/mutations/use-feed-mutations";
+import { useUserFollowing } from "@/hooks/queries/use-relationships";
+import type { PostRead } from "@/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
