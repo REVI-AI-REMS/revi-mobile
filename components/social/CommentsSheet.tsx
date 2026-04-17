@@ -1,4 +1,4 @@
-import OverlayModal from "@/components/common/overlay-modal";
+import OverlayModal from "@/components/common/OverlayModal";
 import { Fonts } from "@/src/constants/theme";
 import { useAddCommentMutation, useDeleteCommentMutation } from "@/src/hooks/mutations/use-feed-mutations";
 import { useComments } from "@/src/hooks/queries/use-feed";
@@ -14,7 +14,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { formatRelativeTime } from "./post-card";
+import { formatRelativeTime } from "./PostCard";
 
 interface CommentsSheetProps {
     postId: string | null;

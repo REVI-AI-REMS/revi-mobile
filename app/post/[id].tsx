@@ -1,10 +1,10 @@
-import { CommentsSheet } from "@/components/social/comments-sheet";
+import { CommentsSheet } from "@/components/social/CommentsSheet";
 import {
     PostCard,
     PostCardSkeleton,
-} from "@/components/social/post-card";
-import { PostOptionsSheet } from "@/components/social/post-options-sheet";
-import { ReelsOverlay } from "@/components/social/reels-overlay";
+} from "@/components/social/PostCard";
+import { PostOptionsSheet } from "@/components/social/PostOptionsSheet";
+import { ReelsOverlay } from "@/components/social/ReelsOverlay";
 import { Fonts } from "@/src/constants/theme";
 import {
     useFollowMutation,

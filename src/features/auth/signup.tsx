@@ -1,7 +1,7 @@
 import ReviaiLogo from "@/assets/svgs/reviaimobilelogo.svg";
-import Button from "@/components/common/button";
-import OverlayModal from "@/components/common/overlay-modal";
-import TermsModal from "@/components/common/terms-modal";
+import Button from "@/components/ui/Button";
+import OverlayModal from "@/components/common/OverlayModal";
+import TermsModal from "@/components/common/TermsModal";
 import { Fonts } from "@/src/constants/theme";
 import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
