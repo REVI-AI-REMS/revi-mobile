@@ -16,7 +16,8 @@
       "@/services/*": ["./src/services/*"],
       "@/config/*": ["./src/config/*"],
       "@/features/*": ["./src/features/*"],
-      "@/stores/*": ["./stores/*"]
+      "@/stores/*": ["./stores/*"],
+      "@/screens/*": ["./screens/*"]
     }
   },
   "include": [
