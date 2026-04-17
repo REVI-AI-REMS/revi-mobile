@@ -1,4 +1,4 @@
-import { ScreenHeader } from "@/src/components";
+import { ScreenHeader } from "@/components";
 import { colors, layout, radius, spacing, typography } from "@/src/constants/design";
 import { formatCount } from "@/src/data/mock";
 import { useAuthStore } from "@/stores/auth.store";

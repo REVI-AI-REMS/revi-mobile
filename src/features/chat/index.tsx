@@ -1,9 +1,9 @@
-import ChatActionModal from "@/src/components/chat/ChatActionModal";
-import ChatHeader from "@/src/components/chat/ChatHeader";
-import ChatSessionsSidebar from "@/src/components/chat/ChatSessionsSidebar";
-import ReportModal from "@/src/components/chat/ReportModal";
-import TellStoryModal from "@/src/components/chat/TellStoryModal";
-import SuccessModal from "@/src/components/common/SuccessModal";
+import ChatActionModal from "@/components/chat/ChatActionModal";
+import ChatHeader from "@/components/chat/ChatHeader";
+import ChatSessionsSidebar from "@/components/chat/ChatSessionsSidebar";
+import ReportModal from "@/components/chat/ReportModal";
+import TellStoryModal from "@/components/chat/TellStoryModal";
+import SuccessModal from "@/components/common/SuccessModal";
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";

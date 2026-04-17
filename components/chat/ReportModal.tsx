@@ -1,5 +1,5 @@
-import Button from "@/src/components/common/button";
-import OverlayModal from "@/src/components/common/overlay-modal";
+import Button from "@/components/common/button";
+import OverlayModal from "@/components/common/overlay-modal";
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -14,21 +14,27 @@ import {
     View,
 } from "react-native";
 
-interface TellStoryModalProps {
+interface ReportModalProps {
     visible: boolean;
     onClose: () => void;
     title?: string;
     onSuccess?: () => void;
 }
 
-export default function TellStoryModal({
+const RATINGS = ["Worse", "Bad", "Average", "Good", "Very Good"];
+
+export default function ReportModal({
     visible,
     onClose,
-    title = "Tell Your Story",
+    title = "Report your Landlord",
     onSuccess,
-}: TellStoryModalProps) {
+}: ReportModalProps) {
     const [email, setEmail] = useState("");
-    const [story, setStory] = useState("");
+    const [address, setAddress] = useState("");
+    const [city, setCity] = useState("");
+    const [state, setState] = useState(""); // State/Province
+    const [reason, setReason] = useState("");
+    const [rating, setRating] = useState("");
     const [document, setDocument] = useState<{ name: string; uri: string } | null>(null);
     const [isPicking, setIsPicking] = useState(false);
 
@@ -61,7 +67,7 @@ export default function TellStoryModal({
     };
 
     const handleSend = () => {
-        // Validation logic
+        // Validation could go here
         onClose();
         if (onSuccess) {
             onSuccess();
@@ -71,9 +77,10 @@ export default function TellStoryModal({
     return (
         <OverlayModal visible={visible} onClose={onClose} height="90%">
             <View style={styles.header}>
+                {/* Close button handled by OverlayModal, but we can add title */}
                 <Text style={styles.title}>{title}</Text>
                 <Text style={styles.subtitle}>
-                    Help others by telling what happened.
+                    Tell us what happened — we're here to help.
                 </Text>
             </View>
 
@@ -98,26 +105,90 @@ export default function TellStoryModal({
                     </View>
                 </View>
 
-                {/* Story */}
+                <Text style={styles.sectionLabel}>
+                    Select a rating to describe your landlord experience
+                </Text>
+
+                {/* Property Address */}
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Your Story</Text>
+                    <Text style={styles.label}>Property Address</Text>
+                    <View style={styles.inputContainer}>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="e.g No, 12 Admiralty Way"
+                            placeholderTextColor="#666"
+                            value={address}
+                            onChangeText={setAddress}
+                        />
+                    </View>
+                    <View style={styles.row}>
+                        <View style={[styles.inputContainer, styles.halfInput]}>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="City"
+                                placeholderTextColor="#666"
+                                value={city}
+                                onChangeText={setCity}
+                            />
+                        </View>
+                        <View style={[styles.inputContainer, styles.halfInput]}>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="State"
+                                placeholderTextColor="#666"
+                                value={state}
+                                onChangeText={setState}
+                            />
+                        </View>
+                    </View>
+                </View>
+
+                {/* Reason */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Your reason for report</Text>
                     <View style={[styles.inputContainer, styles.textAreaContainer]}>
                         <TextInput
                             style={[styles.input, styles.textArea]}
-                            placeholder="Share your experience..."
+                            placeholder="Describe any issues you have faced with your landlord"
                             placeholderTextColor="#666"
                             multiline
                             textAlignVertical="top"
-                            value={story}
-                            onChangeText={setStory}
+                            value={reason}
+                            onChangeText={setReason}
                         />
+                    </View>
+                </View>
+
+                {/* Rating */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Rate your landlord experience *</Text>
+                    <View style={styles.ratingContainer}>
+                        {RATINGS.map((r) => (
+                            <TouchableOpacity
+                                key={r}
+                                style={[
+                                    styles.ratingChip,
+                                    rating === r && styles.ratingChipSelected,
+                                ]}
+                                onPress={() => setRating(r)}
+                            >
+                                <Text
+                                    style={[
+                                        styles.ratingText,
+                                        rating === r && styles.ratingTextSelected,
+                                    ]}
+                                >
+                                    {r}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
                     </View>
                 </View>
 
                 {/* File Upload */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>
-                        Upload supporting documents/images (optional)
+                        Upload your utility bill or property{"\n"}document (image/PDF/document)
                     </Text>
                     <TouchableOpacity
                         style={[styles.uploadContainer, isPicking && { opacity: 0.5 }]}
@@ -129,7 +200,7 @@ export default function TellStoryModal({
                             <Ionicons name="document-text-outline" size={24} color="#000" />
                         </View>
                         <Text style={styles.uploadTitle}>
-                            {document ? document.name : "Upload Document"}
+                            {document ? document.name : "Upload Property Document"}
                         </Text>
                         <Text style={styles.uploadSubtitle}>PNG, JPG, PDF up to 10MB</Text>
                         <View style={styles.chooseFileButton}>
@@ -138,8 +209,12 @@ export default function TellStoryModal({
                     </TouchableOpacity>
                 </View>
 
+                <Text style={styles.disclaimer}>
+                    At least one file is required to submit your report
+                </Text>
+
                 <Button
-                    title="Share Story"
+                    title="Send"
                     variant="primary"
                     onPress={handleSend}
                     style={styles.sendButton}
@@ -177,14 +252,21 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 14,
         fontFamily: Fonts.medium,
+        // color: "#CCCCC",
         marginBottom: 8,
         color: "#ccc",
+    },
+    sectionLabel: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        color: "#666",
+        marginBottom: 16,
     },
     inputContainer: {
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: "#1C1C1E",
-        borderRadius: 30,
+        borderRadius: 30, // Rounded style as seen in screenshot (or 12 for boxy) - Screenshot looks very rounded for inputs
         borderWidth: 1,
         borderColor: "#333",
         paddingHorizontal: 16,
@@ -199,8 +281,16 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         fontSize: 14,
     },
+    row: {
+        flexDirection: "row",
+        gap: 12,
+        marginTop: 12,
+    },
+    halfInput: {
+        flex: 1,
+    },
     textAreaContainer: {
-        height: 200, // Taller for story
+        height: 120,
         borderRadius: 20,
         alignItems: "flex-start",
         paddingTop: 12,
@@ -208,12 +298,37 @@ const styles = StyleSheet.create({
     textArea: {
         height: "100%",
     },
+    ratingContainer: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 10,
+    },
+    ratingChip: {
+        borderWidth: 1,
+        borderColor: "#333",
+        borderRadius: 20,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        backgroundColor: "#1C1C1E",
+    },
+    ratingChipSelected: {
+        backgroundColor: "#333",
+        borderColor: "#666",
+    },
+    ratingText: {
+        color: "#999",
+        fontFamily: Fonts.medium,
+        fontSize: 13,
+    },
+    ratingTextSelected: {
+        color: "#FFF",
+    },
     uploadContainer: {
         borderWidth: 1,
         borderColor: "#333",
         borderRadius: 20,
-        borderStyle: "dashed",
-        backgroundColor: "#1C1C1E",
+        borderStyle: "dashed", // React Native doesn't support dashed border well on View without external libs sometimes, but solid is fine or we try styling
+        backgroundColor: "#1C1C1E", // Darker bg
         alignItems: "center",
         padding: 24,
         marginTop: 8,
@@ -250,8 +365,13 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontFamily: Fonts.bold,
     },
+    disclaimer: {
+        color: "#444",
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        marginBottom: 24,
+    },
     sendButton: {
         borderRadius: 30,
-        marginTop: 16,
     },
 });

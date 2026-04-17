@@ -1,9 +1,9 @@
-import { SocialHeader } from "@/src/components";
-import { CommentsSheet } from "@/src/components/social/comments-sheet";
-import { PostCard, PostCardSkeleton } from "@/src/components/social/post-card";
-import { PostOptionsSheet } from "@/src/components/social/post-options-sheet";
-import { ReelsOverlay } from "@/src/components/social/reels-overlay";
-import { UploadProgressCard } from "@/src/components/social/upload-progress-card";
+import { SocialHeader } from "@/components";
+import { CommentsSheet } from "@/components/social/comments-sheet";
+import { PostCard, PostCardSkeleton } from "@/components/social/post-card";
+import { PostOptionsSheet } from "@/components/social/post-options-sheet";
+import { ReelsOverlay } from "@/components/social/reels-overlay";
+import { UploadProgressCard } from "@/components/social/upload-progress-card";
 import { Fonts } from "@/src/constants/theme";
 import {
   useBatchLogViewsMutation,

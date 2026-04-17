@@ -1,4 +1,4 @@
-import { ScreenHeader } from "@/src/components";
+import { ScreenHeader } from "@/components";
 import { colors, radius, spacing, typography } from "@/src/constants/design";
 import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
