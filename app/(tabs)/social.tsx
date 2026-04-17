@@ -18,8 +18,8 @@ import {
 import { useGeospatialFeed, useMainFeed } from "@/src/hooks/queries/use-feed";
 import { useUserFollowing } from "@/src/hooks/queries/use-relationships";
 import type { MainFeedParams, PostRead } from "@/src/services/social/types";
-import { useUploadStore } from "@/src/store/upload.store";
-import { useVideoStore } from "@/src/store/video.store";
+import { useUploadStore } from "@/stores/upload.store";
+import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
 
 import { generateVideoThumbnail } from "@/src/utils/video-thumbnail";

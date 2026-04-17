@@ -15,7 +15,8 @@
       "@/utils/*": ["./src/utils/*"],
       "@/services/*": ["./src/services/*"],
       "@/config/*": ["./src/config/*"],
-      "@/features/*": ["./src/features/*"]
+      "@/features/*": ["./src/features/*"],
+      "@/stores/*": ["./stores/*"]
     }
   },
   "include": [

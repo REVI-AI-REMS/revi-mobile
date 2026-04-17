@@ -5,7 +5,7 @@ import {
 } from "@/src/hooks/mutations/use-feed-mutations";
 
 import type { PostRead } from "@/src/services/social/types";
-import { useVideoStore } from "@/src/store/video.store";
+import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
 import { Image } from "expo-image";
