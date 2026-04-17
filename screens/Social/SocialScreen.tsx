@@ -24,14 +24,13 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { useRouter } from "expo-router";
+import { FlashList, type ViewToken } from "@shopify/flash-list";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  type ViewToken,
 } from "react-native";
 
 // ─── Dev / Default Location ───────────────────────────────────────────────────
@@ -46,6 +45,24 @@ const DEV_LOCATION: MainFeedParams = {
 
 // Module-scope so we don't recompute on every render.
 const CURRENT_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
+
+// Segregates FlashList recycler pools so a video cell never recycles to an
+// image cell (and vice versa). Without this, FlashList would reuse the same
+// mounted component for different media types, which thrashes the native
+// Video surface every scroll.
+function getPostType(item: PostRead): string {
+  if (
+    item.media_type === "video" ||
+    item.media_type === "video_upload" ||
+    item.media_url?.includes(".m3u8")
+  ) {
+    return "video";
+  }
+  if (item.media_type === "carousel" && (item.media_urls?.length ?? 0) > 1) {
+    return "carousel";
+  }
+  return "image";
+}
 
 function FeedSkeleton() {
   return (
@@ -108,8 +125,8 @@ export default function SocialsScreen() {
       viewableItems,
       changed = [],
     }: {
-      viewableItems: ViewToken[];
-      changed?: ViewToken[];
+      viewableItems: ViewToken<PostRead>[];
+      changed?: ViewToken<PostRead>[];
     }) => {
       let didVisibilityChange = false;
       let firstVideoId: string | null = null;
@@ -160,7 +177,7 @@ export default function SocialsScreen() {
 
   // 5% threshold — fires as post edges into viewport, loads video source early
   const onPreloadItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    ({ viewableItems }: { viewableItems: ViewToken<PostRead>[] }) => {
       const ids = viewableItems
         .map(({ item }) => (item as PostRead).id)
         .filter(Boolean);
@@ -188,7 +205,7 @@ export default function SocialsScreen() {
     },
     {
       viewabilityConfig: { itemVisiblePercentThreshold: 5 },
-      onViewableItemsChanged: (info: { viewableItems: ViewToken[] }) =>
+      onViewableItemsChanged: (info: { viewableItems: ViewToken<PostRead>[] }) =>
         onPreloadItemsChangedRef.current(info),
     },
   ]).current;
@@ -539,19 +556,17 @@ export default function SocialsScreen() {
 
       {/* Feed */}
       {/*
-        Virtualization tuning — instagram/twitter-style progressive render.
-        Without these, FlatList paints ~10 heavy cards on mount and
-        mounts videos far off-screen, which is what caused the lag.
-        - initialNumToRender: 2   → first paint is immediate (2 cards)
-        - maxToRenderPerBatch: 2  → paint 2 cards per frame as we scroll
-        - windowSize: 5           → keep ~5 viewport heights mounted, trash the rest
-        - removeClippedSubviews   → actively unmount off-screen cards on native
-        - updateCellsBatchingPeriod: 80 → breathe between batches
+        FlashList recycles mounted cells instead of unmounting/remounting.
+        For a video-heavy feed this means the same native Video surface is
+        reused as the user scrolls, instead of rebuilding one per post.
+        getItemType segregates recycler pools so a video card never has
+        its Video torn down to become an image card.
       */}
-      <FlatList
+      <FlashList
         data={posts}
         keyExtractor={(item) => item.id}
         renderItem={renderPost}
+        getItemType={getPostType}
         viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs}
         onRefresh={refetch}
         refreshing={isLoading && posts.length > 0}
@@ -563,11 +578,7 @@ export default function SocialsScreen() {
         contentContainerStyle={
           posts.length === 0 ? styles.emptyContainer : styles.feedContent
         }
-        initialNumToRender={2}
-        maxToRenderPerBatch={2}
-        windowSize={5}
-        updateCellsBatchingPeriod={80}
-        removeClippedSubviews
+        drawDistance={250}
         onEndReachedThreshold={0.5}
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) {
