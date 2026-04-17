@@ -537,6 +537,16 @@ export default function SocialsScreen() {
       </View>
 
       {/* Feed */}
+      {/*
+        Virtualization tuning — instagram/twitter-style progressive render.
+        Without these, FlatList paints ~10 heavy cards on mount and
+        mounts videos far off-screen, which is what caused the lag.
+        - initialNumToRender: 2   → first paint is immediate (2 cards)
+        - maxToRenderPerBatch: 2  → paint 2 cards per frame as we scroll
+        - windowSize: 5           → keep ~5 viewport heights mounted, trash the rest
+        - removeClippedSubviews   → actively unmount off-screen cards on native
+        - updateCellsBatchingPeriod: 80 → breathe between batches
+      */}
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
@@ -552,6 +562,11 @@ export default function SocialsScreen() {
         contentContainerStyle={
           posts.length === 0 ? styles.emptyContainer : styles.feedContent
         }
+        initialNumToRender={2}
+        maxToRenderPerBatch={2}
+        windowSize={5}
+        updateCellsBatchingPeriod={80}
+        removeClippedSubviews
         onEndReachedThreshold={0.5}
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) {
