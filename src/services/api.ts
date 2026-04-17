@@ -1,4 +1,4 @@
-import { useAuthStore } from "@/src/store/auth.store";
+import { useAuthStore } from "@/stores/auth.store";
 import axios from "axios";
 
 const BASE_URL =

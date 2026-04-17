@@ -1,5 +1,5 @@
 import { Fonts } from "@/src/constants/theme";
-import { useUploadStore } from "@/src/store/upload.store";
+import { useUploadStore } from "@/stores/upload.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect } from "react";
 import {

@@ -1,7 +1,7 @@
 import { queryClient } from "@/src/lib/queryClient";
 import { authService } from "@/src/services/auth.service";
 import type { AuthUser, LoginRequest, RegisterRequest } from "@/src/services/auth/types";
-import { useAuthStore } from "@/src/store/auth.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 

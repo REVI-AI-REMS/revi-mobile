@@ -1,7 +1,7 @@
 import { ScreenHeader } from "@/src/components";
 import { colors, layout, radius, spacing, typography } from "@/src/constants/design";
 import { formatCount } from "@/src/data/mock";
-import { useAuthStore } from "@/src/store/auth.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import { useRouter } from "expo-router";

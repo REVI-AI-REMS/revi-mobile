@@ -2,7 +2,7 @@ import { Fonts } from "@/src/constants/theme";
 import { useCreatePostMutation } from "@/src/hooks/mutations/use-feed-mutations";
 import { mediaService } from "@/src/services/social/media.service";
 import type { MediaType } from "@/src/services/social/types";
-import { useUploadStore } from "@/src/store/upload.store";
+import { useUploadStore } from "@/stores/upload.store";
 import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";

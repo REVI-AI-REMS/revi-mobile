@@ -1,8 +1,8 @@
 import { Fonts } from "@/src/constants/theme";
 import { useBookmarks, useSearch, useUserStats } from "@/src/hooks";
 import type { PostRead } from "@/src/services/social/types";
-import { useAuthStore } from "@/src/store/auth.store";
-import { useVideoStore } from "@/src/store/video.store";
+import { useAuthStore } from "@/stores/auth.store";
+import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/src/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";

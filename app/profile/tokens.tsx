@@ -1,6 +1,6 @@
 import { ScreenHeader } from "@/src/components";
 import { colors, radius, spacing, typography } from "@/src/constants/design";
-import { useAuthStore } from "@/src/store/auth.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { memo } from "react";
