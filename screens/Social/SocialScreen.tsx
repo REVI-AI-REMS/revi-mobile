@@ -43,6 +43,9 @@ const DEV_LOCATION: MainFeedParams = {
   limit: 20,
 };
 
+// Module-scope so we don't recompute on every render.
+const CURRENT_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
+
 function FeedSkeleton() {
   return (
     <>
@@ -75,7 +78,7 @@ export default function SocialsScreen() {
   // ─── Relationship status ───────────────────────────────────────────────────
   // Load who the current user already follows so Follow buttons initialise
   // correctly on every mount, not just after an in-session toggle.
-  const currentUserId = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
+  const currentUserId = CURRENT_USER_ID;
   const { data: followingList = [] } = useUserFollowing(currentUserId);
   const followingIds = useMemo(
     () => new Set(followingList.map((f) => f.following_id)),
@@ -190,11 +193,24 @@ export default function SocialsScreen() {
   ]).current;
 
   // ─── Feed queries ──────────────────────────────────────────────────────────
+  // Only fetch the feed for the active tab. The other query stays cached in
+  // the background and rehydrates instantly when the user switches tabs.
   const mainFeedQuery = useMainFeed(DEV_LOCATION);
-  const geoFeedQuery = useGeospatialFeed({ ...DEV_LOCATION, radius_km: 5 });
+  const geoFeedQuery = useGeospatialFeed(
+    { ...DEV_LOCATION, radius_km: 5 },
+    activeTab === "neighborhoods",
+  );
 
-  const { data, isLoading, isError, error, refetch } =
-    activeTab === "neighborhoods" ? geoFeedQuery : mainFeedQuery;
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = activeTab === "neighborhoods" ? geoFeedQuery : mainFeedQuery;
 
   // Flatten pages and sort newest-first in one memo so rawPosts never escapes
   const posts = useMemo(() => {
@@ -529,11 +545,19 @@ export default function SocialsScreen() {
         onRefresh={refetch}
         refreshing={isLoading && posts.length > 0}
         ListEmptyComponent={ListEmptyComponent}
+        ListFooterComponent={
+          isFetchingNextPage ? <PostCardSkeleton /> : null
+        }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={
           posts.length === 0 ? styles.emptyContainer : styles.feedContent
         }
         onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+          }
+        }}
       />
 
       {/* Upload Progress Card - Positioned in layout flow above tab bar */}
