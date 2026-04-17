@@ -1,4 +1,4 @@
-import OverlayModal from "@/src/components/common/overlay-modal";
+import OverlayModal from "@/components/common/overlay-modal";
 import { Fonts } from "@/src/constants/theme";
 import { useDeletePostMutation, useReportPostMutation } from "@/src/hooks/mutations/use-feed-mutations";
 import type { PostRead } from "@/src/services/social/types";

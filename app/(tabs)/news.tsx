@@ -1,4 +1,4 @@
-import { ScreenHeader } from "@/src/components";
+import { ScreenHeader } from "@/components";
 import { Fonts } from "@/src/constants/theme";
 import { useBookmarks } from "@/src/hooks/queries/use-bookmarks";
 import type { PostRead } from "@/src/services/social/types";

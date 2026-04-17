@@ -1,5 +1,5 @@
-import ChatHeader from "@/src/components/chat/ChatHeader";
-import ChatSessionsSidebar from "@/src/components/chat/ChatSessionsSidebar";
+import ChatHeader from "@/components/chat/ChatHeader";
+import ChatSessionsSidebar from "@/components/chat/ChatSessionsSidebar";
 import { Fonts } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
