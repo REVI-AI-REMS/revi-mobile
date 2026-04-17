@@ -48,7 +48,6 @@ export default function TellStoryModal({
             const asset = result.assets[0];
             setDocument({ name: asset.name, uri: asset.uri });
         } catch (error: any) {
-            console.error("Error picking document:", error);
             if (error.message && error.message.includes("Different document picking in progress")) {
                 Alert.alert(
                     "System Busy",
@@ -63,7 +62,6 @@ export default function TellStoryModal({
 
     const handleSend = () => {
         // Validation logic
-        console.log({ email, story, document });
         onClose();
         if (onSuccess) {
             onSuccess();

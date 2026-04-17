@@ -5,8 +5,10 @@ import {
 } from "@/src/hooks/mutations/use-feed-mutations";
 
 import type { PostRead } from "@/src/services/social/types";
+import { useVideoStore } from "@/src/store/video.store";
 import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
+import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -64,6 +66,8 @@ export const ReelItem = memo(function ReelItem({
   const [muted, setMuted] = useState(false);
   // chromeReady: show buttons/info instantly for initial post, wait for video otherwise
   const [chromeReady, setChromeReady] = useState(isInitialPost);
+  const [videoReady, setVideoReady] = useState(isInitialPost);
+  const thumbnailUri = useVideoStore((s) => s.thumbnails[post.id] ?? null);
   const insets = useSafeAreaInsets();
 
   const { mutate: likePost, isPending: likePending } = useLikePostMutation();
@@ -113,6 +117,15 @@ export const ReelItem = memo(function ReelItem({
     >
       {/* Video — uses post.media_url (same URL as PostCard) so iOS/Android
           HTTP cache serves the HLS manifest + recent segments instantly. */}
+      {/* Thumbnail shown until first frame is decoded — eliminates black flash */}
+      {!videoReady && thumbnailUri && (
+        <Image
+          source={{ uri: thumbnailUri }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+        />
+      )}
+
       <TouchableOpacity
         activeOpacity={1}
         style={StyleSheet.absoluteFill}
@@ -127,6 +140,7 @@ export const ReelItem = memo(function ReelItem({
           isMuted={muted}
           shouldPlay={isActive}
           onReadyForDisplay={() => {
+            setVideoReady(true);
             setChromeReady(true);
           }}
         />

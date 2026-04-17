@@ -75,25 +75,19 @@ export default function ForgotPasswordScreen() {
 
   const handleContinue = () => {
     if (step === "confirm") {
-      console.log("Sending reset code to:", userEmail);
       setStep("code");
     } else if (step === "code") {
       if (code.trim()) {
-        console.log("Verifying code:", code);
         setStep("newPassword");
       }
     } else if (step === "newPassword") {
       if (newPassword === confirmPassword) {
-        console.log("Password reset successful");
         setStep("success");
-      } else {
-        console.log("Passwords don't match");
       }
     }
   };
 
   const handleResendCode = () => {
-    console.log("Resending code to:", userEmail);
     // Implement resend logic
   };
 

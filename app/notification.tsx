@@ -176,9 +176,7 @@ const styles = StyleSheet.create({
   leftContent: {
     marginRight: 12,
   },
-  avatarContainer: {
-    position: "relative",
-  },
+  avatarContainer: {},
   avatar: {
     width: 40,
     height: 40,

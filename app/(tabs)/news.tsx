@@ -317,7 +317,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#2C2C2E",
     marginBottom: 12,
-    position: "relative",
   },
   propertyImagePlaceholder: {
     width: "100%",

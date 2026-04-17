@@ -140,7 +140,7 @@ export default function NewPostScreen() {
         setFocusedIsVideo(first.mediaType === "video");
       }
     } catch (e) {
-      console.log("Error loading assets:", e);
+      // Error loading assets
     }
   }, [permissionResponse?.status, activeTab, selectedUris.length]);
 
@@ -194,7 +194,7 @@ export default function NewPostScreen() {
         setFocusedIsVideo(isVideo);
       }
     } catch (e) {
-      console.log("Camera error:", e);
+      // Camera error
     }
   };
 
@@ -255,19 +255,22 @@ export default function NewPostScreen() {
       );
 
       // HEIC to JPEG conversion (common on iOS)
-      const { manipulateAsync, SaveFormat } = await import("expo-image-manipulator");
+      const { manipulateAsync, SaveFormat } =
+        await import("expo-image-manipulator");
       const uploadUris = await Promise.all(
         resolvedUris.map(async (uri) => {
           if (uri.toLowerCase().endsWith(".heic")) {
-            console.log(`[Upload] Converting HEIC to JPEG: ${uri}`);
             try {
-              const result = await manipulateAsync(uri, [{ resize: { width: 1600 } }], {
-                compress: 0.9,
-                format: SaveFormat.JPEG,
-              });
+              const result = await manipulateAsync(
+                uri,
+                [{ resize: { width: 1600 } }],
+                {
+                  compress: 0.9,
+                  format: SaveFormat.JPEG,
+                },
+              );
               return result.uri;
             } catch (err) {
-              console.error("[Upload] HEIC conversion failed:", err);
               return uri;
             }
           }
@@ -369,13 +372,6 @@ export default function NewPostScreen() {
         mediaType = "image";
         mediaUrls = null;
       }
-
-      console.log("[Upload] Creating post:", {
-        mediaType,
-        mediaUrls,
-        blobUrl: blobUrls[0],
-        requiresTranscoding,
-      });
 
       // Step 4: Create post — use mutateAsync so the result is awaited even
       // after router.back() unmounts this screen (mutate callbacks are
@@ -929,7 +925,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   stripThumbWrapper: {
-    position: "relative",
   },
   stripThumb: {
     width: 52,
@@ -989,7 +984,6 @@ const styles = StyleSheet.create({
   },
   captionThumbWrapper: {
     marginRight: 8,
-    position: "relative",
   },
   captionThumb: {
     width: 72,

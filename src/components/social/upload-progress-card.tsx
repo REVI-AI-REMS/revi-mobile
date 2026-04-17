@@ -148,12 +148,6 @@ const styles = StyleSheet.create({
   closeBtn: {
     padding: 4,
   },
-  retryBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    backgroundColor: "#E040FB",
-    // borderRadius: 4,
-  },
   retryText: {
     fontSize: 12,
     fontFamily: Fonts.semiBold,
