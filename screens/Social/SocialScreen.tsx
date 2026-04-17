@@ -36,11 +36,12 @@ import {
 
 // ─── Dev / Default Location ───────────────────────────────────────────────────
 // TODO: replace with expo-location getCurrentPositionAsync() when ready
+// limit intentionally omitted — useMainFeed's PAGE_SIZE (10) applies, so the
+// first paint fetches 10 posts and subsequent pages are incremental.
 const DEV_LOCATION: MainFeedParams = {
   latitude: 6.5244, // Lagos, Nigeria
   longitude: 3.3792,
   radius_km: 20,
-  limit: 20,
 };
 
 // Module-scope so we don't recompute on every render.
