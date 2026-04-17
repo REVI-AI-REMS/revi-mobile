@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 export const useAdCampaigns = () => {
   return useQuery({
     queryKey: ["ad-campaigns"],
-    queryFn: () => adsService.getAdCampaigns(),
+    queryFn: () => adsService.listCampaigns(),
   });
 };
 
@@ -14,18 +14,7 @@ export const useCreateAdCampaign = () => {
 
   return useMutation({
     mutationFn: (campaign: AdCampaignCreate) =>
-      adsService.createAdCampaign(campaign),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ad-campaigns"] });
-    },
-  });
-};
-
-export const useDeleteAdCampaign = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (campaignId: string) => adsService.deleteAdCampaign(campaignId),
+      adsService.createCampaign(campaign),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ad-campaigns"] });
     },

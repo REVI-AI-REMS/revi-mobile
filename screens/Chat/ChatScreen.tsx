@@ -6,6 +6,8 @@ import TellStoryModal from "@/components/chat/TellStoryModal";
 import SuccessModal from "@/components/common/SuccessModal";
 import { Fonts } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
