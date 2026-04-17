@@ -24,7 +24,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { LikesSheet } from "./likes-sheet";
+import { LikesSheet } from "./LikesSheet";
 
 const { width, height: screenHeight } = Dimensions.get("window");
 const fsWidth = width;

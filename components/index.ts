@@ -1,18 +1,21 @@
-// Common Components
-export { default as Button } from "./common/button";
-export { default as Container } from "./common/container";
-export { ExternalLink } from "./common/external-link";
-export { HapticTab } from "./common/haptic-tab";
-export { HelloWave } from "./common/hello-wave";
-export { default as OverlayModal } from "./common/overlay-modal";
-export { default as ParallaxScrollView } from "./common/parallax-scroll-view";
-export { default as ScreenHeader } from "./common/screen-header";
-export { default as SocialHeader } from "./common/social-header";
-export { default as TextInput } from "./common/text-input";
-export { ThemedText } from "./common/themed-text";
-export { ThemedView } from "./common/themed-view";
+// UI primitives
+export { default as Button } from "./ui/Button";
+export { default as TextInput } from "./ui/TextInput";
+export { Collapsible } from "./ui/Collapsible";
+export { IconSymbol } from "./ui/IconSymbol";
 
-// UI Components
-export { Collapsible } from "./ui/collapsible";
-export { IconSymbol } from "./ui/icon-symbol";
+// Layout
+export { default as Container } from "./layout/Container";
+export { HapticTab } from "./layout/HapticTab";
+export { default as ParallaxScrollView } from "./layout/ParallaxScrollView";
+export { default as ScreenHeader } from "./layout/ScreenHeader";
+export { default as SocialHeader } from "./layout/SocialHeader";
 
+// Common
+export { default as OverlayModal } from "./common/OverlayModal";
+export { default as TermsModal } from "./common/TermsModal";
+export { default as SuccessModal } from "./common/SuccessModal";
+export { ExternalLink } from "./common/ExternalLink";
+export { HelloWave } from "./common/HelloWave";
+export { ThemedText } from "./common/ThemedText";
+export { ThemedView } from "./common/ThemedView";
