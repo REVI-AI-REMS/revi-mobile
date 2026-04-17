@@ -41,7 +41,11 @@ if (process.env.EXPO_PUBLIC_DEV_MODE === "true") {
       return response;
     },
     (error) => {
-      console.error(
+      // console.warn (not console.error) — LogBox treats console.error as a
+      // fatal red screen in dev, which blocks the UI for every backend 5xx.
+      // React Query still surfaces the failure via isError, so callers can
+      // render proper retry UI.
+      console.warn(
         `[API] ✗ ${error.response?.status ?? "network"} ${error.config?.url}`,
         "\nbody:",
         JSON.stringify(error.response?.data),
