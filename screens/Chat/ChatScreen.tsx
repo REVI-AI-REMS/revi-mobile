@@ -4,7 +4,7 @@ import ChatSessionsSidebar from "@/components/chat/ChatSessionsSidebar";
 import ReportModal from "@/components/chat/ReportModal";
 import TellStoryModal from "@/components/chat/TellStoryModal";
 import SuccessModal from "@/components/common/SuccessModal";
-import { Fonts } from "@/src/constants/theme";
+import { Fonts } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";

@@ -2,8 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import { authService } from "@/src/services/auth.service";
-import type { AuthUser } from "@/src/services/auth/types";
+import { authService } from "@/services/auth.service";
+import type { AuthUser } from "@/services/auth/types";
 
 // ─── Re-export AuthUser for existing consumers ────────────────────────────────
 export type { AuthUser };

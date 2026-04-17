@@ -1,10 +1,10 @@
 import { ScreenHeader } from "@/components";
-import { Fonts } from "@/src/constants/theme";
+import { Fonts } from "@/constants/theme";
 import {
   useMarkNotificationRead,
   useNotifications,
-} from "@/src/hooks/queries/use-notifications";
-import { NotificationRead } from "@/src/services/social/types";
+} from "@/hooks/queries/use-notifications";
+import { NotificationRead } from "@/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";

@@ -1,7 +1,7 @@
 import { ScreenHeader } from "@/components";
-import { Fonts } from "@/src/constants/theme";
-import { useBookmarks } from "@/src/hooks/queries/use-bookmarks";
-import type { PostRead } from "@/src/services/social/types";
+import { Fonts } from "@/constants/theme";
+import { useBookmarks } from "@/hooks/queries/use-bookmarks";
+import type { PostRead } from "@/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useState } from "react";

@@ -5,14 +5,14 @@ import {
 } from "@/components/social/PostCard";
 import { PostOptionsSheet } from "@/components/social/PostOptionsSheet";
 import { ReelsOverlay } from "@/components/social/ReelsOverlay";
-import { Fonts } from "@/src/constants/theme";
+import { Fonts } from "@/constants/theme";
 import {
     useFollowMutation,
     useLikePostMutation
-} from "@/src/hooks/mutations/use-feed-mutations";
-import { usePost } from "@/src/hooks/queries/use-feed";
-import { useUserFollowing } from "@/src/hooks/queries/use-relationships";
-import { PostRead } from "@/src/services/social/types";
+} from "@/hooks/mutations/use-feed-mutations";
+import { usePost } from "@/hooks/queries/use-feed";
+import { useUserFollowing } from "@/hooks/queries/use-relationships";
+import { PostRead } from "@/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";

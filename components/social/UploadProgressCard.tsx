@@ -1,4 +1,4 @@
-import { Fonts } from "@/src/constants/theme";
+import { Fonts } from "@/constants/theme";
 import { useUploadStore } from "@/stores/upload.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect } from "react";

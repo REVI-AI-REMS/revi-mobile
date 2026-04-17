@@ -4,25 +4,25 @@ import { PostCard, PostCardSkeleton } from "@/components/social/PostCard";
 import { PostOptionsSheet } from "@/components/social/PostOptionsSheet";
 import { ReelsOverlay } from "@/components/social/ReelsOverlay";
 import { UploadProgressCard } from "@/components/social/UploadProgressCard";
-import { Fonts } from "@/src/constants/theme";
+import { Fonts } from "@/constants/theme";
 import {
   useBatchLogViewsMutation,
   useFollowMutation,
   useLikePostMutation,
-} from "@/src/hooks/mutations/use-feed-mutations";
+} from "@/hooks/mutations/use-feed-mutations";
 import {
   useBookmarkMutation,
   useBookmarks,
   useRemoveBookmarkMutation,
-} from "@/src/hooks/queries/use-bookmarks";
-import { useGeospatialFeed, useMainFeed } from "@/src/hooks/queries/use-feed";
-import { useUserFollowing } from "@/src/hooks/queries/use-relationships";
-import type { MainFeedParams, PostRead } from "@/src/services/social/types";
+} from "@/hooks/queries/use-bookmarks";
+import { useGeospatialFeed, useMainFeed } from "@/hooks/queries/use-feed";
+import { useUserFollowing } from "@/hooks/queries/use-relationships";
+import type { MainFeedParams, PostRead } from "@/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
 import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
 
-import { generateVideoThumbnail } from "@/src/utils/video-thumbnail";
+import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {

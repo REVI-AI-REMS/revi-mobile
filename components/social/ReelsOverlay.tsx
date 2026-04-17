@@ -1,10 +1,10 @@
-import { Fonts } from "@/src/constants/theme";
+import { Fonts } from "@/constants/theme";
 import {
     useAddCommentMutation,
     useLikePostMutation,
-} from "@/src/hooks/mutations/use-feed-mutations";
+} from "@/hooks/mutations/use-feed-mutations";
 
-import type { PostRead } from "@/src/services/social/types";
+import type { PostRead } from "@/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";

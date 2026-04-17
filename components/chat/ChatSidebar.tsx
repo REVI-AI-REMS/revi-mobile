@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef } from "react";
-import { Fonts } from "@/src/constants/theme";
+import { Fonts } from "@/constants/theme";
 
 const { width } = Dimensions.get("window");
 const SIDEBAR_WIDTH = width * 0.75;

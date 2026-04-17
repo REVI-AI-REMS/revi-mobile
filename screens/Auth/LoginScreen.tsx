@@ -1,8 +1,8 @@
 import ReviaiLogo from "@/assets/svgs/reviaimobilelogo.svg";
 import Button from "@/components/ui/Button";
 import OverlayModal from "@/components/common/OverlayModal";
-import { Fonts } from "@/src/constants/theme";
-import { useLoginMutation } from "@/src/hooks/mutations/use-auth";
+import { Fonts } from "@/constants/theme";
+import { useLoginMutation } from "@/hooks/mutations/use-auth";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";

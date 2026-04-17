@@ -1,5 +1,5 @@
-import { bookmarksService } from "@/src/services/social/bookmarks.service";
-import type { PostRead } from "@/src/services/social/types";
+import { bookmarksService } from "@/services/social/bookmarks.service";
+import type { PostRead } from "@/services/social/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────

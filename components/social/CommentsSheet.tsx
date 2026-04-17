@@ -1,7 +1,7 @@
 import OverlayModal from "@/components/common/OverlayModal";
-import { Fonts } from "@/src/constants/theme";
-import { useAddCommentMutation, useDeleteCommentMutation } from "@/src/hooks/mutations/use-feed-mutations";
-import { useComments } from "@/src/hooks/queries/use-feed";
+import { Fonts } from "@/constants/theme";
+import { useAddCommentMutation, useDeleteCommentMutation } from "@/hooks/mutations/use-feed-mutations";
+import { useComments } from "@/hooks/queries/use-feed";
 import { Ionicons } from "@expo/vector-icons";
 import { useRef, useState } from "react";
 import {

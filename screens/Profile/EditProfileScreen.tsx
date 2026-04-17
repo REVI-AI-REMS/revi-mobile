@@ -1,5 +1,5 @@
 import { ScreenHeader } from "@/components";
-import { colors, radius, spacing, typography } from "@/src/constants/design";
+import { colors, radius, spacing, typography } from "@/constants/design";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import * as ImagePicker from "expo-image-picker";

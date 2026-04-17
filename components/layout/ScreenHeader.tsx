@@ -1,4 +1,4 @@
-import { Fonts } from "@/src/constants/theme";
+import { Fonts } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";

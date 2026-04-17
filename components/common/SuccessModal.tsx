@@ -1,4 +1,4 @@
-import { Fonts } from "@/src/constants/theme";
+import { Fonts } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect } from "react";
 import { Modal, StyleSheet, Text, View, Platform } from "react-native";

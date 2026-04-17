@@ -1,14 +1,14 @@
-import { feedKeys } from "@/src/hooks/queries/use-feed";
-import { relationshipKeys } from "@/src/hooks/queries/use-relationships";
-import { interactionsService } from "@/src/services/social/interactions.service";
-import { postsService } from "@/src/services/social/posts.service";
-import { relationshipsService } from "@/src/services/social/relationships.service";
+import { feedKeys } from "@/hooks/queries/use-feed";
+import { relationshipKeys } from "@/hooks/queries/use-relationships";
+import { interactionsService } from "@/services/social/interactions.service";
+import { postsService } from "@/services/social/posts.service";
+import { relationshipsService } from "@/services/social/relationships.service";
 import type {
     CommentCreate,
     FollowRead,
     PostCreate,
     PostRead,
-} from "@/src/services/social/types";
+} from "@/services/social/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 const CURRENT_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
