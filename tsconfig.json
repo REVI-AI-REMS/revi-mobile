@@ -5,20 +5,7 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "@/assets/*": ["./assets/*"],
-      "@/app/*": ["./app/*"],
-      "@/components/*": ["./components/*"],
-      "@/screens/*": ["./screens/*"],
-      "@/stores/*": ["./stores/*"],
-      "@/hooks/*": ["./hooks/*"],
-      "@/services/*": ["./services/*"],
-      "@/constants/*": ["./constants/*"],
-      "@/lib/*": ["./lib/*"],
-      "@/utils/*": ["./utils/*"],
-      "@/styles/*": ["./styles/*"],
-      "@/types/*": ["./types/*"],
-      "@/data/*": ["./data/*"]
+      "@/*": ["./*"]
     }
   },
   "include": [
