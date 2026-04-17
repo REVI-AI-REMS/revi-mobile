@@ -354,22 +354,17 @@ function PostCardComponent({
                             source={{ uri: actualVideoSource }}
                             style={StyleSheet.absoluteFill}
                             resizeMode={ResizeMode.COVER}
-                            shouldPlay
+                            // Only the active card plays. Preloaded cards keep
+                            // their source set so the HLS manifest and first
+                            // chunk prefetch, but no decoder runs until the
+                            // user actually scrolls onto the card.
+                            shouldPlay={isActive}
                             isLooping
-                            isMuted
+                            isMuted={isMuted}
                             useNativeControls={false}
                             progressUpdateIntervalMillis={1000}
                             onPlaybackStatusUpdate={(status) => {
-                              if (status.isLoaded && status.isPlaying) {
-                                // Preloading (not active) — pause after first frame decoded
-                                if (!isActive) {
-                                  videoRef.current?.pauseAsync().catch(() => {});
-                                  return;
-                                }
-                                // Active — unmute if user toggled
-                                if (!isMuted) {
-                                  videoRef.current?.setIsMutedAsync(false).catch(() => {});
-                                }
+                              if (status.isLoaded && status.isPlaying && isActive) {
                                 setBreadcrumb(post.id, status.positionMillis);
                               }
                             }}
