@@ -2,11 +2,13 @@ import { Fonts } from "@/src/constants/theme";
 import { useBookmarks, useSearch, useUserStats } from "@/src/hooks";
 import type { PostRead } from "@/src/services/social/types";
 import { useAuthStore } from "@/src/store/auth.store";
+import { useVideoStore } from "@/src/store/video.store";
+import { generateVideoThumbnail } from "@/src/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import { useRouter } from "expo-router";
 import * as React from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -122,16 +124,56 @@ const GridThumbnail = React.memo(function GridThumbnail({
   post: PostRead;
   onPress: () => void;
 }) {
+  const isVideo =
+    post.media_type === "video" ||
+    post.media_type === "video_upload" ||
+    post.media_url?.includes(".m3u8");
+
+  // Read cached thumbnail from the store (populated when post was seen in the feed)
+  const cachedThumbnail = useVideoStore((s) => s.thumbnails[post.id] ?? null);
+  const setThumbnail = useVideoStore((s) => s.setThumbnail);
+  const [localThumb, setLocalThumb] = useState<string | null>(cachedThumbnail);
+  const generatingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isVideo || localThumb || generatingRef.current) return;
+    if (post.media_type === "video_upload" && !post.media_url?.includes(".m3u8")) return; // still transcoding
+
+    generatingRef.current = true;
+    generateVideoThumbnail(post.media_url)
+      .then((uri) => {
+        if (uri) {
+          setLocalThumb(uri);
+          setThumbnail(post.id, uri);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { generatingRef.current = false; });
+  }, [isVideo, localThumb, post.media_url, post.media_type, post.id, setThumbnail]);
+
+  const imageUri = isVideo ? localThumb : post.media_url;
+
   return (
     <Pressable onPress={onPress} style={styles.gridCell}>
-      <ExpoImage
-        source={{ uri: post.media_url }}
-        style={styles.gridImage}
-        contentFit="cover"
-        cachePolicy="memory-disk"
-        recyclingKey={`profile-${post.id}`}
-        transition={0}
-      />
+      {imageUri ? (
+        <ExpoImage
+          source={{ uri: imageUri }}
+          style={styles.gridImage}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          recyclingKey={`profile-${post.id}`}
+          transition={0}
+        />
+      ) : (
+        <View style={styles.gridVideoPlaceholder}>
+          <Ionicons name="play-circle-outline" size={24} color="rgba(255,255,255,0.4)" />
+        </View>
+      )}
+      {isVideo && (
+        <View style={styles.gridVideoBadge}>
+          <Ionicons name="play" size={10} color="#FFF" />
+        </View>
+      )}
     </Pressable>
   );
 });
@@ -263,6 +305,14 @@ export default function ProfileScreen() {
           <Text style={styles.emptyStateTitle}>No tagged posts</Text>
           <Text style={styles.emptyStateSubtitle}>
             When people tag you in posts, they'll appear here.
+          </Text>
+        </View>
+      ) : activeTab === "saved" ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="bookmark-outline" size={48} color={colors.textMuted} />
+          <Text style={styles.emptyStateTitle}>No saved posts</Text>
+          <Text style={styles.emptyStateSubtitle}>
+            Tap the bookmark icon on posts to save them here.
           </Text>
         </View>
       ) : (
@@ -446,6 +496,20 @@ const styles = StyleSheet.create({
   gridImage: {
     width: "100%",
     height: "100%",
+  },
+  gridVideoPlaceholder: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gridVideoBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 4,
+    padding: 3,
   },
 
   // Empty state

@@ -54,7 +54,6 @@ export default function ReportModal({
             const asset = result.assets[0];
             setDocument({ name: asset.name, uri: asset.uri });
         } catch (error: any) {
-            console.error("Error picking document:", error);
             if (error.message && error.message.includes("Different document picking in progress")) {
                 Alert.alert(
                     "System Busy",
@@ -69,7 +68,6 @@ export default function ReportModal({
 
     const handleSend = () => {
         // Validation could go here
-        console.log({ email, address, city, state, reason, rating, document });
         onClose();
         if (onSuccess) {
             onSuccess();

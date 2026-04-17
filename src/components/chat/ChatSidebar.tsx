@@ -100,7 +100,6 @@ export default function ChatSidebar({ visible, onClose }: SidebarProps) {
                     key={item.id}
                     style={styles.menuItem}
                     onPress={() => {
-                      console.log("Menu item pressed:", item.label);
                       onClose();
                     }}
                   >

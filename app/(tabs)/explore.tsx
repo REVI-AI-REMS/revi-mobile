@@ -407,7 +407,7 @@ export default function ExploreScreen() {
                   renderItem={({ item }) => (
                     <UserChip
                       user={item}
-                      onPress={() => console.log("User tapped:", item.id)}
+                      onPress={() => {}}
                     />
                   )}
                 />
@@ -712,7 +712,6 @@ const styles = StyleSheet.create({
   thumbWrapper: {
     width: THUMB_SIZE,
     height: THUMB_SIZE,
-    position: "relative",
     overflow: "hidden",
   },
   thumb: {

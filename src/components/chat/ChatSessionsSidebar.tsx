@@ -108,7 +108,6 @@ export default function ChatSessionsSidebar({
   }, [visible]);
 
   const handleSessionPress = (sessionId: string) => {
-    console.log("Opening session:", sessionId);
     router.push({
       pathname: "/(tabs)/conversation",
       params: { sessionId },
@@ -203,7 +202,6 @@ export default function ChatSessionsSidebar({
                 style={styles.sessionMenuButton}
                 onPress={(e) => {
                   e.stopPropagation();
-                  console.log("Session menu:", session.id);
                 }}
               >
                 <Ionicons

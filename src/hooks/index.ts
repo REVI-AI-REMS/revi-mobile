@@ -32,6 +32,7 @@ export {
     useAddCommentMutation,
     useBatchLogViewsMutation,
     useCreatePostMutation,
+    useDeleteCommentMutation,
     useDeletePostMutation,
     useFollowMutation,
     useLikePostMutation,

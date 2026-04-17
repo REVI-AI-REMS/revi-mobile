@@ -110,7 +110,6 @@ export default function PostDetailScreen() {
                         onComment={(postId) => setCommentsPostId(postId)}
                         onMore={(p) => setOptionsPost(p)}
                         onVideoPress={handleVideoPress}
-                        isVisible={!isReelReady}
                     />
                 </ScrollView>
 
@@ -130,12 +129,12 @@ export default function PostDetailScreen() {
             {reelsPost && (
                 <ReelsOverlay
                     initialPost={reelsPost}
+                    feedVideoPosts={[]}
                     currentUserId={currentUserId}
                     onClose={() => {
                         setReelsPost(null);
                         setIsReelReady(false);
                     }}
-                    onInitialVideoReady={() => setIsReelReady(true)}
                 />
             )}
         </>

@@ -54,14 +54,4 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: "center",
   },
-  logo: {
-    width: 200,
-    height: 100,
-    marginBottom: 16,
-  },
-  tagline: {
-    fontSize: 13,
-    color: "#999999",
-    textAlign: "center",
-  },
 });

@@ -70,17 +70,14 @@ export default function LoginScreen() {
   };
 
   const handleAppleSignIn = () => {
-    console.log("Continue with Apple");
     // Implement Apple Sign-In logic
   };
 
   const handleGoogleSignIn = () => {
-    console.log("Continue with Google");
     // Implement Google Sign-In logic
   };
 
   const handleSignUp = () => {
-    console.log("Sign Up");
     // Navigate to sign up screen
   };
 
@@ -491,7 +488,6 @@ const styles = StyleSheet.create({
     fontSize: Platform.OS === "android" ? 14 : 16,
     fontFamily: Fonts.regular,
     color: "#E5E7EB",
-    includeFontPadding: false,
     textAlignVertical: "center",
     paddingVertical: 0,
     height: Platform.OS === "android" ? 48 : "auto",

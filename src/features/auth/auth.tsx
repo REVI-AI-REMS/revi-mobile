@@ -12,22 +12,18 @@ import { StatusBar } from "expo-status-bar";
 export default function AuthScreen() {
   const router = useRouter();
   const handleAppleSignIn = () => {
-    console.log("Continue with Apple");
     // Implement Apple Sign-In logic
   };
 
   const handleGoogleSignIn = () => {
-    console.log("Continue with Google");
     // Implement Google Sign-In logic
   };
 
   const handleSignUp = () => {
-    console.log("Sign Up");
     router.push("/signup");
   };
 
   const handleLogIn = () => {
-    console.log("Log In");
     router.push("/login");
   };
 
