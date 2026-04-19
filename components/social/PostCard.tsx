@@ -171,6 +171,7 @@ function PostCardComponent({
   const [showLikes, setShowLikes] = useState(false);
   const liked = post.is_liked ?? false;
   const videoRef = useRef<Video>(null);
+  const carouselRef = useRef<ScrollView>(null);
   const [videoError, setVideoError] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const isClosingRef = useRef(false);
@@ -178,14 +179,39 @@ function PostCardComponent({
   const setBreadcrumb = useVideoStore((s) => s.setBreadcrumb);
   const thumbnailUri = useVideoStore((s) => s.thumbnails[post.id] ?? null);
   const setThumbnail = useVideoStore((s) => s.setThumbnail);
-  const savedTime = useVideoStore((s) => s.breadcrumbs[post.id]);
   const isActive = useVideoStore((s) => s.activeVideoId === post.id);
   const isViewable = useVideoStore((s) => s.visiblePostIds.has(post.id));
-  const isPreload = useVideoStore((s) => s.preloadVideoIds.has(post.id));
+  // savedTime is only read at onLoad time — no need to subscribe and re-render
+  // every second as the breadcrumb updates for the active video.
+  // isPreload subscription was removed: the preload set updates every 5% scroll
+  // tick and used to re-render every card for a value we no longer read.
   const [actualVideoSource, setActualVideoSource] = useState<string | null>(null);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
+
+  // ─── Cell recycle reset ────────────────────────────────────────────────────
+  // FlashList reuses the same component instance across posts. Without this,
+  // local state (video URL, carousel index, error flags) leaks from the
+  // previous post and you see brief flashes of the old card's video/image on
+  // the new card. React's sanctioned "derive state from props during render"
+  // pattern — the setState calls trigger one synchronous re-render before
+  // children mount with stale values.
+  const [lastPostId, setLastPostId] = useState(post.id);
+  if (lastPostId !== post.id) {
+    setLastPostId(post.id);
+    setImageIndex(0);
+    setFullscreenIndex(null);
+    setShowLikes(false);
+    setVideoError(false);
+    setActualVideoSource(null);
+    setThumbnailFailed(false);
+    // isMuted intentionally persists — it's a user preference, not per-post.
+  }
+  // Only mount the native video player when the card is actually in the
+  // viewport (≥60%) or the active one. Preloaded cards (5% peeking) used
+  // to mount AVPlayer too, which meant 3-4 players alive at once during
+  // scroll and caused flinching. Thumbnail covers until mount.
   const isVideoReadyForPlayback =
-    !!actualVideoSource && (isPreload || isViewable || isActive) && !videoError;
+    !!actualVideoSource && (isViewable || isActive) && !videoError;
 
   const openFullscreen = (idx: number) => {
     if (!isClosingRef.current) setFullscreenIndex(idx);
@@ -198,25 +224,42 @@ function PostCardComponent({
     }, 400);
   };
 
-  // Load source as soon as post edges into viewport (isPreload = 5% visible).
-  // Never unload eagerly — let the component unmount handle cleanup.
-  // Unloading on scroll boundaries causes blank flashes.
+  // Prime the source string as soon as we know this cell is a video post.
+  // Gating this on isViewable caused a "video never loads" window after
+  // recycle — the store's visiblePostIds was still keyed to the previous
+  // post's id until the viewability callback caught up, so the effect
+  // didn't fire and actualVideoSource stayed null.
+  //
+  // Setting the string early is cheap (no native player) — the actual
+  // Video component is still gated on isVideoReadyForPlayback below, so
+  // AVPlayer doesn't mount until the card is actually viewable/active.
   useEffect(() => {
-    if ((isPreload || isViewable || isActive) && isVideo && !isProcessing && !actualVideoSource) {
+    if (!isVideo || isProcessing) return;
+    if (actualVideoSource !== post.media_url) {
       setActualVideoSource(post.media_url);
     }
-  }, [isPreload, isViewable, isActive, isVideo, isProcessing, actualVideoSource, post.media_url]);
+  }, [isVideo, isProcessing, post.media_url, actualVideoSource]);
 
-  // Play when active, pause when not — keeps the decoded frame visible
+  // Reset carousel scroll position when cell recycles to a new post. The
+  // ScrollView keeps its native scroll offset across recycles, so without
+  // this the new post would briefly open on whatever slide the old post was
+  // on (e.g. image 3 of 3 instead of image 1).
+  useEffect(() => {
+    carouselRef.current?.scrollTo({ x: 0, animated: false });
+  }, [post.id]);
+
+  // Play when active, pause when not. isMuted is driven by the Video prop,
+  // so we don't need to re-run this effect (or call setIsMutedAsync) on mute
+  // toggles — otherwise every tap on the mute button would also restart the
+  // player via playAsync, which on iOS causes a visible hitch.
   useEffect(() => {
     if (!videoRef.current || !isVideo) return;
     if (isActive) {
       videoRef.current.playAsync().catch(() => {});
-      videoRef.current.setIsMutedAsync(isMuted).catch(() => {});
     } else {
       videoRef.current.pauseAsync().catch(() => {});
     }
-  }, [isActive, isVideo, isMuted]);
+  }, [isActive, isVideo]);
 
   // Cleanup only on unmount (FlatList recycles far-off items)
   useEffect(() => {
@@ -308,6 +351,7 @@ function PostCardComponent({
         {/* Media */}
         <View>
           <ScrollView
+            ref={carouselRef}
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
@@ -370,8 +414,20 @@ function PostCardComponent({
                             }}
                             onError={() => setVideoError(true)}
                             onLoad={() => {
+                              // Read savedTime imperatively here instead of
+                              // via a store subscription — that subscription
+                              // would re-render this card every second as
+                              // the breadcrumb advances.
+                              const savedTime = useVideoStore
+                                .getState()
+                                .breadcrumbs[post.id];
                               if (savedTime && videoRef.current) {
-                                videoRef.current.setPositionAsync(savedTime);
+                                // Recycle/scroll can unload the player
+                                // mid-seek and reject this promise with
+                                // "Seeking interrupted" — harmless, swallow.
+                                videoRef.current
+                                  .setPositionAsync(savedTime)
+                                  .catch(() => {});
                               }
                             }}
                           />
@@ -635,6 +691,11 @@ function PostCardComponent({
 const styles = StyleSheet.create({
   postCard: {
     backgroundColor: colors.bg,
+    // Top breathing room between a card and whatever's above it (either the
+    // tabs row for the first card, or the previous card's caption). Applied
+    // here (not on the feed container) so every card — including ones that
+    // mount later via pagination — gets the same spacing.
+    paddingTop: 16,
   },
   postHeader: {
     flexDirection: "row",

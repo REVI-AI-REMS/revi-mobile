@@ -35,12 +35,16 @@ import {
 
 // ─── Dev / Default Location ───────────────────────────────────────────────────
 // TODO: replace with expo-location getCurrentPositionAsync() when ready
-// limit intentionally omitted — useMainFeed's PAGE_SIZE (10) applies, so the
-// first paint fetches 10 posts and subsequent pages are incremental.
+// Temporary: the backend currently ignores the `skip` query parameter and
+// returns the same posts on every page, so offset pagination can't fetch
+// beyond the first page. Asking for a bigger limit up front pulls the full
+// feed (~21 posts today) in one request. Drop this back to PAGE_SIZE once
+// the server honors `skip` correctly.
 const DEV_LOCATION: MainFeedParams = {
   latitude: 6.5244, // Lagos, Nigeria
   longitude: 3.3792,
   radius_km: 20,
+  limit: 50,
 };
 
 // Module-scope so we don't recompute on every render.
@@ -90,7 +94,6 @@ export default function SocialsScreen() {
   const uploadStatus = useUploadStore((s) => s.status);
   const setActiveVideoId = useVideoStore((s) => s.setActiveVideoId);
   const setVisiblePostIds = useVideoStore((s) => s.setVisiblePostIds);
-  const setPreloadVideoIds = useVideoStore((s) => s.setPreloadVideoIds);
   const router = useRouter();
 
   // ─── Relationship status ───────────────────────────────────────────────────
@@ -175,25 +178,13 @@ export default function SocialsScreen() {
     [batchLogViews, setActiveVideoId, setVisiblePostIds],
   );
 
-  // 5% threshold — fires as post edges into viewport, loads video source early
-  const onPreloadItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken<PostRead>[] }) => {
-      const ids = viewableItems
-        .map(({ item }) => (item as PostRead).id)
-        .filter(Boolean);
-      setPreloadVideoIds(ids);
-    },
-    [setPreloadVideoIds],
-  );
-
-  // Stable ref wrappers so viewabilityConfigCallbackPairs never changes identity
+  // Stable ref wrapper so viewabilityConfigCallbackPairs never changes identity.
+  // The 5% preload pair was removed — PostCard no longer mounts video on the
+  // preload threshold, so firing that callback every scroll tick just churned
+  // Zustand state for nothing.
   const onViewableItemsChangedRef = useRef(onViewableItemsChanged);
-  const onPreloadItemsChangedRef = useRef(onPreloadItemsChanged);
   useEffect(() => {
     onViewableItemsChangedRef.current = onViewableItemsChanged;
-  });
-  useEffect(() => {
-    onPreloadItemsChangedRef.current = onPreloadItemsChanged;
   });
 
   const viewabilityConfigCallbackPairs = useRef([
@@ -202,11 +193,6 @@ export default function SocialsScreen() {
       onViewableItemsChanged: (
         info: Parameters<typeof onViewableItemsChanged>[0],
       ) => onViewableItemsChangedRef.current(info),
-    },
-    {
-      viewabilityConfig: { itemVisiblePercentThreshold: 5 },
-      onViewableItemsChanged: (info: { viewableItems: ViewToken<PostRead>[] }) =>
-        onPreloadItemsChangedRef.current(info),
     },
   ]).current;
 
@@ -230,13 +216,25 @@ export default function SocialsScreen() {
     isFetchingNextPage,
   } = activeTab === "neighborhoods" ? geoFeedQuery : mainFeedQuery;
 
-  // Flatten pages and sort newest-first in one memo so rawPosts never escapes
+  // Trust the server's ranking order — page 1, then page 2 appended. We used
+  // to re-sort by created_at here, which interleaved page 2 posts back into
+  // page 1 when they arrived and made FlashList shuffle visible cards.
+  //
+  // Dedup by id. Offset-based pagination (skip/limit) can return the same
+  // post on adjacent pages when new items are inserted at the head mid-scroll
+  // — without dedup FlashList gets duplicate keys, warns in console, and
+  // recycled cells collide, which shows up as "feels like a loop" scrolling.
   const posts = useMemo(() => {
-    const flat: PostRead[] = data?.pages.flat() ?? [];
-    return flat.sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
+    const flat = data?.pages.flat() ?? [];
+    const seen = new Set<string>();
+    const out: PostRead[] = [];
+    for (const p of flat) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        out.push(p);
+      }
+    }
+    return out;
   }, [data]);
 
   // ─── Pre-generate thumbnails ───────────────────────────────────────────────
@@ -578,8 +576,14 @@ export default function SocialsScreen() {
         contentContainerStyle={
           posts.length === 0 ? styles.emptyContainer : styles.feedContent
         }
-        drawDistance={250}
-        onEndReachedThreshold={0.5}
+        // Pre-render ~2 cards ahead of the viewport. 250 (the old value)
+        // was under half a card, so fast scrolls outpaced the warm-up and
+        // landed on blank cells. FlashList 2.x auto-measures item sizes,
+        // so no estimatedItemSize is needed.
+        drawDistance={1200}
+        // Kick off the next page when the user is ~1.5 screens from the
+        // end — the 10-post batch has time to arrive before they hit it.
+        onEndReachedThreshold={1.5}
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) {
             fetchNextPage();

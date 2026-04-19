@@ -53,11 +53,20 @@ export function useMainFeed(params: MainFeedParams) {
       }),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
-      // If the last page returned fewer items than PAGE_SIZE, we've
-      // reached the end of the feed — return undefined to signal "no more".
       const limit = params.limit ?? PAGE_SIZE;
+      // End of feed — server returned fewer items than requested.
       if (lastPage.length < limit) return undefined;
-      // Otherwise the next offset = total items fetched so far
+      // Circuit breaker: if the backend ignores `skip` and returns pages
+      // full of the same posts, hasNextPage would stay true forever and
+      // onEndReached would loop. Stop if this page adds no new ids.
+      if (allPages.length > 1) {
+        const prevIds = new Set<string>();
+        for (let i = 0; i < allPages.length - 1; i++) {
+          for (const p of allPages[i]) prevIds.add(p.id);
+        }
+        const addsSomething = lastPage.some((p) => !prevIds.has(p.id));
+        if (!addsSomething) return undefined;
+      }
       return allPages.reduce((acc, page) => acc + page.length, 0);
     },
     staleTime: 1000 * 30, // 30s — content refreshes faster on re-focus
@@ -93,6 +102,16 @@ export function useGeospatialFeed(params: MainFeedParams, enabled = true) {
     getNextPageParam: (lastPage, allPages) => {
       const limit = params.limit ?? PAGE_SIZE;
       if (lastPage.length < limit) return undefined;
+      // Same circuit breaker as useMainFeed — stop if a page adds no
+      // new ids (guards against a backend that ignores `skip`).
+      if (allPages.length > 1) {
+        const prevIds = new Set<string>();
+        for (let i = 0; i < allPages.length - 1; i++) {
+          for (const p of allPages[i]) prevIds.add(p.id);
+        }
+        const addsSomething = lastPage.some((p) => !prevIds.has(p.id));
+        if (!addsSomething) return undefined;
+      }
       return allPages.reduce((acc, page) => acc + page.length, 0);
     },
     staleTime: 1000 * 30,
