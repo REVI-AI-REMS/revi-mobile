@@ -5,28 +5,23 @@ import ReportModal from "@/components/chat/ReportModal";
 import TellStoryModal from "@/components/chat/TellStoryModal";
 import SuccessModal from "@/components/common/SuccessModal";
 import { Fonts } from "@/constants/theme";
+import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
-import * as DocumentPicker from "expo-document-picker";
-import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-    Alert,
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
-import {
-    SafeAreaView,
-    useSafeAreaInsets,
-} from "react-native-safe-area-context";
 
 interface SuggestionCard {
   id: string;
@@ -72,192 +67,148 @@ export default function ChatHomeScreen() {
   const [reportModalTitle, setReportModalTitle] = useState(
     "Report your Landlord",
   );
-  const [isLoading, setIsLoading] = useState(false);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const user = useAuthStore((s) => s.user);
+  const greetingName = user?.first_name?.trim() || "there";
 
+  // Track keyboard visibility so the input spacing can adapt. Not currently
+  // used in render, but keeping the listener avoids leaking it when the tab
+  // is hot-reloaded.
   useEffect(() => {
-    const keyboardWillShow = Keyboard.addListener(
+    const show = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      () => setIsKeyboardVisible(true),
+      () => {},
     );
-    const keyboardWillHide = Keyboard.addListener(
+    const hide = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => setIsKeyboardVisible(false),
+      () => {},
     );
-
     return () => {
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
+      show.remove();
+      hide.remove();
     };
   }, []);
 
+  // ─── Navigation helpers ────────────────────────────────────────────────
+
+  const startConversation = useCallback(
+    (query: string) => {
+      if (!query.trim()) return;
+      router.push({
+        pathname: "/(tabs)/conversation",
+        params: { query: query.trim() },
+      });
+    },
+    [router],
+  );
+
   const handleSuggestionPress = (title: string) => {
-    // Close modal if open
-    if (actionModalVisible) {
-      setActionModalVisible(false);
-    }
+    if (actionModalVisible) setActionModalVisible(false);
 
     if (title === "Report a Landlord") {
       setReportModalTitle("Report your Landlord");
       setReportModalVisible(true);
       return;
     }
-
     if (title === "Tell Your Story") {
       setTellStoryModalVisible(true);
       return;
     }
-
-    router.push({
-      pathname: "/(tabs)/conversation",
-      params: { query: title },
-    });
+    startConversation(title);
   };
 
   const handleSendMessage = () => {
-    if (message.trim()) {
-      router.push({
-        pathname: "/(tabs)/conversation",
-        params: { query: message },
-      });
-      setMessage("");
-    }
+    if (!message.trim()) return;
+    startConversation(message);
+    setMessage("");
   };
 
-  const handleSuccess = () => {
-    setSuccessModalVisible(true);
+  const handleSuccess = () => setSuccessModalVisible(true);
+
+  // ─── Header actions ────────────────────────────────────────────────────
+
+  const handleNewChat = () => {
+    // A "new chat" from the home screen just clears the input and focuses
+    // it. Sessions get created on first send, so there's nothing to
+    // pre-provision on the backend.
+    setMessage("");
+    Alert.alert("New chat", "Type your first message to begin.", undefined, {
+      cancelable: true,
+    });
   };
 
-  const handleCamera = async () => {
-    try {
-      const permissionResult =
-        await ImagePicker.requestCameraPermissionsAsync();
+  const handleMore = () => setActionModalVisible(true);
 
-      if (permissionResult.granted === false) {
-        alert("You've refused to allow this app to access your camera!");
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync();
-
-      if (!result.canceled) {
-        // Handle the image (e.g., upload or add to message)
-      }
-    } catch (error) {
-      alert("Camera not available on this device/simulator.");
-    }
+  const handleProfile = () => {
+    router.push("/profile/my-profile");
   };
 
-  const handlePhotos = async () => {
-    try {
-      const permissionResult =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (permissionResult.granted === false) {
-        Alert.alert(
-          "Permission Required",
-          "You've refused to allow this app to access your photos!",
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"], // Correct usage: array of strings or single string 'images'
-        allowsEditing: true,
-        quality: 1,
-      });
-
-      if (!result.canceled) {
-        // Handle the image
-      }
-    } catch (error) {
-      Alert.alert("Error", "Failed to open photos. Please try again.");
-    }
-  };
-
-  const handleFiles = async () => {
-    // causing trouble? removing for now: if (isLoading) return;
-    // setIsLoading(true);
-    try {
-      const result = await DocumentPicker.getDocumentAsync({});
-
-      if (!result.canceled) {
-        // Handle the file
-      }
-    } catch (err: any) {
-      if (
-        err.message &&
-        err.message.includes("Different document picking in progress")
-      ) {
-        Alert.alert(
-          "System Busy",
-          "Another file selection is active. Please restart the app if this persists.",
-        );
-      } else {
-        Alert.alert("Error", "Failed to pick file.");
-      }
-    } finally {
-      // setIsLoading(false);
-    }
-  };
-
-  const handleActionPress = (action: string) => {
-    setActionModalVisible(false);
-
-    // Add a delay to allow modal to close before opening native pickers
-    setTimeout(() => {
-      switch (action) {
-        case "Camera":
-          handleCamera();
-          break;
-        case "Photos":
-          handlePhotos();
-          break;
-        case "Files":
-          handleFiles();
-          break;
-        case "Report a Landlord":
-          setReportModalTitle("Report your Landlord");
-          setReportModalVisible(true);
-          break;
-        case "Tell Your Story":
-          setTellStoryModalVisible(true);
-          break;
-        default:
-          // Handle suggestions (Report, Find, etc.)
-          handleSuggestionPress(action);
-          break;
-      }
-    }, 300);
-  };
+  // ─── Attach modal plumbing ──────────────────────────────────────────────
+  // File uploads need an active session, so instead of picking media here
+  // (where there's no session yet), we just tell the user to open a chat
+  // first. Attach from ConversationScreen does the full multipart upload.
+  const handleActionPress = useCallback(
+    (action: string) => {
+      setActionModalVisible(false);
+      setTimeout(() => {
+        switch (action) {
+          case "Camera":
+          case "Photos":
+          case "Files":
+            Alert.alert(
+              "Open a chat first",
+              "Attachments are sent as part of a conversation. Ask something, then tap the + inside the chat.",
+            );
+            break;
+          case "Report a Landlord":
+            setReportModalTitle("Report your Landlord");
+            setReportModalVisible(true);
+            break;
+          case "Tell Your Story":
+            setTellStoryModalVisible(true);
+            break;
+          default:
+            handleSuggestionPress(action);
+            break;
+        }
+      }, 250);
+    },
+    // handleSuggestionPress uses state setters that are stable, so no dep on it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: "#0F0F10" }}
+      // iOS: padding slides the view up. Android: "height" shrinks the
+      // KeyboardAvoidingView itself by the keyboard height. With edge-to-edge
+      // enabled on Android 15+, the OS stops auto-resizing the window, so we
+      // have to do it in JS — otherwise the input bar gets hidden under
+      // the keyboard (which is what the "missing input" screenshot showed).
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      keyboardVerticalOffset={0}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.container}>
-          {/* Header */}
-          <ChatHeader onMenuPress={() => setSidebarVisible(true)} />
+          <ChatHeader
+            onMenuPress={() => setSidebarVisible(true)}
+            onNewChatPress={handleNewChat}
+            onMorePress={handleMore}
+            onProfilePress={handleProfile}
+          />
 
-          {/* Sidebar */}
           <ChatSessionsSidebar
             visible={sidebarVisible}
             onClose={() => setSidebarVisible(false)}
           />
 
-          {/* Action Modal */}
           <ChatActionModal
             visible={actionModalVisible}
             onClose={() => setActionModalVisible(false)}
             onActionPress={handleActionPress}
           />
 
-          {/* Report Modal */}
           <ReportModal
             visible={reportModalVisible}
             onClose={() => setReportModalVisible(false)}
@@ -265,33 +216,28 @@ export default function ChatHomeScreen() {
             onSuccess={handleSuccess}
           />
 
-          {/* Tell Story Modal */}
           <TellStoryModal
             visible={tellStoryModalVisible}
             onClose={() => setTellStoryModalVisible(false)}
             onSuccess={handleSuccess}
           />
 
-          {/* Success Modal */}
           <SuccessModal
             visible={successModalVisible}
             onClose={() => setSuccessModalVisible(false)}
           />
 
-          {/* Main Content */}
           <ScrollView
             style={styles.content}
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Greeting */}
             <View style={styles.greetingSection}>
-              <Text style={styles.greeting}>Hi Angela,</Text>
+              <Text style={styles.greeting}>Hi {greetingName},</Text>
               <Text style={styles.question}>Where should we start?</Text>
             </View>
 
-            {/* Suggestion Cards */}
             <View style={styles.suggestionsContainer}>
               {suggestions.map((suggestion) => (
                 <TouchableOpacity
@@ -318,7 +264,6 @@ export default function ChatHomeScreen() {
             </View>
           </ScrollView>
 
-          {/* Bottom Input — tab bar already handles safe area, no extra wrapper */}
           <View style={styles.inputContainer}>
             <TouchableOpacity
               style={styles.attachButton}
@@ -335,13 +280,24 @@ export default function ChatHomeScreen() {
                 value={message}
                 onChangeText={setMessage}
                 multiline
+                onSubmitEditing={handleSendMessage}
+                returnKeyType="send"
+                blurOnSubmit={false}
               />
               <TouchableOpacity
-                style={styles.sendButton}
+                style={[
+                  styles.sendButton,
+                  !message.trim() && styles.sendButtonDisabled,
+                ]}
                 onPress={handleSendMessage}
+                disabled={!message.trim()}
                 activeOpacity={0.7}
               >
-                <Ionicons name="arrow-up" size={20} color="#000000" />
+                <Ionicons
+                  name="arrow-up"
+                  size={20}
+                  color={message.trim() ? "#000000" : "#666666"}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -384,10 +340,8 @@ const styles = StyleSheet.create({
   },
   suggestionCard: {
     flexDirection: "row",
-    // backgroundColor: "#1C1C1E",
     borderRadius: 12,
     paddingVertical: 10,
-    // borderWidth: 1,
     borderColor: "#2C2C2E",
   },
   cardIconContainer: {
@@ -418,8 +372,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingTop: 6,
-    paddingBottom: 4,
+    paddingTop: 8,
+    // Breathing room between the input and the keyboard top edge. When the
+    // keyboard is dismissed the tab bar sits below this so the bottom gap
+    // still looks natural.
+    paddingBottom: 12,
     gap: 8,
   },
   attachButton: {
@@ -457,5 +414,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  sendButtonDisabled: {
+    backgroundColor: "#2C2C2E",
   },
 });

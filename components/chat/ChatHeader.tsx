@@ -6,6 +6,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 interface ChatHeaderProps {
   onMenuPress: () => void;
   onBackPress?: () => void;
+  onNewChatPress?: () => void;
+  onMorePress?: () => void;
+  onProfilePress?: () => void;
   showBackButton?: boolean;
   title?: string;
 }
@@ -13,6 +16,9 @@ interface ChatHeaderProps {
 export default function ChatHeader({
   onMenuPress,
   onBackPress,
+  onNewChatPress,
+  onMorePress,
+  onProfilePress,
   showBackButton = false,
   title = "Revi ai",
 }: ChatHeaderProps) {
@@ -22,6 +28,7 @@ export default function ChatHeader({
         <TouchableOpacity
           style={styles.headerButton}
           onPress={showBackButton && onBackPress ? onBackPress : onMenuPress}
+          hitSlop={12}
         >
           <Ionicons
             name={showBackButton ? "arrow-back" : "menu"}
@@ -31,21 +38,37 @@ export default function ChatHeader({
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{title}</Text>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerButton}>
-            <Ionicons name="add" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton}>
-            <Ionicons name="ellipsis-vertical" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-          {!showBackButton && (
-            <TouchableOpacity style={styles.profileButton}>
+          {onNewChatPress ? (
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={onNewChatPress}
+              hitSlop={12}
+            >
+              <Ionicons name="add" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : null}
+          {onMorePress ? (
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={onMorePress}
+              hitSlop={12}
+            >
+              <Ionicons name="ellipsis-vertical" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : null}
+          {!showBackButton && onProfilePress ? (
+            <TouchableOpacity
+              style={styles.profileButton}
+              onPress={onProfilePress}
+              hitSlop={12}
+            >
               <Ionicons
                 name="person-circle-outline"
                 size={28}
                 color="#FFFFFF"
               />
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
       </View>
     </SafeAreaView>
