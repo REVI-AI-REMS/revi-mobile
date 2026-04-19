@@ -97,19 +97,19 @@ npm run android
 
 ### Environment variables
 
-Copy `.env.local` (committed to git for the dev user) or create one:
+Create `.env.local` with values from your team's secrets manager:
 
 ```env
-EXPO_PUBLIC_API_URL=https://revi-social-api.niceriver-399abcd2.francecentral.azurecontainerapps.io
+EXPO_PUBLIC_API_URL=<social-backend-base-url>
 EXPO_PUBLIC_DEV_MODE=true
 EXPO_PUBLIC_DEV_USER_ID=<uuid for the dev user>
 ```
 
-- `EXPO_PUBLIC_API_URL` — the Revi Social microservice.
+- `EXPO_PUBLIC_API_URL` — base URL of the social microservice.
 - `EXPO_PUBLIC_DEV_MODE=true` — adds the `X-Dev-User-Id` header to social API requests and enables verbose logging in the API interceptors.
 - `EXPO_PUBLIC_DEV_USER_ID` — the dev user acting as "current user".
 
-The AI backend (`https://backend.reviai.ai`) is hard-coded in `services/ai/ai.client.ts` and shares the Bearer token from `useAuthStore`. Auth hits the same service via `services/auth.service.ts`.
+The AI backend URL is set in `services/ai/ai.client.ts` and shares the Bearer token from `useAuthStore`. Auth hits the same service via `services/auth.service.ts`.
 
 ## Path aliases
 
@@ -123,10 +123,14 @@ Same in `babel.config.js` via `babel-plugin-module-resolver`. When either change
 
 ## Backends
 
-| Service | URL | Purpose |
-|---|---|---|
-| Revi Social | `revi-social-api.…azurecontainerapps.io` | feed, posts, bookmarks, search, notifications, ads |
-| Revi AI | `backend.reviai.ai` | auth, AI chat sessions and messages, properties, bookings |
+Two microservices:
+
+| Service | Purpose |
+|---|---|
+| Social | feed, posts, bookmarks, search, notifications, ads |
+| AI | auth, AI chat sessions and messages, properties, bookings |
+
+Base URLs live in env vars / `services/ai/ai.client.ts` — see internal docs.
 
 Auth tokens come from the AI backend's `/auth/login`. The Zustand `useAuthStore.accessToken` is reused as a Bearer token on AI requests and as an optional Authorization header on social requests (non-dev mode). In dev mode (`EXPO_PUBLIC_DEV_MODE=true`), the social service bypasses auth via `X-Dev-User-Id`.
 
@@ -182,9 +186,9 @@ Configured to auto-update on `appVersion` policy (`app.json#runtimeVersion`). A 
 
 ## Known issues (server-side, mobile is ready)
 
-- `GET /api/v1/bookmarks/` returns 500 — Saved page shows the error state with Retry.
-- `GET /api/v1/posts/feed/main` ignores the `skip` query parameter and returns the same 10 posts forever. Client uses `limit=50` as a workaround and a dedup + circuit breaker in `useMainFeed` stops the runaway fetch loop.
-- `GET /api/v1/search` returns 500 for every valid query. Explore's search surface shows a Retry button until fixed.
+See the internal tracker for the current list of backend blockers the
+mobile app is already compensating for (circuit breakers, retry flags,
+error states). Grep the codebase for `TODO: backend` for the live set.
 
 ## Contributing
 
