@@ -2,7 +2,10 @@ import { Fonts } from "@/constants/theme";
 import { useMainFeed } from "@/hooks/queries/use-feed";
 import { useSearch } from "@/hooks/queries/use-search";
 import type { PostRead, UserSync } from "@/services/social/types";
+import { useVideoStore } from "@/stores/video.store";
+import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -13,6 +16,7 @@ import {
   Keyboard,
   ListRenderItemInfo,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -118,19 +122,57 @@ const GridThumbnail = React.memo(function GridThumbnail({
   post,
   onPress,
 }: GridThumbnailProps) {
-  const isCarousel = post.media_type === "carousel" && (post.media_urls?.length ?? 0) > 1;
+  const isVideo =
+    post.media_type === "video" ||
+    post.media_type === "video_upload" ||
+    post.media_url?.includes(".m3u8");
+  const isCarousel =
+    post.media_type === "carousel" && (post.media_urls?.length ?? 0) > 1;
+
+  // For video posts, media_url is an HLS .m3u8 manifest which expo-image
+  // cannot render as a still. Pull a generated frame from the video store
+  // (same store the Social feed populates) or generate one on first render.
+  const thumbnailUri = useVideoStore((s) =>
+    isVideo ? s.thumbnails[post.id] ?? null : null,
+  );
+  const setThumbnail = useVideoStore((s) => s.setThumbnail);
+  const [thumbFailed, setThumbFailed] = useState(false);
+
+  useEffect(() => {
+    if (!isVideo || thumbnailUri || thumbFailed) return;
+    let cancelled = false;
+    generateVideoThumbnail(post.media_url).then((uri) => {
+      if (cancelled) return;
+      if (uri) setThumbnail(post.id, uri);
+      else setThumbFailed(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isVideo, thumbnailUri, thumbFailed, post.id, post.media_url, setThumbnail]);
+
+  const imageSource = isVideo ? thumbnailUri : post.media_url;
 
   return (
     <Pressable style={styles.thumbWrapper} onPress={onPress}>
-      <Image
-        source={{ uri: post.media_url }}
-        style={styles.thumb}
-        contentFit="cover"
-        cachePolicy="memory-disk"
-        recyclingKey={`explore-${post.id}`}
-        placeholder={{ blurhash: DEFAULT_BLURHASH }}
-        transition={0}
-      />
+      {imageSource ? (
+        <Image
+          source={{ uri: imageSource }}
+          style={styles.thumb}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          recyclingKey={`explore-${post.id}`}
+          placeholder={{ blurhash: DEFAULT_BLURHASH }}
+          transition={0}
+        />
+      ) : (
+        <View style={[styles.thumb, styles.thumbFallback]} />
+      )}
+      {isVideo && (
+        <View style={styles.videoBadge}>
+          <Ionicons name="play" size={12} color="#FFF" />
+        </View>
+      )}
       {isCarousel && (
         <View style={styles.carouselBadge}>
           <Ionicons name="copy-outline" size={12} color="#FFF" />
@@ -221,15 +263,46 @@ const SectionHeader = React.memo(function SectionHeader({
 
 // ---- Main screen ------------------------------------------------------------
 
+const HISTORY_STORAGE_KEY = "@revi/search-history";
+const HISTORY_MAX = 15;
+
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [history, setHistory] = useState<string[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load persisted search history on mount. historyLoaded guards the save
+  // effect below so the first render doesn't overwrite the stored value
+  // with an empty array before we read it.
+  useEffect(() => {
+    AsyncStorage.getItem(HISTORY_STORAGE_KEY)
+      .then((v) => {
+        if (v) {
+          try {
+            const parsed = JSON.parse(v);
+            if (Array.isArray(parsed)) setHistory(parsed.filter((x) => typeof x === "string"));
+          } catch {
+            // corrupt — ignore
+          }
+        }
+      })
+      .finally(() => setHistoryLoaded(true));
+  }, []);
+
+  // Persist history whenever it changes — only after the initial load has
+  // completed so we never clobber stored entries with an empty array.
+  useEffect(() => {
+    if (!historyLoaded) return;
+    AsyncStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history)).catch(
+      () => {},
+    );
+  }, [history, historyLoaded]);
 
   // Main feed data (useInfiniteQuery — flatten pages)
   const {
@@ -242,11 +315,61 @@ export default function ExploreScreen() {
     [feedData?.pages],
   );
 
+  // ─── Pre-generate thumbnails for video posts ───────────────────────────────
+  // HLS thumbnailing (master.m3u8 → variant.m3u8 → .ts segment → decode) takes
+  // several seconds per video. Without this, each grid cell waits until its
+  // own useEffect fires before starting — result is blank tiles for the whole
+  // time the user is looking at the grid. This runs as soon as feed data
+  // arrives (or the screen mounts with cached data) with a small concurrency
+  // so we don't hammer the device. Cached results are shared with the Social
+  // screen via useVideoStore.
+  const setThumbnail = useVideoStore((s) => s.setThumbnail);
+  const thumbnailsRef = useRef(useVideoStore.getState().thumbnails);
+  useEffect(() => {
+    thumbnailsRef.current = useVideoStore.getState().thumbnails;
+  });
+  useEffect(() => {
+    const videoPosts = feedPosts.filter(
+      (p) =>
+        (p.media_type === "video" ||
+          p.media_type === "video_upload" ||
+          p.media_url?.includes(".m3u8")) &&
+        !thumbnailsRef.current[p.id],
+    );
+    if (!videoPosts.length) return;
+
+    let cancelled = false;
+    const CONCURRENCY = 3;
+    const run = async () => {
+      for (let i = 0; i < videoPosts.length; i += CONCURRENCY) {
+        if (cancelled) break;
+        await Promise.allSettled(
+          videoPosts.slice(i, i + CONCURRENCY).map(async (post) => {
+            if (cancelled || thumbnailsRef.current[post.id]) return;
+            const uri = await generateVideoThumbnail(post.media_url);
+            if (uri && !cancelled) {
+              setThumbnail(post.id, uri);
+              thumbnailsRef.current = {
+                ...thumbnailsRef.current,
+                [post.id]: uri,
+              };
+            }
+          }),
+        );
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [feedPosts, setThumbnail]);
+
   // Search results
   const {
     data: searchResults,
     isFetching: searchLoading,
     isError: searchError,
+    refetch: refetchSearch,
   } = useSearch(debouncedQ);
 
   const filteredPosts = searchResults?.posts ?? [];
@@ -296,10 +419,17 @@ export default function ExploreScreen() {
 
   const handleSubmit = useCallback(() => {
     const t = query.trim();
-    if (t && !history.includes(t)) {
-      setHistory((prev) => [t, ...prev].slice(0, 15));
-    }
-  }, [query, history]);
+    if (!t) return;
+    // Move to front if already present, otherwise prepend. Cap at HISTORY_MAX.
+    setHistory((prev) => [t, ...prev.filter((h) => h !== t)].slice(0, HISTORY_MAX));
+  }, [query]);
+
+  const handleUserPress = useCallback(
+    (userId: string) => {
+      router.push({ pathname: "/profile/[userId]", params: { userId } });
+    },
+    [router],
+  );
 
   const handleHistoryTap = useCallback((item: string) => {
     setQuery(item);
@@ -355,8 +485,18 @@ export default function ExploreScreen() {
     if (searchError) {
       return (
         <View style={styles.center}>
-          <Ionicons name="cloud-offline-outline" size={48} color={colors.textTertiary} />
-          <Text style={styles.hint}>Search failed — check connection</Text>
+          <Ionicons
+            name="cloud-offline-outline"
+            size={48}
+            color={colors.textTertiary}
+          />
+          <Text style={styles.hint}>Search failed — try again</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => refetchSearch()}
+          >
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -391,26 +531,30 @@ export default function ExploreScreen() {
         contentContainerStyle={styles.gridContent}
         ListHeaderComponent={
           <>
-            {/* Users horizontal scroll */}
+            {/* Users horizontal row. Using ScrollView (not FlatList) because
+                nesting a horizontal VirtualizedList inside the vertical posts
+                FlatList via ListHeaderComponent produces a runtime warning
+                and offers no perf benefit — users list is capped at 20. */}
             {filteredUsers.length > 0 && (
               <Animated.View
                 entering={FadeIn.duration(animation.normal)}
                 style={styles.section}
               >
                 <SectionHeader title="People" />
-                <FlatList
-                  data={filteredUsers}
-                  keyExtractor={(u) => u.id}
+                <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.usersRow}
-                  renderItem={({ item }) => (
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {filteredUsers.map((u) => (
                     <UserChip
-                      user={item}
-                      onPress={() => {}}
+                      key={u.id}
+                      user={u}
+                      onPress={() => handleUserPress(u.id)}
                     />
-                  )}
-                />
+                  ))}
+                </ScrollView>
               </Animated.View>
             )}
 
@@ -718,6 +862,9 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
+  thumbFallback: {
+    backgroundColor: "#1C1C1E",
+  },
   carouselBadge: {
     position: "absolute",
     top: 6,
@@ -725,6 +872,26 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
     borderRadius: 4,
     padding: 3,
+  },
+  videoBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 4,
+    padding: 3,
+  },
+  retryButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    backgroundColor: "#2C2C2E",
+    borderRadius: 18,
+    marginTop: 4,
+  },
+  retryText: {
+    ...typography.labelMd,
+    color: colors.textPrimary,
+    fontFamily: Fonts.semiBold,
   },
 
   // Skeleton
