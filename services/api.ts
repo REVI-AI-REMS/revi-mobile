@@ -7,9 +7,13 @@ const BASE_URL =
 
 export const api = axios.create({
   baseURL: BASE_URL,
-  // 15s timeout — if the server cold-starts, the request will timeout and
-  // React Query will retry with backoff rather than blocking for 35s.
-  timeout: 15_000,
+  // 45s timeout — Azure Container Apps scale-to-zero cold starts typically
+  // take 15-25s. A short 15s timeout was forcing every cold boot to fail
+  // and rely on React Query retries, which flooded the logs with network
+  // errors and added retry delay on top. 45s lets the first request ride
+  // out the cold start so the user waits once, quietly. Warm responses
+  // still return in <1s and never come close to this ceiling.
+  timeout: 45_000,
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
