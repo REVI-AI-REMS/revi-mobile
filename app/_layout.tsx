@@ -15,8 +15,8 @@ import { Platform } from "react-native";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { queryClient } from "@/src/lib/queryClient";
-import { useAuthStore } from "@/src/store/auth.store";
+import { queryClient } from "@/lib/queryClient";
+import { useAuthStore } from "@/stores/auth.store";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 

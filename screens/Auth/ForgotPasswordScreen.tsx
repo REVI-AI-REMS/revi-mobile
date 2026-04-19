@@ -1,0 +1,759 @@
+import ReviaiLogo from "@/assets/svgs/reviaimobilelogo.svg";
+import Button from "@/components/ui/Button";
+import OverlayModal from "@/components/common/OverlayModal";
+import { Fonts } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+
+type Step = "confirm" | "code" | "newPassword" | "success";
+
+export default function ForgotPasswordScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const userEmail = (params.email as string) || "user@example.com";
+
+  const [visible, setVisible] = useState(false);
+  const [step, setStep] = useState<Step>("confirm");
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
+
+  useEffect(() => {
+    setVisible(true);
+  }, []);
+
+  const handleClose = () => {
+    setVisible(false);
+    setTimeout(() => {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/login");
+      }
+    }, 200);
+  };
+
+  const handleBack = () => {
+    if (step === "confirm") {
+      // Go back to login
+      setVisible(false);
+      setTimeout(() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/login");
+        }
+      }, 200);
+    } else if (step === "code") {
+      setStep("confirm");
+      setCode("");
+    } else if (step === "newPassword") {
+      setStep("code");
+      setNewPassword("");
+      setConfirmPassword("");
+    } else if (step === "success") {
+      // Don't allow back from success screen
+      return;
+    }
+  };
+
+  const handleContinue = () => {
+    if (step === "confirm") {
+      setStep("code");
+    } else if (step === "code") {
+      if (code.trim()) {
+        setStep("newPassword");
+      }
+    } else if (step === "newPassword") {
+      if (newPassword === confirmPassword) {
+        setStep("success");
+      }
+    }
+  };
+
+  const handleResendCode = () => {
+    // Implement resend logic
+  };
+
+  const getTitle = () => {
+    switch (step) {
+      case "confirm":
+        return "Reset your password";
+      case "code":
+        return "Enter verification code";
+      case "newPassword":
+        return "Create new password";
+      case "success":
+        return "Password updated!";
+    }
+  };
+
+  const getSubtitle = () => {
+    switch (step) {
+      case "confirm":
+        return `We'll send a verification code to\n${userEmail}`;
+      case "code":
+        return `Enter the verification code we just \n sent to${userEmail}`;
+      case "newPassword":
+        return "Choose a strong password to keep \nyour Revi account secure.";
+      case "success":
+        return "Your password has been successfully updated.\nYou can now log in with your new password.";
+    }
+  };
+
+  const getButtonText = () => {
+    switch (step) {
+      case "confirm":
+        return "Continue";
+      case "code":
+        return "Verify Code";
+      case "newPassword":
+        return "Reset Password";
+      case "success":
+        return "Back to Login";
+    }
+  };
+
+  const isButtonEnabled = () => {
+    switch (step) {
+      case "confirm":
+        return true;
+      case "code":
+        return code.length === 6;
+      case "newPassword":
+        return newPassword.length >= 8 && confirmPassword === newPassword;
+      case "success":
+        return true;
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#0F0F10" }}>
+      {/* Background branding text */}
+      <View style={styles.backgroundTextContainer} pointerEvents="none">
+        <Text style={styles.backgroundText}>REVI AI</Text>
+        <Text style={styles.backgroundSubtext}>
+          real answers for real estate decisions.
+        </Text>
+      </View>
+
+      <OverlayModal
+        visible={visible}
+        onClose={handleClose}
+        height={Platform.OS === "ios" ? "80%" : "90%"}
+      >
+        {/* Back Button - Fixed at top left, outside scroll */}
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleBack}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        {Platform.OS === "ios" ? (
+          <KeyboardAvoidingView
+            behavior="padding"
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={0}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <KeyboardAwareScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                enableOnAndroid={true}
+                enableAutomaticScroll={false}
+                extraScrollHeight={0}
+                contentContainerStyle={
+                  step === "success"
+                    ? { flexGrow: 1, justifyContent: "center" }
+                    : { paddingBottom: 50 }
+                }
+                scrollEnabled={step !== "success"}
+              >
+                {/* Logo and Header */}
+                <View
+                  style={[
+                    styles.header,
+                    step === "success" && { paddingTop: 0, marginBottom: 0 },
+                  ]}
+                >
+                  {step !== "success" && (
+                    <View style={styles.logoContainer}>
+                      <ReviaiLogo width={39} height={37} />
+                    </View>
+                  )}
+                  {step !== "success" && (
+                    <Text style={styles.title}>{getTitle()}</Text>
+                  )}
+                  {step !== "success" && (
+                    <Text style={styles.subtitle}>{getSubtitle()}</Text>
+                  )}
+                </View>
+
+                {/* Form Section */}
+                <View style={styles.formSection}>
+                  {/* Confirm Step - No input, just text */}
+                  {step === "confirm" && (
+                    <View style={styles.confirmSection}>
+                      <Text style={styles.confirmText}>
+                        Click continue to reset your password
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Code Input Step */}
+                  {step === "code" && (
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        focusedInput === "code" && styles.inputContainerFocused,
+                      ]}
+                    >
+                      <Ionicons
+                        name="keypad-outline"
+                        size={20}
+                        color="#999999"
+                        style={styles.inputIcon}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Enter 6-digit code"
+                        placeholderTextColor="#999999"
+                        value={code}
+                        onChangeText={setCode}
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        autoFocus
+                        onFocus={() => setFocusedInput("code")}
+                        onBlur={() => setFocusedInput(null)}
+                        underlineColorAndroid="transparent"
+                      />
+                    </View>
+                  )}
+
+                  {/* New Password Step */}
+                  {step === "newPassword" && (
+                    <>
+                      <View
+                        style={[
+                          styles.inputContainer,
+                          focusedInput === "newPassword" &&
+                          styles.inputContainerFocused,
+                        ]}
+                      >
+                        <Ionicons
+                          name="lock-closed-outline"
+                          size={20}
+                          color="#999999"
+                          style={styles.inputIcon}
+                        />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="New password"
+                          placeholderTextColor="#999999"
+                          value={newPassword}
+                          onChangeText={setNewPassword}
+                          secureTextEntry
+                          autoCapitalize="none"
+                          onFocus={() => setFocusedInput("newPassword")}
+                          onBlur={() => setFocusedInput(null)}
+                          underlineColorAndroid="transparent"
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.inputContainer,
+                          focusedInput === "confirmPassword" &&
+                          styles.inputContainerFocused,
+                        ]}
+                      >
+                        <Ionicons
+                          name="lock-closed-outline"
+                          size={20}
+                          color="#999999"
+                          style={styles.inputIcon}
+                        />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Re-enter password"
+                          placeholderTextColor="#999999"
+                          value={confirmPassword}
+                          onChangeText={setConfirmPassword}
+                          secureTextEntry
+                          autoCapitalize="none"
+                          onFocus={() => setFocusedInput("confirmPassword")}
+                          onBlur={() => setFocusedInput(null)}
+                          underlineColorAndroid="transparent"
+                        />
+                      </View>
+                      <View style={styles.passwordRequirements}>
+                        <Text style={styles.passwordRequirement}>
+                          Password must be at least 8 characters long
+                        </Text>
+                        <Text style={styles.passwordRequirement}>
+                          Password must contain combination of letters and
+                          numbers
+                        </Text>
+                      </View>
+                    </>
+                  )}
+
+                  {/* Success Step - Show success message */}
+                  {step === "success" && (
+                    <View style={styles.successSection}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={44}
+                        color="#ffffff"
+                        style={styles.successIcon}
+                      />
+                      <View
+                        style={{
+                          alignItems: "center",
+                          paddingBottom: 16,
+                          paddingTop: 16,
+                        }}
+                      >
+                        <Text style={styles.successTitle}>
+                          Password updated
+                        </Text>
+                        <Text style={styles.successMessage}>
+                          Your password has been changed {"\n"} successfully.
+                        </Text>
+                      </View>
+
+                      <Button
+                        title="Back to Login"
+                        variant="primary"
+                        onPress={() => {
+                          setVisible(false);
+                          setTimeout(() => router.push("/login"), 200);
+                        }}
+                        style={{
+                          marginBottom: 16,
+                          borderRadius: 30,
+                          width: 300,
+                        }}
+                      />
+                    </View>
+                  )}
+
+                  {/* Continue Button */}
+                  {step !== "success" && (
+                    <Button
+                      title="Continue"
+                      variant="primary"
+                      onPress={handleContinue}
+                      style={{ marginTop: 16, borderRadius: 30 }}
+                    />
+                  )}
+
+                  {/* Resend Code - only on code step */}
+                  {step === "code" && (
+                    <TouchableOpacity
+                      style={styles.resendContainer}
+                      onPress={handleResendCode}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.resendText}>Resend code</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </KeyboardAwareScrollView>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
+        ) : (
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <KeyboardAwareScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              enableOnAndroid={true}
+              enableAutomaticScroll={true}
+              extraScrollHeight={100}
+              keyboardOpeningTime={0}
+              contentContainerStyle={
+                step === "success"
+                  ? { flexGrow: 1, justifyContent: "center" }
+                  : { paddingBottom: 50 }
+              }
+              scrollEnabled={step !== "success"}
+            >
+              {/* Logo and Header */}
+              <View
+                style={[
+                  styles.header,
+                  step === "success" && { paddingTop: 0, marginBottom: 0 },
+                ]}
+              >
+                {step !== "success" && (
+                  <View style={styles.logoContainer}>
+                    <ReviaiLogo width={39} height={37} />
+                  </View>
+                )}
+                {step !== "success" && (
+                  <Text style={styles.title}>{getTitle()}</Text>
+                )}
+                {step !== "success" && (
+                  <Text style={styles.subtitle}>{getSubtitle()}</Text>
+                )}
+              </View>
+
+              {/* Form Section */}
+              <View style={styles.formSection}>
+                {/* Confirm Step - No input, just text */}
+                {step === "confirm" && (
+                  <View style={styles.confirmSection}>
+                    <Text style={styles.confirmText}>
+                      Click continue to reset your password
+                    </Text>
+                  </View>
+                )}
+
+                {/* Code Input Step */}
+                {step === "code" && (
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      focusedInput === "code" && styles.inputContainerFocused,
+                    ]}
+                  >
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={20}
+                      color="#999999"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter verification code"
+                      placeholderTextColor="#999999"
+                      value={code}
+                      onChangeText={setCode}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      autoFocus
+                      onFocus={() => setFocusedInput("code")}
+                      onBlur={() => setFocusedInput(null)}
+                      underlineColorAndroid="transparent"
+                    />
+                  </View>
+                )}
+
+                {/* New Password Step */}
+                {step === "newPassword" && (
+                  <>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        focusedInput === "newPassword" &&
+                        styles.inputContainerFocused,
+                      ]}
+                    >
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={20}
+                        color="#999999"
+                        style={styles.inputIcon}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="New password"
+                        placeholderTextColor="#999999"
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        secureTextEntry={!showNewPassword}
+                        autoCapitalize="none"
+                        keyboardType="default"
+                        textAlignVertical="center"
+                        onFocus={() => setFocusedInput("newPassword")}
+                        onBlur={() => setFocusedInput(null)}
+                        underlineColorAndroid="transparent"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowNewPassword(!showNewPassword)}
+                        style={styles.eyeIcon}
+                      >
+                        <Ionicons
+                          name={showNewPassword ? "eye-off" : "eye"}
+                          size={20}
+                          color="#999999"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        focusedInput === "confirmPassword" &&
+                        styles.inputContainerFocused,
+                      ]}
+                    >
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={20}
+                        color="#999999"
+                        style={styles.inputIcon}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Re-enter password"
+                        placeholderTextColor="#999999"
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        secureTextEntry={!showConfirmPassword}
+                        autoCapitalize="none"
+                        keyboardType="default"
+                        textAlignVertical="center"
+                        onFocus={() => setFocusedInput("confirmPassword")}
+                        onBlur={() => setFocusedInput(null)}
+                        underlineColorAndroid="transparent"
+                      />
+                      <TouchableOpacity
+                        onPress={() =>
+                          setShowConfirmPassword(!showConfirmPassword)
+                        }
+                        style={styles.eyeIcon}
+                      >
+                        <Ionicons
+                          name={showConfirmPassword ? "eye-off" : "eye"}
+                          size={20}
+                          color="#999999"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.passwordRequirements}>
+                      <Text style={styles.passwordRequirement}>
+                        Password must be at least 8 characters long
+                      </Text>
+                      <Text style={styles.passwordRequirement}>
+                        Password must contain combination of letters and numbers
+                      </Text>
+                    </View>
+                  </>
+                )}
+
+                {/* Success Step - Show success message */}
+                {step === "success" && (
+                  <View style={styles.successSection}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={44}
+                      color="#ffffff"
+                      style={styles.successIcon}
+                    />
+                    <Text style={styles.successTitle}>Password Reset</Text>
+                    <Text style={styles.successText}>
+                      Your password has been successfully reset
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Bottom Actions */}
+              <View style={styles.bottomSection}>
+                <Button
+                  title={getButtonText()}
+                  onPress={handleContinue}
+                  disabled={!isButtonEnabled()}
+                  loading={false}
+                />
+
+                {step === "code" && (
+                  <TouchableOpacity
+                    style={{
+                      alignItems: "center",
+                      paddingTop: 16,
+                      paddingBottom: Platform.OS === "android" ? 3 : 0,
+                    }}
+                    onPress={handleResendCode}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.resendText}>Resend code</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </KeyboardAwareScrollView>
+          </TouchableWithoutFeedback>
+        )}
+      </OverlayModal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  backgroundTextContainer: {
+    position: "absolute",
+    top: "30%",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 1,
+    backgroundColor: "transparent",
+  },
+  backgroundText: {
+    fontSize: Platform.OS === "android" ? 34 : 42,
+    fontWeight: "700",
+    color: "#ffffff",
+    opacity: 0.25,
+    letterSpacing: Platform.OS === "android" ? 5 : 6,
+    marginBottom: 8,
+    zIndex: 1,
+  },
+  backgroundSubtext: {
+    fontSize: Platform.OS === "android" ? 13 : 16,
+    fontWeight: "400",
+    color: "#A6A6A6",
+    letterSpacing: Platform.OS === "android" ? 0.5 : 1,
+  },
+  passwordRequirements: {
+    backgroundColor: "#2A2A2A",
+    borderRadius: 8,
+    padding: Platform.OS === "android" ? 10 : 12,
+  },
+  passwordRequirement: {
+    fontSize: Platform.OS === "android" ? 11 : 12,
+    fontFamily: Fonts.regular,
+    color: "#999999",
+    marginBottom: 4,
+  },
+  backButton: {
+    position: "absolute",
+    top: 20,
+    left: 20,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: Platform.OS === "android" ? 32 : 40,
+    paddingTop: Platform.OS === "android" ? 70 : 15,
+  },
+  logoContainer: {
+    marginBottom: Platform.OS === "android" ? 20 : 24,
+  },
+  title: {
+    fontSize: Platform.OS === "android" ? 20 : 24,
+    fontFamily: Fonts.bold,
+    color: "#FFFFFF",
+    marginBottom: Platform.OS === "android" ? 10 : 12,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: Platform.OS === "android" ? 12 : 14,
+    fontFamily: Fonts.regular,
+    color: "#999999",
+    textAlign: "center",
+    lineHeight: Platform.OS === "android" ? 16 : 20,
+  },
+  formSection: {
+    flex: 1,
+  },
+  confirmSection: {
+    marginBottom: Platform.OS === "android" ? 20 : 24,
+  },
+  confirmText: {
+    fontSize: Platform.OS === "android" ? 14 : 16,
+    fontFamily: Fonts.regular,
+    color: "#999999",
+    textAlign: "center",
+    lineHeight: Platform.OS === "android" ? 20 : 24,
+  },
+  successSection: {
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+  },
+
+  successTitle: {
+    fontSize: Platform.OS === "android" ? 20 : 24,
+    fontFamily: Fonts.bold,
+    color: "#FFFFFF",
+    // marginBottom: 16,
+    textAlign: "center",
+  },
+  successIcon: {
+    marginBottom: Platform.OS === "android" ? 12 : 16,
+  },
+  successMessage: {
+    fontSize: Platform.OS === "android" ? 14 : 16,
+    fontFamily: Fonts.regular,
+    color: "#999999",
+    textAlign: "center",
+    lineHeight: Platform.OS === "android" ? 20 : 24,
+    paddingBottom: Platform.OS === "android" ? 16 : 20,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "transparent",
+    borderRadius: 12,
+    paddingHorizontal: Platform.OS === "android" ? 14 : 16,
+    paddingVertical: Platform.OS === "android" ? 8 : 16,
+    marginBottom: Platform.OS === "android" ? 12 : 16,
+    borderWidth: 1,
+    borderColor: "#3A3A3C",
+    height: Platform.OS === "android" ? 48 : "auto",
+  },
+  inputContainerFocused: {
+    borderColor: "#FFFFFF",
+    borderWidth: 1.5,
+  },
+  inputIcon: {
+    marginRight: Platform.OS === "android" ? 10 : 12,
+  },
+  input: {
+    flex: 1,
+    fontSize: Platform.OS === "android" ? 14 : 16,
+    fontFamily: Fonts.regular,
+    color: "#FFFFFF",
+    includeFontPadding: false,
+    textAlignVertical: Platform.OS === "android" ? "center" : "auto",
+    paddingVertical: 0,
+  },
+  resendContainer: {
+    alignItems: "center",
+    marginTop: Platform.OS === "android" ? 20 : 24,
+  },
+  resendText: {
+    fontSize: Platform.OS === "android" ? 14 : 16,
+    fontFamily: Fonts.semiBold,
+    color: "#FFFFFF",
+  },
+  eyeIcon: {
+    position: "absolute",
+    right: 16,
+    padding: 4,
+  },
+  bottomSection: {
+    paddingTop: 24,
+  },
+  successText: {
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    color: "#999999",
+    textAlign: "center",
+    marginTop: 8,
+    paddingHorizontal: 24,
+  },
+});
