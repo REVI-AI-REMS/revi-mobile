@@ -1,50 +1,202 @@
-# Welcome to your Expo app 👋
+# Revi AI — Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Consumer mobile client for Revi AI, a real-estate-aware social network and AI assistant for renters and agents. Built with Expo and React Native.
 
-## Get started
+## What's in the app
 
-1. Install dependencies
+- **AI chat.** Sessions, streaming-ready messaging, history, reactions — wired to the Revi AI backend.
+- **Social feed.** Ranked feed with video + image + carousel posts, likes, comments, bookmarks, ranked infinite scroll.
+- **Explore / search.** Grid browse with video thumbnails, people search, persistent search history.
+- **Saved.** Two-column grid of bookmarked posts with filters and inline unsave.
+- **Profile.** Edit profile, reviews, tokens, settings, privacy policy.
 
-   ```bash
-   npm install
-   ```
+## Tech stack
 
-2. Start the app
+| Layer | Choice |
+|---|---|
+| Framework | [Expo](https://expo.dev) 54 · React Native 0.81 · React 19 |
+| Routing | [expo-router](https://docs.expo.dev/router/introduction) v6 (file-based) |
+| Language | TypeScript (strict) |
+| State | [Zustand](https://github.com/pmndrs/zustand) for client state · [TanStack Query](https://tanstack.com/query) v5 for server state |
+| Lists | [`@shopify/flash-list`](https://shopify.github.io/flash-list) for the feed |
+| Media | `expo-av` (deprecated, migrating), `expo-video`, `expo-image`, `expo-video-thumbnails` |
+| HTTP | `axios` (separate instances per backend) |
+| Animation | `react-native-reanimated` v4 |
+| Storage | `@react-native-async-storage/async-storage` |
+| Build | EAS (`eas.json` profiles: `development`, `preview`, `apk`, `production`) |
 
-   ```bash
-   npx expo start
-   ```
+## Project layout
 
-In the output, you'll find options to open the app in a
+Flat root, no `src/`. A single `@/*` TypeScript path alias points at the project root. See `PROJECT_STRUCTURE.md` for the full map.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+revi-mobile/
+├── app/                       # expo-router routes (thin re-exports)
+├── screens/                   # PascalCase screen components
+│   ├── Auth/                  # Splash, Login, Signup, ForgotPassword
+│   ├── Social/                # Social, Explore, News (Saved), NewPost, PostDetail
+│   ├── Chat/                  # Chat (AI home), Conversation
+│   ├── Profile/               # MyProfile, EditProfile, Settings, Reviews, Tokens
+│   └── Notifications/
+├── components/                # PascalCase, organised by role
+│   ├── ui/                    # Primitives (Button, TextInput, IconSymbol)
+│   ├── layout/                # Container, ScreenHeader, ParallaxScrollView
+│   ├── common/                # Modals, Themed*, HomeIcon
+│   ├── social/                # PostCard, ReelsOverlay, *Sheet
+│   └── chat/                  # ChatHeader, ChatSidebar, *Modal
+├── stores/                    # Zustand: auth, ui, upload, video
+├── services/                  # axios clients + typed service wrappers
+│   ├── ai/                    # Revi AI backend (chat, sessions)
+│   ├── auth/                  # auth types
+│   ├── social/                # posts, interactions, bookmarks, search, ads
+│   ├── api.ts                 # social service axios client
+│   ├── auth.service.ts        # auth/login/register/refresh/me
+├── hooks/                     # queries/, mutations/, core hooks
+├── lib/                       # queryClient + third-party setup
+├── constants/                 # theme, design tokens
+├── utils/                     # platform, video-thumbnail
+├── styles/                    # globalStyles
+├── types/                     # shared TS types
+└── assets/  android/  ios/  plugins/  scripts/
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Conventions
 
-## Learn more
+- **Components & screens:** PascalCase files (`PostCard.tsx`, `LoginScreen.tsx`). Screens suffixed `Screen`.
+- **Hooks / utils / services / stores:** camelCase (`useFeed.ts`, `platform.ts`, `auth.store.ts`).
+- **Routes in `app/`** should stay thin — ideally a single-line re-export:
+  ```tsx
+  export { default } from "@/screens/Profile/SettingsScreen";
+  ```
+- **Imports:** always via the `@/*` alias. No deep relative paths across features.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Getting started
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Prerequisites
 
-## Join the community
+- Node 20+ (20, 22, or 24)
+- Xcode + iOS Simulator (for iOS)
+- Android Studio + emulator or a physical device (for Android)
+- Watchman (macOS): `brew install watchman`
+- EAS CLI (for cloud builds): `npm install -g eas-cli`
 
-Join our community of developers creating universal apps.
+### Install and run
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm install
+
+# Start Metro (no native build — works in Expo Go for most screens)
+npm run start
+
+# Native build and launch (required for FlashList, expo-av, etc.)
+npm run ios
+npm run android
+```
+
+> Fresh Metro cache: `npx expo start -c`.
+
+### Environment variables
+
+Create `.env.local` with values from your team's secrets manager:
+
+```env
+EXPO_PUBLIC_API_URL=<social-backend-base-url>
+EXPO_PUBLIC_DEV_MODE=true
+EXPO_PUBLIC_DEV_USER_ID=<uuid for the dev user>
+```
+
+- `EXPO_PUBLIC_API_URL` — base URL of the social microservice.
+- `EXPO_PUBLIC_DEV_MODE=true` — adds the `X-Dev-User-Id` header to social API requests and enables verbose logging in the API interceptors.
+- `EXPO_PUBLIC_DEV_USER_ID` — the dev user acting as "current user".
+
+The AI backend URL is set in `services/ai/ai.client.ts` and shares the Bearer token from `useAuthStore`. Auth hits the same service via `services/auth.service.ts`.
+
+## Path aliases
+
+A single alias on purpose — easier to keep in sync than many per-folder entries:
+
+```json
+"paths": { "@/*": ["./*"] }
+```
+
+Same in `babel.config.js` via `babel-plugin-module-resolver`. When either changes, keep them aligned — Metro reads babel, tsc reads tsconfig.
+
+## Backends
+
+Two microservices:
+
+| Service | Purpose |
+|---|---|
+| Social | feed, posts, bookmarks, search, notifications, ads |
+| AI | auth, AI chat sessions and messages, properties, bookings |
+
+Base URLs live in env vars / `services/ai/ai.client.ts` — see internal docs.
+
+Auth tokens come from the AI backend's `/auth/login`. The Zustand `useAuthStore.accessToken` is reused as a Bearer token on AI requests and as an optional Authorization header on social requests (non-dev mode). In dev mode (`EXPO_PUBLIC_DEV_MODE=true`), the social service bypasses auth via `X-Dev-User-Id`.
+
+## Scripts
+
+```bash
+npm run start         # expo start
+npm run ios           # native iOS build + launch
+npm run android       # native Android build + launch
+npm run web           # expo start --web
+npm run lint          # expo lint
+npm run reset-project # moves starter code to app-example/ (rarely used)
+```
+
+### Type-checking and bundle sanity
+
+```bash
+npx tsc --noEmit                         # fast, recommended before every push
+npx expo export --platform ios --output-dir /tmp/out  # full Metro bundle
+```
+
+## Build and release (EAS)
+
+`eas.json` defines four profiles:
+
+| Profile | Dev client | Distribution | Use |
+|---|---|---|---|
+| `development` | yes | internal | developers connecting Metro |
+| `preview` | yes | internal | internal testers on `preview` channel |
+| `apk` | no | internal | standalone `.apk` for Android sideload |
+| `production` | no | store | store submission (auto-increments version) |
+
+```bash
+eas device:create                                        # one-time: register an iOS test device
+eas build --platform ios     --profile development       # dev client for iOS
+eas build --platform android --profile development       # dev client for Android
+eas build --platform all     --profile preview           # both, preview channel
+eas build --platform android --profile apk               # apk only
+```
+
+After the build finishes EAS emails an install link. Install on device, then run `npx expo start` to connect Metro.
+
+### OTA updates
+
+Configured to auto-update on `appVersion` policy (`app.json#runtimeVersion`). A JS-only change doesn't require a new EAS build — ship via `eas update` against the matching channel.
+
+## Debugging tips
+
+- **Red screen from `console.error`.** The social API interceptor logs via `console.warn` so LogBox doesn't go red on backend 5xx. If you add new interceptors, use `console.warn`.
+- **Cold-start delay (~15–25s).** Azure Container Apps scale to zero. The axios client timeout is 45s to absorb this; first request on a cold morning will visibly hang.
+- **Video playback on Android Expo Go.** `expo-av` works, but the keyboard + edge-to-edge fix needs a dev client. Build via EAS.
+- **FlashList recycling leaks.** `PostCard` resets its local state whenever `post.id` changes. If you add new per-post state, add it to the reset block or recycled cells will show the previous post's data.
+
+## Known issues (server-side, mobile is ready)
+
+See the internal tracker for the current list of backend blockers the
+mobile app is already compensating for (circuit breakers, retry flags,
+error states). Grep the codebase for `TODO: backend` for the live set.
+
+## Contributing
+
+- Work on a feature branch off `main`. Keep `main` deployable.
+- Before pushing: `npx tsc --noEmit && npx expo export --platform ios --output-dir /tmp/out`.
+- One logical change per commit, present-tense subject (`feat(social): …`, `fix(chat): …`, `perf(feed): …`).
+- For anything touching navigation, native modules, or `app.json`, include a note in the PR description that a dev-client rebuild is needed.
+
+## License
+
+Proprietary — © Revi AI. All rights reserved.
