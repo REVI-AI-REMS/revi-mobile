@@ -17,6 +17,7 @@ import {
 } from "@/hooks/queries/use-bookmarks";
 import { useGeospatialFeed, useMainFeed } from "@/hooks/queries/use-feed";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
+import { useFeedVideoPlayer } from "@/hooks/use-feed-video-player";
 import type { MainFeedParams, PostRead } from "@/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
 import { useVideoStore } from "@/stores/video.store";
@@ -236,6 +237,30 @@ export default function SocialsScreen() {
     }
     return out;
   }, [data]);
+
+  // ─── Hoisted video player ──────────────────────────────────────────────────
+  // One player drives the whole feed. The currently-active post's media_url
+  // is loaded into it; every other card just shows a thumbnail. That keeps
+  // exactly one native decoder alive no matter how many video cards are on
+  // screen — which is what Instagram/TikTok do and the reason the earlier
+  // flinching stopped when we moved to an active-only pattern.
+  const activeVideoId = useVideoStore((s) => s.activeVideoId);
+  const activePost = useMemo(
+    () => (activeVideoId ? posts.find((p) => p.id === activeVideoId) : null),
+    [activeVideoId, posts],
+  );
+  const videoPlayer = useFeedVideoPlayer(
+    activeVideoId,
+    activePost?.media_url ?? null,
+  );
+
+  // Global mute — matches Instagram behaviour (tapping mute on one video
+  // persists across scrolls instead of resetting per card).
+  const [isMuted, setIsMuted] = useState(true);
+  useEffect(() => {
+    videoPlayer.muted = isMuted;
+  }, [videoPlayer, isMuted]);
+  const handleToggleMute = useCallback(() => setIsMuted((m) => !m), []);
 
   // ─── Pre-generate thumbnails ───────────────────────────────────────────────
   // Start as soon as feed data arrives — NOT when the user scrolls to a post.
@@ -462,6 +487,9 @@ export default function SocialsScreen() {
         isBookmarked={bookmarkedIds.has(item.id)}
         likePending={likePending}
         currentUserId={currentUserId}
+        videoPlayer={videoPlayer}
+        isMuted={isMuted}
+        onToggleMute={handleToggleMute}
       />
     ),
     [
@@ -476,6 +504,9 @@ export default function SocialsScreen() {
       bookmarkedIds,
       likePending,
       currentUserId,
+      videoPlayer,
+      isMuted,
+      handleToggleMute,
     ],
   );
 

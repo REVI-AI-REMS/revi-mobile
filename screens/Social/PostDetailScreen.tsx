@@ -14,10 +14,12 @@ import {
 } from "@/hooks/queries/use-bookmarks";
 import { usePost } from "@/hooks/queries/use-feed";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
+import { useFeedVideoPlayer } from "@/hooks/use-feed-video-player";
 import { PostRead } from "@/services/social/types";
+import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -109,6 +111,31 @@ export default function PostDetailScreen() {
   const handleMore = useCallback((p: PostRead) => setOptionsPost(p), []);
   const handleVideoPress = useCallback((p: PostRead) => setReelsPost(p), []);
 
+  // ─── Hoisted video player for the single post ──────────────────────────
+  // Detail screen only shows one post, so activeVideoId is either the
+  // post's id (if it's a video) or null. Marking the post active in the
+  // shared store also keeps the Social feed's video paused while the user
+  // is in detail view.
+  const setActiveVideoId = useVideoStore((s) => s.setActiveVideoId);
+  const postIsVideo = !!post && (
+    post.media_type === "video" ||
+    post.media_type === "video_upload" ||
+    !!post.media_url?.includes(".m3u8")
+  );
+  useEffect(() => {
+    if (post && postIsVideo) setActiveVideoId(post.id);
+    return () => setActiveVideoId(null);
+  }, [post, postIsVideo, setActiveVideoId]);
+  const videoPlayer = useFeedVideoPlayer(
+    postIsVideo && post ? post.id : null,
+    postIsVideo && post ? post.media_url : null,
+  );
+  const [isMuted, setIsMuted] = useState(true);
+  useEffect(() => {
+    videoPlayer.muted = isMuted;
+  }, [videoPlayer, isMuted]);
+  const handleToggleMute = useCallback(() => setIsMuted((m) => !m), []);
+
   if (isLoading) {
     return (
       <SafeAreaView edges={["bottom"]} style={styles.container}>
@@ -173,6 +200,9 @@ export default function PostDetailScreen() {
             onComment={handleComment}
             onMore={handleMore}
             onVideoPress={handleVideoPress}
+            videoPlayer={videoPlayer}
+            isMuted={isMuted}
+            onToggleMute={handleToggleMute}
           />
         </ScrollView>
 

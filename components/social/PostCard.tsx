@@ -4,13 +4,15 @@ import type { PostRead } from "@/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
-import { ResizeMode, Video } from "expo-av";
 import { Image } from "expo-image";
+import { VideoView, type VideoPlayer } from "expo-video";
 import { memo, useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   Modal,
+  Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -137,6 +139,14 @@ export interface PostCardProps {
   isBookmarked?: boolean;
   likePending: boolean;
   currentUserId: string;
+  // Hoisted video player — owned by the feed screen. When this card is
+  // isActive, we render a VideoView bound to this player. Other cards
+  // render only the thumbnail. Omit for thumbnail-only contexts.
+  videoPlayer?: VideoPlayer;
+  // Global mute state driven by the parent; tapping the mute button
+  // toggles it across the whole feed (matches Instagram/TikTok UX).
+  isMuted?: boolean;
+  onToggleMute?: () => void;
 }
 
 function PostCardComponent({
@@ -152,6 +162,9 @@ function PostCardComponent({
   isBookmarked = false,
   likePending,
   currentUserId,
+  videoPlayer,
+  isMuted = true,
+  onToggleMute,
 }: PostCardProps) {
   const isVideo =
     post.media_type === "video" ||
@@ -170,48 +183,30 @@ function PostCardComponent({
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [showLikes, setShowLikes] = useState(false);
   const liked = post.is_liked ?? false;
-  const videoRef = useRef<Video>(null);
   const carouselRef = useRef<ScrollView>(null);
-  const [videoError, setVideoError] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
   const isClosingRef = useRef(false);
 
-  const setBreadcrumb = useVideoStore((s) => s.setBreadcrumb);
   const thumbnailUri = useVideoStore((s) => s.thumbnails[post.id] ?? null);
   const setThumbnail = useVideoStore((s) => s.setThumbnail);
   const isActive = useVideoStore((s) => s.activeVideoId === post.id);
-  const isViewable = useVideoStore((s) => s.visiblePostIds.has(post.id));
-  // savedTime is only read at onLoad time — no need to subscribe and re-render
-  // every second as the breadcrumb updates for the active video.
-  // isPreload subscription was removed: the preload set updates every 5% scroll
-  // tick and used to re-render every card for a value we no longer read.
-  const [actualVideoSource, setActualVideoSource] = useState<string | null>(null);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   // ─── Cell recycle reset ────────────────────────────────────────────────────
   // FlashList reuses the same component instance across posts. Without this,
-  // local state (video URL, carousel index, error flags) leaks from the
-  // previous post and you see brief flashes of the old card's video/image on
-  // the new card. React's sanctioned "derive state from props during render"
-  // pattern — the setState calls trigger one synchronous re-render before
-  // children mount with stale values.
+  // local state (carousel index, modal state) leaks from the previous post
+  // onto the new one. React's sanctioned "derive state from props during
+  // render" pattern — the setState calls trigger one synchronous re-render
+  // before children mount with stale values.
   const [lastPostId, setLastPostId] = useState(post.id);
   if (lastPostId !== post.id) {
     setLastPostId(post.id);
     setImageIndex(0);
     setFullscreenIndex(null);
     setShowLikes(false);
-    setVideoError(false);
-    setActualVideoSource(null);
     setThumbnailFailed(false);
-    // isMuted intentionally persists — it's a user preference, not per-post.
+    // isMuted is global (driven by parent) — not reset here.
+    // Video playback state lives on the hoisted player; nothing to clear.
   }
-  // Only mount the native video player when the card is actually in the
-  // viewport (≥60%) or the active one. Preloaded cards (5% peeking) used
-  // to mount AVPlayer too, which meant 3-4 players alive at once during
-  // scroll and caused flinching. Thumbnail covers until mount.
-  const isVideoReadyForPlayback =
-    !!actualVideoSource && (isViewable || isActive) && !videoError;
 
   const openFullscreen = (idx: number) => {
     if (!isClosingRef.current) setFullscreenIndex(idx);
@@ -224,22 +219,6 @@ function PostCardComponent({
     }, 400);
   };
 
-  // Prime the source string as soon as we know this cell is a video post.
-  // Gating this on isViewable caused a "video never loads" window after
-  // recycle — the store's visiblePostIds was still keyed to the previous
-  // post's id until the viewability callback caught up, so the effect
-  // didn't fire and actualVideoSource stayed null.
-  //
-  // Setting the string early is cheap (no native player) — the actual
-  // Video component is still gated on isVideoReadyForPlayback below, so
-  // AVPlayer doesn't mount until the card is actually viewable/active.
-  useEffect(() => {
-    if (!isVideo || isProcessing) return;
-    if (actualVideoSource !== post.media_url) {
-      setActualVideoSource(post.media_url);
-    }
-  }, [isVideo, isProcessing, post.media_url, actualVideoSource]);
-
   // Reset carousel scroll position when cell recycles to a new post. The
   // ScrollView keeps its native scroll offset across recycles, so without
   // this the new post would briefly open on whatever slide the old post was
@@ -248,35 +227,14 @@ function PostCardComponent({
     carouselRef.current?.scrollTo({ x: 0, animated: false });
   }, [post.id]);
 
-  // Play when active, pause when not. isMuted is driven by the Video prop,
-  // so we don't need to re-run this effect (or call setIsMutedAsync) on mute
-  // toggles — otherwise every tap on the mute button would also restart the
-  // player via playAsync, which on iOS causes a visible hitch.
-  useEffect(() => {
-    if (!videoRef.current || !isVideo) return;
-    if (isActive) {
-      videoRef.current.playAsync().catch(() => {});
-    } else {
-      videoRef.current.pauseAsync().catch(() => {});
-    }
-  }, [isActive, isVideo]);
-
-  // Cleanup only on unmount (FlatList recycles far-off items)
-  useEffect(() => {
-    const ref = videoRef.current;
-    return () => {
-      ref?.unloadAsync().catch(() => {});
-    };
-  }, []);
-
-  // Fallback thumbnail generation — runs if social.tsx pre-generation hasn't
-  // cached one yet (e.g. post detail screen, profile grid).
-  // Uses HLS-aware utility: parses .m3u8 → extracts first .ts segment → thumbnail.
+  // Fallback thumbnail generation — runs if the parent-level pre-generator
+  // hasn't cached one for this post yet. Uses an HLS-aware utility that
+  // parses the .m3u8 manifest → extracts the first .ts segment → decodes
+  // a frame.
   useEffect(() => {
     if (!isVideo || isProcessing || thumbnailUri || thumbnailFailed) return;
 
     let cancelled = false;
-
     generateVideoThumbnail(post.media_url).then((uri) => {
       if (cancelled) return;
       if (uri) {
@@ -285,8 +243,9 @@ function PostCardComponent({
         setThumbnailFailed(true);
       }
     });
-
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isVideo, isProcessing, thumbnailUri, thumbnailFailed, post.id, post.media_url, setThumbnail]);
 
   // Heart pulse animation on like
@@ -302,6 +261,28 @@ function PostCardComponent({
         withSpring(1, { damping: 6 }),
       );
       onLike(post.id, liked);
+    }
+  };
+
+  // Native share sheet. We use the app's deep-link scheme as the url so
+  // apps that preview URLs (Messages, Mail) have something to render, and
+  // include the caption + author as the message body. Swap the scheme to
+  // a real web URL once we have `https://revi.ai/post/{id}` in place.
+  const handleShare = async () => {
+    try {
+      const lines: string[] = [];
+      if (post.caption) lines.push(`"${post.caption}"`);
+      lines.push(`— ${shortAuthorId(post.author_id)} on Revi AI`);
+      const message = lines.join("\n\n");
+      const url = `reviaimobile://post/${post.id}`;
+      await Share.share(
+        Platform.OS === "ios"
+          ? { url, message }
+          : { message: `${message}\n${url}` },
+        { dialogTitle: "Share this post" },
+      );
+    } catch {
+      // User cancelled, or share sheet unavailable on this device — silent.
     }
   };
 
@@ -364,9 +345,9 @@ function PostCardComponent({
             {mediaUrls.map((url, i) => {
               const isVideoUrl =
                 isVideo && !isProcessing && (i === 0 || url.includes(".m3u8"));
-              const canRenderVideo =
-                isVideoUrl &&
-                isVideoReadyForPlayback;
+              // VideoView mounts only on the active card — one native
+              // player drives the whole feed (see useFeedVideoPlayer).
+              const canRenderVideo = isVideoUrl && isActive && !!videoPlayer;
 
               return (
                 <View
@@ -379,8 +360,9 @@ function PostCardComponent({
                   <Animated.View style={StyleSheet.absoluteFill}>
                     {isVideoUrl ? (
                       <>
-                        {/* Layer 1: Thumbnail — always rendered as base for video posts.
-                            Covers the dark background immediately so user never sees blank. */}
+                        {/* Layer 1: Thumbnail — always rendered as base for
+                            video posts so the card never looks empty. The
+                            VideoView mounts on top once active. */}
                         {thumbnailUri && (
                           <Image
                             source={{ uri: thumbnailUri }}
@@ -389,47 +371,17 @@ function PostCardComponent({
                           />
                         )}
 
-                        {/* Layer 2: Video — rendered on top once source is loaded.
-                            shouldPlay only when active. Invisible until first frame
-                            decodes, then it covers the thumbnail seamlessly. */}
+                        {/* Layer 2: VideoView bound to the hoisted player.
+                            Mounts only when this card is active; source is
+                            swapped by the parent via player.replace(). */}
                         {canRenderVideo && (
-                          <Video
-                            ref={i === 0 ? videoRef : undefined}
-                            source={{ uri: actualVideoSource }}
+                          <VideoView
+                            player={videoPlayer!}
                             style={StyleSheet.absoluteFill}
-                            resizeMode={ResizeMode.COVER}
-                            // Only the active card plays. Preloaded cards keep
-                            // their source set so the HLS manifest and first
-                            // chunk prefetch, but no decoder runs until the
-                            // user actually scrolls onto the card.
-                            shouldPlay={isActive}
-                            isLooping
-                            isMuted={isMuted}
-                            useNativeControls={false}
-                            progressUpdateIntervalMillis={1000}
-                            onPlaybackStatusUpdate={(status) => {
-                              if (status.isLoaded && status.isPlaying && isActive) {
-                                setBreadcrumb(post.id, status.positionMillis);
-                              }
-                            }}
-                            onError={() => setVideoError(true)}
-                            onLoad={() => {
-                              // Read savedTime imperatively here instead of
-                              // via a store subscription — that subscription
-                              // would re-render this card every second as
-                              // the breadcrumb advances.
-                              const savedTime = useVideoStore
-                                .getState()
-                                .breadcrumbs[post.id];
-                              if (savedTime && videoRef.current) {
-                                // Recycle/scroll can unload the player
-                                // mid-seek and reject this promise with
-                                // "Seeking interrupted" — harmless, swallow.
-                                videoRef.current
-                                  .setPositionAsync(savedTime)
-                                  .catch(() => {});
-                              }
-                            }}
+                            contentFit="cover"
+                            nativeControls={false}
+                            fullscreenOptions={{ enable: false }}
+                            allowsPictureInPicture={false}
                           />
                         )}
                       </>
@@ -479,7 +431,7 @@ function PostCardComponent({
           {isVideo && !isProcessing ? (
             <TouchableOpacity
               style={styles.muteButton}
-              onPress={() => setIsMuted((m) => !m)}
+              onPress={onToggleMute}
               activeOpacity={0.8}
             >
               <Ionicons
@@ -552,7 +504,11 @@ function PostCardComponent({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleShare}
+            activeOpacity={0.7}
+          >
             <Ionicons name="arrow-redo-outline" size={22} color="#FFFFFF" />
           </TouchableOpacity>
 
