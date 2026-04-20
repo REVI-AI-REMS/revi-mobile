@@ -14,9 +14,11 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -140,7 +142,9 @@ export default function NewPostScreen() {
         setFocusedIsVideo(first.mediaType === "video");
       }
     } catch (e) {
-      // Error loading assets
+      // Log to Metro so developers can diagnose. We don't show a modal
+      // because the Browse fallback covers this for the user.
+      console.warn("[new-post] loadAssets failed", e);
     }
   }, [permissionResponse?.status, activeTab, selectedUris.length]);
 
@@ -162,7 +166,14 @@ export default function NewPostScreen() {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
-        alert("Camera permission needed");
+        Alert.alert(
+          "Camera access needed",
+          "To take a new photo or video, Revi needs permission to use the camera.",
+          [
+            { text: "Not now", style: "cancel" },
+            { text: "Open Settings", onPress: () => Linking.openSettings() },
+          ],
+        );
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -194,7 +205,11 @@ export default function NewPostScreen() {
         setFocusedIsVideo(isVideo);
       }
     } catch (e) {
-      // Camera error
+      console.warn("[new-post] camera failed", e);
+      Alert.alert(
+        "Camera unavailable",
+        "The camera couldn't open. On a simulator this is expected — try picking a photo from the library instead.",
+      );
     }
   };
 
@@ -413,7 +428,10 @@ export default function NewPostScreen() {
         <StatusBar style="light" />
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          // Same reason as the chat screens: Android 15 edge-to-edge stops
+          // auto-resizing on keyboard, so behavior="height" is needed to
+          // shrink the view and keep the caption input visible.
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           {/* Header */}
           <View style={styles.header}>
@@ -475,6 +493,18 @@ export default function NewPostScreen() {
             />
           </View>
 
+          {/* Character counter — only when the user has started typing */}
+          {caption.length > 0 && (
+            <Text
+              style={[
+                styles.captionCounter,
+                caption.length >= 480 && styles.captionCounterWarn,
+              ]}
+            >
+              {caption.length}/500
+            </Text>
+          )}
+
           {/* Upload status */}
           {isBusy && (
             <View style={styles.statusRow}>
@@ -500,6 +530,13 @@ export default function NewPostScreen() {
   }
 
   // ─── Pick step ────────────────────────────────────────────────────────────
+
+  // If the user fully denied media access and can't be re-prompted, show a
+  // clear CTA that opens the OS settings app instead of a silent empty grid.
+  const permissionPermanentlyDenied =
+    permissionResponse?.status === "denied" &&
+    permissionResponse.canAskAgain === false;
+
   const gridData: (string | MediaLibrary.Asset)[] = ["camera", ...assets];
 
   return (
@@ -628,6 +665,30 @@ export default function NewPostScreen() {
         )}
       </View>
 
+      {permissionPermanentlyDenied ? (
+        <View style={styles.permissionState}>
+          <Ionicons name="lock-closed-outline" size={40} color="#666" />
+          <Text style={styles.permissionTitle}>Photo access is off</Text>
+          <Text style={styles.permissionSubtitle}>
+            Enable photo library access in Settings to pick media for your
+            post.
+          </Text>
+          <TouchableOpacity
+            style={styles.permissionBtn}
+            onPress={() => Linking.openSettings()}
+          >
+            <Text style={styles.permissionBtnText}>Open Settings</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.permissionBrowseBtn}
+            onPress={handlePickFromLibrary}
+          >
+            <Text style={styles.permissionBrowseText}>
+              Or pick files via the system picker
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
       <FlatList
         data={gridData}
         renderItem={({ item }) => {
@@ -729,6 +790,7 @@ export default function NewPostScreen() {
         numColumns={4}
         showsVerticalScrollIndicator={false}
       />
+      )}
     </SafeAreaView>
   );
 }
@@ -1041,5 +1103,58 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 13,
     flex: 1,
+  },
+  // Caption character counter
+  captionCounter: {
+    alignSelf: "flex-end",
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    color: "#666",
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+  },
+  captionCounterWarn: {
+    color: "#FFB020",
+  },
+  // Permission denied state on the pick step
+  permissionState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    gap: 10,
+  },
+  permissionTitle: {
+    color: "#FFFFFF",
+    fontFamily: Fonts.semiBold,
+    fontSize: 16,
+    marginTop: 4,
+  },
+  permissionSubtitle: {
+    color: "#999",
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  permissionBtn: {
+    marginTop: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "#A855F7",
+    borderRadius: 20,
+  },
+  permissionBtnText: {
+    color: "#FFFFFF",
+    fontFamily: Fonts.semiBold,
+    fontSize: 14,
+  },
+  permissionBrowseBtn: {
+    paddingVertical: 8,
+  },
+  permissionBrowseText: {
+    color: "#A855F7",
+    fontFamily: Fonts.regular,
+    fontSize: 13,
   },
 });
