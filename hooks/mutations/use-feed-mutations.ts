@@ -5,6 +5,7 @@ import { postsService } from "@/services/social/posts.service";
 import { relationshipsService } from "@/services/social/relationships.service";
 import type {
     CommentCreate,
+    CommentRead,
     FollowRead,
     PostCreate,
     PostRead,
@@ -110,13 +111,19 @@ export function useAddCommentMutation() {
     mutationFn: (payload: CommentCreate) =>
       interactionsService.createComment(payload),
 
-    onMutate: async ({ post_id }) => {
+    onMutate: async ({ content, post_id, parent_id }) => {
       await queryClient.cancelQueries({ queryKey: feedKeys.all });
+      await queryClient.cancelQueries({
+        queryKey: feedKeys.comments(post_id),
+      });
 
       // Snapshot for rollback
       const previousEntries = queryClient.getQueriesData<PostRead[]>({
         queryKey: feedKeys.all,
       });
+      const previousComments = queryClient.getQueryData<CommentRead[]>(
+        feedKeys.comments(post_id),
+      );
 
       // Optimistically bump comment_count in every feed cache
       queryClient.setQueriesData<PostRead[]>(
@@ -131,12 +138,32 @@ export function useAddCommentMutation() {
         },
       );
 
-      return { previousEntries };
+      // Optimistically insert the new comment at the top of the list so the
+      // user sees their message immediately. Marked with a `temp-` id so the
+      // UI can render a pending state and ignore it when the refetch lands.
+      const tempComment: CommentRead & { parent_id?: string | null } = {
+        id: `temp-${Date.now()}`,
+        post_id,
+        author_id: CURRENT_USER_ID,
+        content,
+        created_at: new Date().toISOString(),
+        // Include parent_id for UI use even though CommentRead doesn't model it.
+        parent_id: parent_id ?? null,
+      };
+      queryClient.setQueryData<CommentRead[]>(
+        feedKeys.comments(post_id),
+        (old) => [tempComment, ...(old ?? [])],
+      );
+
+      return { previousEntries, previousComments, tempId: tempComment.id };
     },
 
-    onError: (_err, _vars, context) => {
+    onError: (_err, variables, context) => {
       const ctx = context as
-        | { previousEntries?: [unknown, PostRead[] | undefined][] }
+        | {
+            previousEntries?: [unknown, PostRead[] | undefined][];
+            previousComments?: CommentRead[];
+          }
         | undefined;
       if (ctx?.previousEntries) {
         ctx.previousEntries.forEach(([queryKey, data]) => {
@@ -146,10 +173,16 @@ export function useAddCommentMutation() {
           );
         });
       }
+      if (ctx?.previousComments !== undefined) {
+        queryClient.setQueryData(
+          feedKeys.comments(variables.post_id),
+          ctx.previousComments,
+        );
+      }
     },
 
     onSuccess: (_data, variables) => {
-      // Refetch the comments list for this post
+      // Refetch the comments list so the server-assigned id replaces temp-.
       queryClient.invalidateQueries({
         queryKey: feedKeys.comments(variables.post_id),
       });

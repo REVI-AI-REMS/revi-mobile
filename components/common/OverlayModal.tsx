@@ -40,7 +40,18 @@ export default function OverlayModal({
     >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={avoidKeyboard && Platform.OS === "ios" ? "padding" : undefined}
+        // iOS uses padding, Android uses height. Leaving Android as
+        // `undefined` used to rely on adjustResize which edge-to-edge
+        // Android 15 ignores — the result was the sheet's input sitting
+        // under the keyboard. "height" makes RN shrink the wrapped view
+        // itself so inputs stay above the keyboard.
+        behavior={
+          !avoidKeyboard
+            ? undefined
+            : Platform.OS === "ios"
+              ? "padding"
+              : "height"
+        }
       >
         <View style={styles.backdrop}>
           {/* Backdrop - tap to close only if dismissOnBackdrop is true */}
