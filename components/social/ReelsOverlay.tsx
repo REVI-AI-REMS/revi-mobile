@@ -1,24 +1,20 @@
 import { Fonts } from "@/constants/theme";
-import {
-    useAddCommentMutation,
-    useLikePostMutation,
-} from "@/hooks/mutations/use-feed-mutations";
+import { useLikePostMutation } from "@/hooks/mutations/use-feed-mutations";
 
 import type { PostRead } from "@/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
-import { ResizeMode, Video } from "expo-av";
 import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
     Dimensions,
     FlatList,
     Platform,
+    Share,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View,
     type ViewToken,
@@ -30,6 +26,7 @@ import Animated, {
     withSpring,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { CommentsSheet } from "./CommentsSheet";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("screen");
 
@@ -62,7 +59,6 @@ export const ReelItem = memo(function ReelItem({
   onComment,
   isInitialPost = false,
 }: ReelItemProps) {
-  const videoRef = useRef<Video>(null);
   const [muted, setMuted] = useState(false);
   // chromeReady: show buttons/info instantly for initial post, wait for video otherwise
   const [chromeReady, setChromeReady] = useState(isInitialPost);
@@ -87,24 +83,71 @@ export const ReelItem = memo(function ReelItem({
     likePost({ postId: post.id, isLiked: liked });
   };
 
-  // Play / pause based on visibility
-  useEffect(() => {
-    if (!videoRef.current) return;
-    if (isActive) {
-      videoRef.current.playAsync().catch(() => {});
-    } else {
-      videoRef.current.pauseAsync().catch(() => {});
-      videoRef.current.setPositionAsync(0).catch(() => {});
-    }
-  }, [isActive]);
+  // ─── Per-reel video player ─────────────────────────────────────────────
+  // Unlike the main feed (which hoists a single player), reels preload
+  // the next ~2 items — TikTok's scroll-to-play illusion relies on the
+  // first frame being ready as the user swipes. windowSize=3 in the
+  // parent FlatList caps concurrent players at three.
+  const player = useVideoPlayer({ uri: post.media_url }, (p) => {
+    p.loop = true;
+    p.muted = false;
+  });
 
-  const togglePlay = async () => {
-    if (!videoRef.current) return;
-    const status = await videoRef.current.getStatusAsync();
-    if (status.isLoaded && status.isPlaying) {
-      await videoRef.current.pauseAsync().catch(() => {});
+  // Keep the native mute state in sync with the React state.
+  useEffect(() => {
+    player.muted = muted;
+  }, [player, muted]);
+
+  // Play when active, pause + rewind when this reel scrolls out.
+  useEffect(() => {
+    if (isActive) {
+      player.play();
     } else {
-      await videoRef.current.playAsync().catch(() => {});
+      player.pause();
+      player.currentTime = 0;
+    }
+  }, [isActive, player]);
+
+  // Fade chrome in once the first frame is ready (unless we're the
+  // initial tapped post, in which case chrome shows immediately).
+  useEffect(() => {
+    if (isInitialPost) return;
+    const sub = player.addListener("statusChange", ({ status }) => {
+      if (status === "readyToPlay") {
+        setVideoReady(true);
+        setChromeReady(true);
+      }
+    });
+    return () => {
+      sub?.remove?.();
+    };
+  }, [isInitialPost, player]);
+
+  const togglePlay = () => {
+    if (player.playing) {
+      player.pause();
+    } else {
+      player.play();
+    }
+  };
+
+  // Native share sheet. Same format as PostCard's share so links from
+  // reels and feed look identical.
+  const handleShare = async () => {
+    try {
+      const lines: string[] = [];
+      if (post.caption) lines.push(`"${post.caption}"`);
+      lines.push(`— ${shortId(post.author_id)} on Revi AI`);
+      const message = lines.join("\n\n");
+      const url = `reviaimobile://post/${post.id}`;
+      await Share.share(
+        Platform.OS === "ios"
+          ? { url, message }
+          : { message: `${message}\n${url}` },
+        { dialogTitle: "Share this reel" },
+      );
+    } catch {
+      // User cancelled or share unavailable — silent.
     }
   };
 
@@ -131,18 +174,13 @@ export const ReelItem = memo(function ReelItem({
         style={StyleSheet.absoluteFill}
         onPress={togglePlay}
       >
-        <Video
-          ref={videoRef}
-          source={{ uri: post.media_url }}
+        <VideoView
+          player={player}
           style={StyleSheet.absoluteFill}
-          resizeMode={ResizeMode.COVER}
-          isLooping
-          isMuted={muted}
-          shouldPlay={isActive}
-          onReadyForDisplay={() => {
-            setVideoReady(true);
-            setChromeReady(true);
-          }}
+          contentFit="cover"
+          nativeControls={false}
+          fullscreenOptions={{ enable: false }}
+          allowsPictureInPicture={false}
         />
       </TouchableOpacity>
 
@@ -174,7 +212,11 @@ export const ReelItem = memo(function ReelItem({
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionBtn}>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={handleShare}
+              activeOpacity={0.7}
+            >
               <Ionicons name="arrow-redo-outline" size={28} color="#FFF" />
               <Text style={styles.actionLabel}>Share</Text>
             </TouchableOpacity>
@@ -210,70 +252,6 @@ export const ReelItem = memo(function ReelItem({
     </View>
   );
 });
-
-// --- Quick Comments Sheet -----------------------------------------------------
-
-interface QuickCommentsProps {
-  postId: string | null;
-  currentUserId: string;
-  onClose: () => void;
-}
-
-export function QuickComments({
-  postId,
-  currentUserId: _cu,
-  onClose,
-}: QuickCommentsProps) {
-  const [text, setText] = useState("");
-  const { mutate: addComment, isPending } = useAddCommentMutation();
-
-  if (!postId) return null;
-
-  const submit = () => {
-    const t = text.trim();
-    if (!t) return;
-    addComment(
-      { content: t, post_id: postId, parent_id: null },
-      { onSuccess: () => setText("") },
-    );
-  };
-
-  return (
-    <View style={styles.commentsSheet}>
-      <View style={styles.commentsHandle} />
-      <TouchableOpacity style={styles.commentsClose} onPress={onClose}>
-        <Ionicons name="close" size={22} color="#FFF" />
-      </TouchableOpacity>
-      <Text style={styles.commentsTitle}>Comments</Text>
-      <View style={styles.commentInputRow}>
-        <TextInput
-          style={styles.commentInput}
-          placeholder="Add a comment…"
-          placeholderTextColor="#666"
-          value={text}
-          onChangeText={setText}
-          autoFocus
-          maxLength={500}
-          editable={!isPending}
-        />
-        <TouchableOpacity
-          style={[
-            styles.commentSend,
-            (!text.trim() || isPending) && styles.commentSendDisabled,
-          ]}
-          onPress={submit}
-          disabled={!text.trim() || isPending}
-        >
-          {isPending ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <Ionicons name="send" size={18} color="#FFF" />
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
 
 // ─── Reels Overlay ────────────────────────────────────────────────────────────
 
@@ -372,13 +350,14 @@ export function ReelsOverlay({
         snapToAlignment="start"
       />
 
-      {commentsPostId && (
-        <QuickComments
-          postId={commentsPostId}
-          currentUserId={currentUserId}
-          onClose={() => setCommentsPostId(null)}
-        />
-      )}
+      {/* Full comments thread — same monochrome sheet used elsewhere in the
+          app so the UX stays consistent between feed and reels. The reel
+          list is pointer-locked (scrollEnabled=false) while this is open. */}
+      <CommentsSheet
+        postId={commentsPostId}
+        currentUserId={currentUserId}
+        onClose={() => setCommentsPostId(null)}
+      />
     </View>
   );
 }
@@ -471,68 +450,5 @@ export const styles = StyleSheet.create({
     textShadowColor: "rgba(0,0,0,0.8)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
-  },
-  commentsSheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: screenHeight * 0.6,
-    backgroundColor: "#1C1C1E",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingBottom: Platform.OS === "ios" ? 36 : 20,
-    paddingTop: 16,
-    zIndex: 200,
-  },
-  commentsHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#3A3A3C",
-    alignSelf: "center",
-    marginBottom: 16,
-  },
-  commentsClose: {
-    position: "absolute",
-    top: 16,
-    right: 20,
-  },
-  commentsTitle: {
-    fontSize: 16,
-    fontFamily: Fonts.semiBold,
-    color: "#FFF",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  commentInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#2C2C2E",
-    paddingTop: 12,
-  },
-  commentInput: {
-    flex: 1,
-    backgroundColor: "#2C2C2E",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-    color: "#FFF",
-  },
-  commentSend: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#007AFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  commentSendDisabled: {
-    backgroundColor: "#2C2C2E",
   },
 });
