@@ -8,7 +8,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { StyleSheet, TouchableOpacity } from "react-native";
+import { Platform, StyleSheet, TouchableOpacity } from "react-native";
 
 interface OverlayModalProps {
   visible: boolean;
@@ -30,7 +30,13 @@ export default function OverlayModal({
   const ref = useRef<BottomSheetModal>(null);
   const isProgrammaticDismiss = useRef(false);
   const hasEverPresented = useRef(false);
-  const isAutoHeight = height === "auto";
+
+  // Android's enableDynamicSizing has a known bug where content measurement
+  // fails and the sheet expands to fill the entire screen. Fall back to a
+  // fixed 75% height on Android so the sheet always renders correctly.
+  const effectiveHeight =
+    height === "auto" && Platform.OS === "android" ? "75%" : height;
+  const isAutoHeight = effectiveHeight === "auto";
 
   useEffect(() => {
     if (visible) {
@@ -58,8 +64,8 @@ export default function OverlayModal({
   }, [onClose]);
 
   const snapPoints = useMemo(
-    () => (isAutoHeight ? undefined : [height as string | number]),
-    [height, isAutoHeight],
+    () => (isAutoHeight ? undefined : [effectiveHeight as string | number]),
+    [effectiveHeight, isAutoHeight],
   );
 
   const renderBackdrop = useCallback(
