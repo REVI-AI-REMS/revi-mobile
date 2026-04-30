@@ -56,16 +56,11 @@ export default function ChatActionModal({
     <OverlayModal
       visible={visible}
       onClose={onClose}
-      height={520}
+      height="auto"
       showCloseButton={false}
       dismissOnBackdrop={true}
     >
       <View style={styles.container}>
-        {/* Drag Handle */}
-        <View style={styles.handleContainer}>
-          <View style={styles.handle} />
-        </View>
-
         {/* Media Actions */}
         <View style={styles.mediaRow}>
           {mediaActions.map((item) => (
@@ -108,16 +103,6 @@ export default function ChatActionModal({
 const styles = StyleSheet.create({
   container: {
     paddingBottom: 20,
-  },
-  handleContainer: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#3A3A3C",
-    borderRadius: 2,
   },
   mediaRow: {
     flexDirection: "row",

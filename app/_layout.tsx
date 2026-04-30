@@ -4,6 +4,7 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { DarkTheme, ThemeProvider } from "@react-navigation/native";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
@@ -12,6 +13,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Platform } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -102,27 +104,31 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SafeAreaProvider>
-        <ThemeProvider value={DarkTheme}>
-          <Stack screenOptions={{ headerShown: false }}>
-            {SCREENS.map((name) => (
-              <Stack.Screen
-                key={name}
-                name={name}
-                options={SPECIAL_SCREENS[name]}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <QueryClientProvider client={queryClient}>
+        <SafeAreaProvider>
+          <ThemeProvider value={DarkTheme}>
+            <BottomSheetModalProvider>
+              <Stack screenOptions={{ headerShown: false }}>
+                {SCREENS.map((name) => (
+                  <Stack.Screen
+                    key={name}
+                    name={name}
+                    options={SPECIAL_SCREENS[name]}
+                  />
+                ))}
+              </Stack>
+              <StatusBar
+                style="light"
+                backgroundColor={
+                  Platform.OS === "android" ? "#000000" : "transparent"
+                }
+                translucent={Platform.OS === "android"}
               />
-            ))}
-          </Stack>
-          <StatusBar
-            style="light"
-            backgroundColor={
-              Platform.OS === "android" ? "#000000" : "transparent"
-            }
-            translucent={Platform.OS === "android"}
-          />
-        </ThemeProvider>
-      </SafeAreaProvider>
-    </QueryClientProvider>
+            </BottomSheetModalProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { authService } from "@/services/auth.service";
+import { setAccessToken } from "@/services/auth/token-accessor";
 import type { AuthUser } from "@/services/auth/types";
 
 // ─── Re-export AuthUser for existing consumers ────────────────────────────────
@@ -85,8 +86,10 @@ export const useAuthStore = create<AuthState>()(
       isLoading: true, // true until hydrate() resolves
       hasAcceptedTerms: false,
 
-      setTokens: (accessToken, refreshToken) =>
-        set({ accessToken, refreshToken }),
+      setTokens: (accessToken, refreshToken) => {
+        setAccessToken(accessToken);
+        set({ accessToken, refreshToken });
+      },
 
       setUser: (user) => set({ user, isAuthenticated: true }),
 
@@ -184,6 +187,7 @@ export const useAuthStore = create<AuthState>()(
         }
         try {
           const refreshed = await authService.refresh(refreshToken);
+          setAccessToken(refreshed.access_token);
           set({
             accessToken: refreshed.access_token,
             refreshToken: refreshed.refresh_token,
@@ -195,14 +199,16 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      logout: () =>
+      logout: () => {
+        setAccessToken(null);
         set({
           user: null,
           accessToken: null,
           refreshToken: null,
           isAuthenticated: false,
           isLoading: false,
-        }),
+        });
+      },
     }),
     {
       name: "revi-auth-store",
@@ -219,9 +225,11 @@ export const useAuthStore = create<AuthState>()(
       // By the time this fires, get() returns the fresh persisted tokens.
       onRehydrateStorage: () => (state, error) => {
         if (!error && state) {
+          // Sync persisted token into the accessor so authAxios is ready before
+          // any component mounts and makes an authenticated request.
+          if (state.accessToken) setAccessToken(state.accessToken);
           state.hydrate();
         } else {
-          // Storage read failed — unblock the UI
           useAuthStore.setState({ isLoading: false });
         }
       },

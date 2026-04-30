@@ -625,19 +625,21 @@ export default function SocialsScreen() {
       {/* Upload Progress Card - Positioned in layout flow above tab bar */}
       {uploadStatus !== "idle" && <UploadProgressCard />}
 
-      {/* Comments Sheet */}
-      <CommentsSheet
-        postId={commentsPostId}
-        currentUserId={currentUserId}
-        onClose={() => setCommentsPostId(null)}
-      />
+      {commentsPostId !== null && (
+        <CommentsSheet
+          postId={commentsPostId}
+          currentUserId={currentUserId}
+          onClose={() => setCommentsPostId(null)}
+        />
+      )}
 
-      {/* Post Options Sheet */}
-      <PostOptionsSheet
-        post={optionsPost}
-        currentUserId={currentUserId}
-        onClose={() => setOptionsPost(null)}
-      />
+      {optionsPost !== null && (
+        <PostOptionsSheet
+          post={optionsPost}
+          currentUserId={currentUserId}
+          onClose={() => setOptionsPost(null)}
+        />
+      )}
 
       {/* Reels overlay — renders on top of feed, no navigation, no reload */}
       {reelsPost && (

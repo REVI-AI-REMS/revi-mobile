@@ -203,24 +203,30 @@ export default function ChatHomeScreen() {
             onClose={() => setSidebarVisible(false)}
           />
 
-          <ChatActionModal
-            visible={actionModalVisible}
-            onClose={() => setActionModalVisible(false)}
-            onActionPress={handleActionPress}
-          />
+          {actionModalVisible && (
+            <ChatActionModal
+              visible={actionModalVisible}
+              onClose={() => setActionModalVisible(false)}
+              onActionPress={handleActionPress}
+            />
+          )}
 
-          <ReportModal
-            visible={reportModalVisible}
-            onClose={() => setReportModalVisible(false)}
-            title={reportModalTitle}
-            onSuccess={handleSuccess}
-          />
+          {reportModalVisible && (
+            <ReportModal
+              visible={reportModalVisible}
+              onClose={() => setReportModalVisible(false)}
+              title={reportModalTitle}
+              onSuccess={handleSuccess}
+            />
+          )}
 
-          <TellStoryModal
-            visible={tellStoryModalVisible}
-            onClose={() => setTellStoryModalVisible(false)}
-            onSuccess={handleSuccess}
-          />
+          {tellStoryModalVisible && (
+            <TellStoryModal
+              visible={tellStoryModalVisible}
+              onClose={() => setTellStoryModalVisible(false)}
+              onSuccess={handleSuccess}
+            />
+          )}
 
           <SuccessModal
             visible={successModalVisible}

@@ -1,15 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
-import { ReactNode } from "react";
 import {
-  DimensionValue,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from "react-native";
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  BottomSheetView,
+  type BottomSheetBackdropProps,
+} from "@gorhom/bottom-sheet";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { StyleSheet, TouchableOpacity } from "react-native";
 
 interface OverlayModalProps {
   visible: boolean;
@@ -18,7 +17,6 @@ interface OverlayModalProps {
   showCloseButton?: boolean;
   height?: number | string;
   dismissOnBackdrop?: boolean;
-  avoidKeyboard?: boolean;
 }
 
 export default function OverlayModal({
@@ -28,82 +26,120 @@ export default function OverlayModal({
   showCloseButton = true,
   height = "auto",
   dismissOnBackdrop = false,
-  avoidKeyboard = true,
 }: OverlayModalProps) {
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        // iOS uses padding, Android uses height. Leaving Android as
-        // `undefined` used to rely on adjustResize which edge-to-edge
-        // Android 15 ignores — the result was the sheet's input sitting
-        // under the keyboard. "height" makes RN shrink the wrapped view
-        // itself so inputs stay above the keyboard.
-        behavior={
-          !avoidKeyboard
-            ? undefined
-            : Platform.OS === "ios"
-              ? "padding"
-              : "height"
-        }
-      >
-        <View style={styles.backdrop}>
-          {/* Backdrop - tap to close only if dismissOnBackdrop is true */}
-          <Pressable
-            style={styles.backdropPressable}
-            onPress={dismissOnBackdrop ? onClose : undefined}
-          />
+  const ref = useRef<BottomSheetModal>(null);
+  const isProgrammaticDismiss = useRef(false);
+  const hasEverPresented = useRef(false);
+  const isAutoHeight = height === "auto";
 
-          {/* Content Container */}
-          <View style={styles.contentContainer}>
-            <View
-              style={[
-                styles.content,
-                height === "auto"
-                  ? styles.contentAuto
-                  : { height: height as DimensionValue },
-              ]}
-            >
-              {/* Close Button - inside overlay */}
-              {showCloseButton && (
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={onClose}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="close" size={18} color="#FFFFFF" />
-                </TouchableOpacity>
-              )}
-              {children}
-            </View>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+  useEffect(() => {
+    if (visible) {
+      hasEverPresented.current = true;
+      isProgrammaticDismiss.current = false;
+      ref.current?.present();
+    } else if (hasEverPresented.current) {
+      isProgrammaticDismiss.current = true;
+      ref.current?.dismiss();
+    }
+  }, [visible]);
+
+  const handleCloseButton = useCallback(() => {
+    isProgrammaticDismiss.current = true;
+    ref.current?.dismiss();
+    onClose();
+  }, [onClose]);
+
+  const handleDismiss = useCallback(() => {
+    if (isProgrammaticDismiss.current) {
+      isProgrammaticDismiss.current = false;
+      return;
+    }
+    onClose();
+  }, [onClose]);
+
+  const snapPoints = useMemo(
+    () => (isAutoHeight ? undefined : [height as string | number]),
+    [height, isAutoHeight],
+  );
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        pressBehavior={dismissOnBackdrop ? "close" : "none"}
+        opacity={0.65}
+      />
+    ),
+    [dismissOnBackdrop],
+  );
+
+  // The close button is placed INSIDE the content wrapper (not as a sibling to
+  // BottomSheetScrollView). Auth screens' back buttons work for the same reason:
+  // they live inside the content. Buttons that are siblings to
+  // BottomSheetScrollView fall into @gorhom's gesture zone and lose touches.
+  const closeButton = showCloseButton ? (
+    <TouchableOpacity
+      style={styles.closeButton}
+      onPress={handleCloseButton}
+      activeOpacity={0.7}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+    >
+      <Ionicons name="close" size={18} color="#FFFFFF" />
+    </TouchableOpacity>
+  ) : null;
+
+  return (
+    <BottomSheetModal
+      ref={ref}
+      snapPoints={snapPoints}
+      enableDynamicSizing={isAutoHeight}
+      enablePanDownToClose={false}
+      onDismiss={handleDismiss}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={styles.background}
+      handleIndicatorStyle={styles.handle}
+      handleStyle={styles.handleArea}
+      android_keyboardInputMode="adjustResize"
+    >
+      {isAutoHeight ? (
+        <BottomSheetView style={styles.content}>
+          {closeButton}
+          {children}
+        </BottomSheetView>
+      ) : (
+        <BottomSheetScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+          {closeButton}
+          {children}
+        </BottomSheetScrollView>
+      )}
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(15, 15, 16, 0.7)",
+  background: {
+    backgroundColor: "#1A1A1A",
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
   },
-  backdropPressable: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  handleArea: {
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+  },
+  handle: {
+    backgroundColor: "#3A3A3C",
+    width: 40,
   },
   closeButton: {
     position: "absolute",
-    top: 20,
+    top: 16,
     right: 20,
     zIndex: 10,
     width: 35,
@@ -113,19 +149,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  contentContainer: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
   content: {
-    backgroundColor: "#1A1A1A",
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
     paddingHorizontal: 24,
     paddingTop: 40,
-    paddingBottom: 40,
-  },
-  contentAuto: {
     paddingBottom: 48,
   },
 });
