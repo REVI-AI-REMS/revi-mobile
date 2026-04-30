@@ -2,21 +2,23 @@ import Button from "@/components/ui/Button";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
+    Alert,
+    Platform,
     StyleSheet,
     Text,
     View,
-    Platform
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 
 export default function AuthScreen() {
   const router = useRouter();
+
   const handleAppleSignIn = () => {
-    // Implement Apple Sign-In logic
+    Alert.alert("Coming soon", "Apple Sign In will be available in a future update.");
   };
 
   const handleGoogleSignIn = () => {
-    // Implement Google Sign-In logic
+    Alert.alert("Coming soon", "Google Sign In will be available in a future update.");
   };
 
   const handleSignUp = () => {

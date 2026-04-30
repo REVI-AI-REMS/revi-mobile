@@ -4,7 +4,7 @@ import { mediaService } from "@/services/social/media.service";
 import type { MediaType } from "@/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
 import { Ionicons } from "@expo/vector-icons";
-import { ResizeMode, Video } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 import * as FileSystem from "expo-file-system/legacy";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -102,6 +102,15 @@ export default function NewPostScreen() {
   // Which image is shown large in the preview pane
   const [focusedUri, setFocusedUri] = useState<string | null>(null);
   const [focusedIsVideo, setFocusedIsVideo] = useState(false);
+
+  const previewPlayer = useVideoPlayer(
+    focusedIsVideo && focusedUri ? focusedUri : null,
+    (player) => {
+      player.loop = true;
+      player.muted = true;
+      player.play();
+    },
+  );
 
   const { mutateAsync: createPostAsync } = useCreatePostMutation();
   const uploadStore = useUploadStore();
@@ -573,14 +582,11 @@ export default function NewPostScreen() {
         {focusedUri ? (
           <>
             {focusedIsVideo ? (
-              <Video
-                source={{ uri: focusedUri }}
+              <VideoView
+                player={previewPlayer}
                 style={styles.previewImage}
-                resizeMode={ResizeMode.COVER}
-                shouldPlay
-                isLooping
-                isMuted
-                useNativeControls={false}
+                contentFit="cover"
+                nativeControls={false}
               />
             ) : (
               <Image

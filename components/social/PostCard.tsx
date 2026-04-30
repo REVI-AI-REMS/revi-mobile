@@ -634,12 +634,13 @@ function PostCardComponent({
         </View>
       </Modal>
 
-      {/* Likes sheet */}
-      <LikesSheet
-        postId={showLikes ? post.id : null}
-        likeCount={Math.max(post.like_count, liked ? 1 : 0)}
-        onClose={() => setShowLikes(false)}
-      />
+      {showLikes && (
+        <LikesSheet
+          postId={post.id}
+          likeCount={Math.max(post.like_count, liked ? 1 : 0)}
+          onClose={() => setShowLikes(false)}
+        />
+      )}
     </>
   );
 }

@@ -9,6 +9,8 @@ import {
 } from "@/hooks/queries/use-ai-chat";
 import type { ChatMessage } from "@/services/ai";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { Image as ExpoImage } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   memo,
@@ -20,6 +22,7 @@ import {
 } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -151,6 +154,7 @@ export default function ChatConversationScreen() {
     initialSessionId,
   );
   const [message, setMessage] = useState("");
+  const [pendingImage, setPendingImage] = useState<{ uri: string; name: string } | null>(null);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const listRef = useRef<FlatList<Bubble>>(null);
@@ -216,18 +220,26 @@ export default function ChatConversationScreen() {
 
   const handleSend = useCallback(() => {
     const trimmed = message.trim();
-    if (!trimmed || sending) return;
+    if ((!trimmed && !pendingImage) || sending) return;
+    const img = pendingImage;
     setMessage("");
+    setPendingImage(null);
     resetSendError();
     sendMessage(
-      { prompt: trimmed, sessionId },
+      {
+        prompt: trimmed || "What can you tell me about this?",
+        sessionId,
+        ...(img && {
+          file: { uri: img.uri, name: img.name, type: "image/jpeg" },
+        }),
+      },
       {
         onSuccess: (msg) => {
           if (!sessionId) setSessionId(msg.session_id);
         },
       },
     );
-  }, [message, sending, sendMessage, sessionId, resetSendError]);
+  }, [message, pendingImage, sending, sendMessage, sessionId, resetSendError]);
 
   const handleReact = useCallback(
     (chatId: string, reaction: "like" | "dislike") => {
@@ -248,13 +260,55 @@ export default function ChatConversationScreen() {
 
   const handleActionPress = useCallback((action: string) => {
     setActionModalVisible(false);
-    // Attachment actions aren't wired to the real upload yet — surface
-    // this explicitly instead of silently discarding the pick.
-    setTimeout(() => {
-      // eslint-disable-next-line no-alert
-      // Intentionally left as a Alert in a future commit — no-op for now.
-    }, 100);
-  }, []);
+    setTimeout(async () => {
+      switch (action) {
+        case "Camera": {
+          const perm = await ImagePicker.requestCameraPermissionsAsync();
+          if (!perm.granted) {
+            Alert.alert("Permission required", "Camera access is needed to take a photo.");
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ["images"],
+            quality: 0.8,
+            allowsEditing: true,
+          });
+          if (!result.canceled) {
+            const asset = result.assets[0];
+            setPendingImage({ uri: asset.uri, name: `photo-${Date.now()}.jpg` });
+          }
+          break;
+        }
+        case "Photos": {
+          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!perm.granted) {
+            Alert.alert("Permission required", "Photo library access is needed.");
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            quality: 0.8,
+            allowsEditing: false,
+          });
+          if (!result.canceled) {
+            const asset = result.assets[0];
+            const name = asset.fileName ?? `image-${Date.now()}.jpg`;
+            setPendingImage({ uri: asset.uri, name });
+          }
+          break;
+        }
+        case "Files":
+          Alert.alert("Coming soon", "File attachments will be available in a future update.");
+          break;
+        case "Report a Landlord":
+        case "Tell Your Story":
+          router.push("/(tabs)/chat");
+          break;
+        default:
+          break;
+      }
+    }, 250);
+  }, [router]);
 
   // ─── Render helpers ────────────────────────────────────────────────────
 
@@ -312,11 +366,13 @@ export default function ChatConversationScreen() {
           currentSessionId={sessionId}
         />
 
-        <ChatActionModal
-          visible={actionModalVisible}
-          onClose={() => setActionModalVisible(false)}
-          onActionPress={handleActionPress}
-        />
+        {actionModalVisible && (
+          <ChatActionModal
+            visible={actionModalVisible}
+            onClose={() => setActionModalVisible(false)}
+            onActionPress={handleActionPress}
+          />
+        )}
 
         <FlatList
           ref={listRef}
@@ -339,6 +395,23 @@ export default function ChatConversationScreen() {
             <Text style={styles.errorText}>
               Couldn't reach Revi. Check your connection and try again.
             </Text>
+          </View>
+        )}
+
+        {pendingImage && (
+          <View style={styles.attachmentPreview}>
+            <ExpoImage
+              source={{ uri: pendingImage.uri }}
+              style={styles.attachmentThumb}
+              contentFit="cover"
+            />
+            <TouchableOpacity
+              style={styles.attachmentRemove}
+              onPress={() => setPendingImage(null)}
+              hitSlop={8}
+            >
+              <Ionicons name="close-circle" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -367,10 +440,10 @@ export default function ChatConversationScreen() {
             <TouchableOpacity
               style={[
                 styles.sendBtn,
-                (!message.trim() || sending) && styles.sendBtnDisabled,
+                ((!message.trim() && !pendingImage) || sending) && styles.sendBtnDisabled,
               ]}
               onPress={handleSend}
-              disabled={!message.trim() || sending}
+              disabled={(!message.trim() && !pendingImage) || sending}
               activeOpacity={0.7}
             >
               {sending ? (
@@ -462,6 +535,25 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     color: "#FF6B6B",
     flex: 1,
+  },
+
+  // Attachment preview
+  attachmentPreview: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  attachmentThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: "#2C2C2E",
+  },
+  attachmentRemove: {
+    position: "absolute",
+    top: -6,
+    left: 54,
   },
 
   // Input
