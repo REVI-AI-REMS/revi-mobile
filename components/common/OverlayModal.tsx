@@ -7,13 +7,8 @@ import {
   type BottomSheetBackdropProps,
 } from "@gorhom/bottom-sheet";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  type LayoutChangeEvent,
-  Platform,
-  StyleSheet,
-  TouchableOpacity,
-} from "react-native";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
 
 interface OverlayModalProps {
   visible: boolean;
@@ -35,31 +30,7 @@ export default function OverlayModal({
   const ref = useRef<BottomSheetModal>(null);
   const isProgrammaticDismiss = useRef(false);
   const hasEverPresented = useRef(false);
-
-  // On Android, enableDynamicSizing (iOS path) fails — content measurement
-  // returns garbage and the sheet expands to full screen. We instead measure
-  // the content ourselves via onLayout and feed the real pixel height as the
-  // snap point. Start with a safe default (400px) until measurement arrives.
-  const [androidAutoHeight, setAndroidAutoHeight] = useState(400);
-
-  const isAndroidAuto = Platform.OS === "android" && height === "auto";
-  const isAutoHeight = height === "auto" && !isAndroidAuto; // iOS only
-
-  const snapPoints = useMemo(() => {
-    if (isAutoHeight) return undefined; // iOS: enableDynamicSizing handles it
-    if (isAndroidAuto) return [androidAutoHeight]; // Android: measured height
-    return [height as string | number]; // explicit fixed height
-  }, [isAutoHeight, isAndroidAuto, androidAutoHeight, height]);
-
-  const onAndroidContentLayout = useCallback(
-    (e: LayoutChangeEvent) => {
-      const measured = e.nativeEvent.layout.height;
-      if (measured > 50 && measured !== androidAutoHeight) {
-        setAndroidAutoHeight(measured);
-      }
-    },
-    [androidAutoHeight],
-  );
+  const isAutoHeight = height === "auto";
 
   useEffect(() => {
     if (visible) {
@@ -86,6 +57,11 @@ export default function OverlayModal({
     onClose();
   }, [onClose]);
 
+  const snapPoints = useMemo(
+    () => (isAutoHeight ? undefined : [height as string | number]),
+    [height, isAutoHeight],
+  );
+
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
       <BottomSheetBackdrop
@@ -110,40 +86,6 @@ export default function OverlayModal({
     </TouchableOpacity>
   ) : null;
 
-  const content =
-    isAutoHeight ? (
-      // iOS auto-height: enableDynamicSizing measures content
-      <BottomSheetView style={styles.content}>
-        {closeButton}
-        {children}
-      </BottomSheetView>
-    ) : isAndroidAuto ? (
-      // Android auto-height: measure via onLayout, use as snap point
-      <BottomSheetScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        bounces={false}
-        scrollEnabled={false}
-      >
-        <BottomSheetView onLayout={onAndroidContentLayout}>
-          {closeButton}
-          {children}
-        </BottomSheetView>
-      </BottomSheetScrollView>
-    ) : (
-      // Fixed height: scrollable
-      <BottomSheetScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        bounces={false}
-      >
-        {closeButton}
-        {children}
-      </BottomSheetScrollView>
-    );
-
   return (
     <BottomSheetModal
       ref={ref}
@@ -157,7 +99,27 @@ export default function OverlayModal({
       handleStyle={styles.handleArea}
       android_keyboardInputMode="adjustResize"
     >
-      {content}
+      {isAutoHeight ? (
+        // collapsable={false} prevents Android's layout optimiser from
+        // skipping the height measurement pass — without it enableDynamicSizing
+        // gets a stale/zero height on Android and the sheet fills the screen.
+        <BottomSheetView style={styles.content}>
+          <View collapsable={false}>
+            {closeButton}
+            {children}
+          </View>
+        </BottomSheetView>
+      ) : (
+        <BottomSheetScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+          {closeButton}
+          {children}
+        </BottomSheetScrollView>
+      )}
     </BottomSheetModal>
   );
 }
