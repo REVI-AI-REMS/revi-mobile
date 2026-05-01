@@ -57,7 +57,10 @@ export default function LoginScreen() {
       {
         onError: (error: any) => {
           const d = error?.response?.data?.detail;
-          const message = typeof d === "string" ? d : "Invalid email or password. Please try again.";
+          const message =
+            typeof d === "string"
+              ? d
+              : "Invalid email or password. Please try again.";
           Alert.alert("Login failed", message);
         },
       },
@@ -69,7 +72,7 @@ export default function LoginScreen() {
       <OverlayModal
         visible={visible}
         onClose={handleClose}
-        height={Platform.OS === "ios" ? "80%" : "90%"}
+        height={Platform.OS === "ios" ? "80%" : "70%"}
       >
         {step === "password" && (
           <TouchableOpacity
@@ -104,7 +107,12 @@ export default function LoginScreen() {
               focusedInput === "email" && styles.inputFocused,
             ]}
           >
-            <Ionicons name="mail-outline" size={20} color="#999999" style={styles.inputIcon} />
+            <Ionicons
+              name="mail-outline"
+              size={20}
+              color="#999999"
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
               placeholder="Email"
@@ -130,7 +138,12 @@ export default function LoginScreen() {
                 focusedInput === "password" && styles.inputFocused,
               ]}
             >
-              <Ionicons name="lock-closed-outline" size={20} color="#999999" style={styles.inputIcon} />
+              <Ionicons
+                name="lock-closed-outline"
+                size={20}
+                color="#999999"
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="Password"
@@ -144,7 +157,10 @@ export default function LoginScreen() {
                 onBlur={() => setFocusedInput(null)}
                 underlineColorAndroid="transparent"
               />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeIcon}
+              >
                 <Ionicons
                   name={showPassword ? "eye-outline" : "eye-off-outline"}
                   size={20}
@@ -192,13 +208,23 @@ export default function LoginScreen() {
           <Button
             title="Continue with Apple"
             variant="outline"
-            onPress={() => Alert.alert("Coming soon", "Apple Sign In will be available in a future update.")}
+            onPress={() =>
+              Alert.alert(
+                "Coming soon",
+                "Apple Sign In will be available in a future update.",
+              )
+            }
             icon={<Ionicons name="logo-apple" size={20} color="#FFFFFF" />}
           />
           <Button
             title="Continue with Google"
             variant="outline"
-            onPress={() => Alert.alert("Coming soon", "Google Sign In will be available in a future update.")}
+            onPress={() =>
+              Alert.alert(
+                "Coming soon",
+                "Google Sign In will be available in a future update.",
+              )
+            }
             icon={<Ionicons name="logo-google" size={18} color="#FFFFFF" />}
           />
         </View>

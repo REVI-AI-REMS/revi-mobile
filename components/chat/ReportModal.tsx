@@ -74,7 +74,7 @@ export default function ReportModal({
     };
 
     return (
-        <OverlayModal visible={visible} onClose={onClose} height="90%">
+        <OverlayModal visible={visible} onClose={onClose} height="80%">
             <View style={styles.header}>
                 {/* Close button handled by OverlayModal, but we can add title */}
                 <Text style={styles.title}>{title}</Text>

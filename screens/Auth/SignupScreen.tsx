@@ -63,12 +63,15 @@ export default function SignUpScreen() {
   );
 
   useEffect(() => {
-    const show = Keyboard.addListener("keyboardWillShow", (e) => {
-      setKeyboardHeight(e.endCoordinates.height);
-    });
-    const hide = Keyboard.addListener("keyboardWillHide", () => {
-      setKeyboardHeight(0);
-    });
+    // keyboardWillShow only fires on iOS; Android needs keyboardDidShow
+    const show = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => setKeyboardHeight(e.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardHeight(0),
+    );
     return () => { show.remove(); hide.remove(); };
   }, []);
 
@@ -126,7 +129,10 @@ export default function SignUpScreen() {
           );
         },
         onError: (error: any) => {
-          Alert.alert("Verification failed", errMsg(error, "Invalid or expired code. Please try again."));
+          Alert.alert(
+            "Verification failed",
+            errMsg(error, "Invalid or expired code. Please try again."),
+          );
           setDigits(["", "", "", "", "", ""]);
           inputRefs.current[0]?.focus();
         },
@@ -190,7 +196,9 @@ export default function SignUpScreen() {
             const data = error?.response?.data;
             const message =
               (typeof data?.email?.[0] === "string" ? data.email[0] : null) ??
-              (typeof data?.username?.[0] === "string" ? data.username[0] : null) ??
+              (typeof data?.username?.[0] === "string"
+                ? data.username[0]
+                : null) ??
               errMsg(error, "Registration failed. Please try again.");
             Alert.alert("Sign up failed", message);
           },
@@ -239,7 +247,7 @@ export default function SignUpScreen() {
       <OverlayModal
         visible={hasAcceptedTerms && visible}
         onClose={handleClose}
-        height={step === "details" ? (Platform.OS === "ios" ? "80%" : "95%") : "auto"}
+        height={step === "details" ? "80%" : "auto"}
       >
         <TouchableOpacity
           style={styles.backButton}

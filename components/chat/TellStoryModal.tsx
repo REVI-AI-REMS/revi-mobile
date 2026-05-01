@@ -68,7 +68,7 @@ export default function TellStoryModal({
     };
 
     return (
-        <OverlayModal visible={visible} onClose={onClose} height="90%">
+        <OverlayModal visible={visible} onClose={onClose} height="80%">
             <View style={styles.header}>
                 <Text style={styles.title}>{title}</Text>
                 <Text style={styles.subtitle}>

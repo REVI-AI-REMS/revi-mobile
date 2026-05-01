@@ -6,33 +6,29 @@ import { ReelsOverlay } from "@/components/social/ReelsOverlay";
 import { UploadProgressCard } from "@/components/social/UploadProgressCard";
 import { Fonts } from "@/constants/theme";
 import {
-  useBatchLogViewsMutation,
-  useFollowMutation,
-  useLikePostMutation,
+    useBatchLogViewsMutation,
+    useFollowMutation,
+    useLikePostMutation,
 } from "@/hooks/mutations/use-feed-mutations";
 import {
-  useBookmarkMutation,
-  useBookmarks,
-  useRemoveBookmarkMutation,
+    useBookmarkMutation,
+    useBookmarks,
+    useRemoveBookmarkMutation,
 } from "@/hooks/queries/use-bookmarks";
 import { useGeospatialFeed, useMainFeed } from "@/hooks/queries/use-feed";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
+import { useAuthStore } from "@/stores/auth.store";
 import { useFeedVideoPlayer } from "@/hooks/use-feed-video-player";
-import type { MainFeedParams, PostRead } from "@/services/social/types";
+import type { MainFeedParams, PostRead } from "@/scripts/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
 import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
 
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
-import { useRouter } from "expo-router";
 import { FlashList, type ViewToken } from "@shopify/flash-list";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 // ─── Dev / Default Location ───────────────────────────────────────────────────
 // TODO: replace with expo-location getCurrentPositionAsync() when ready
@@ -48,8 +44,8 @@ const DEV_LOCATION: MainFeedParams = {
   limit: 50,
 };
 
-// Module-scope so we don't recompute on every render.
-const CURRENT_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
+// CURRENT_USER_ID is now read from the auth store inside the component
+// so it reflects the logged-in user rather than a hardcoded env var.
 
 // Segregates FlashList recycler pools so a video cell never recycles to an
 // image cell (and vice versa). Without this, FlashList would reuse the same
@@ -100,7 +96,7 @@ export default function SocialsScreen() {
   // ─── Relationship status ───────────────────────────────────────────────────
   // Load who the current user already follows so Follow buttons initialise
   // correctly on every mount, not just after an in-session toggle.
-  const currentUserId = CURRENT_USER_ID;
+  const currentUserId = useAuthStore((s) => s.user?.id ?? "");
   const { data: followingList = [] } = useUserFollowing(currentUserId);
   const followingIds = useMemo(
     () => new Set(followingList.map((f) => f.following_id)),
@@ -516,27 +512,32 @@ export default function SocialsScreen() {
       return <FeedSkeleton />;
     }
     if (isError) {
-      // Pull the HTTP status and server message for easy debugging
       const axiosError = error as {
+        code?: string;
         response?: { status: number; data?: { detail?: string } };
       } | null;
+      const isTimeout =
+        axiosError?.code === "ECONNABORTED" ||
+        (error as Error)?.message?.toLowerCase().includes("timeout");
       const status = axiosError?.response?.status;
-      const detail =
-        axiosError?.response?.data?.detail ??
-        (error as Error)?.message ??
-        "Unknown error";
 
       return (
         <View style={styles.centered}>
-          <Ionicons name="cloud-offline-outline" size={48} color="#666666" />
-          <Text style={styles.emptyText}>Failed to load feed</Text>
-          {status ? (
-            <Text style={styles.errorDetail}>
-              {status} — {detail}
-            </Text>
-          ) : (
-            <Text style={styles.errorDetail}>{detail}</Text>
-          )}
+          <Ionicons
+            name={isTimeout ? "time-outline" : "cloud-offline-outline"}
+            size={48}
+            color="#666666"
+          />
+          <Text style={styles.emptyText}>
+            {isTimeout ? "Server taking too long" : "Could not load feed"}
+          </Text>
+          <Text style={styles.errorDetail}>
+            {isTimeout
+              ? "The feed server may be starting up. Please retry in a moment."
+              : status
+                ? `Error ${status} — check your connection and try again.`
+                : "Check your connection and try again."}
+          </Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => refetch()}
@@ -600,9 +601,7 @@ export default function SocialsScreen() {
         onRefresh={refetch}
         refreshing={isLoading && posts.length > 0}
         ListEmptyComponent={ListEmptyComponent}
-        ListFooterComponent={
-          isFetchingNextPage ? <PostCardSkeleton /> : null
-        }
+        ListFooterComponent={isFetchingNextPage ? <PostCardSkeleton /> : null}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={
           posts.length === 0 ? styles.emptyContainer : styles.feedContent

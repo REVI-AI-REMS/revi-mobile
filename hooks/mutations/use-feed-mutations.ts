@@ -1,15 +1,15 @@
 import { feedKeys } from "@/hooks/queries/use-feed";
 import { relationshipKeys } from "@/hooks/queries/use-relationships";
-import { interactionsService } from "@/services/social/interactions.service";
-import { postsService } from "@/services/social/posts.service";
-import { relationshipsService } from "@/services/social/relationships.service";
+import { interactionsService } from "@/scripts/services/social/interactions.service";
+import { postsService } from "@/scripts/services/social/posts.service";
+import { relationshipsService } from "@/scripts/services/social/relationships.service";
 import type {
     CommentCreate,
     CommentRead,
     FollowRead,
     PostCreate,
     PostRead,
-} from "@/services/social/types";
+} from "@/scripts/services/social/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 const CURRENT_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
@@ -240,7 +240,10 @@ export function useLikeCommentMutation() {
     onError: (_err, _vars, context) => {
       const ctx = context as { previousComments?: any[] } | undefined;
       if (ctx?.previousComments) {
-        queryClient.setQueryData(feedKeys.comments(_vars.postId), ctx.previousComments);
+        queryClient.setQueryData(
+          feedKeys.comments(_vars.postId),
+          ctx.previousComments,
+        );
       }
     },
   });
@@ -263,17 +266,22 @@ export function useDeleteCommentMutation() {
         Array.isArray(old) ? old.filter((c) => c.id !== commentId) : old,
       );
 
-      queryClient.setQueriesData<any>({ queryKey: feedKeys.all }, (data: any) => {
-        if (!data?.pages) return data;
-        return {
-          ...data,
-          pages: data.pages.map((page: PostRead[]) =>
-            page.map((p) =>
-              p.id === postId ? { ...p, comment_count: Math.max(0, p.comment_count - 1) } : p,
+      queryClient.setQueriesData<any>(
+        { queryKey: feedKeys.all },
+        (data: any) => {
+          if (!data?.pages) return data;
+          return {
+            ...data,
+            pages: data.pages.map((page: PostRead[]) =>
+              page.map((p) =>
+                p.id === postId
+                  ? { ...p, comment_count: Math.max(0, p.comment_count - 1) }
+                  : p,
+              ),
             ),
-          ),
-        };
-      });
+          };
+        },
+      );
 
       return { previous };
     },

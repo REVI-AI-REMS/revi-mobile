@@ -1,7 +1,7 @@
 import { ScreenHeader } from "@/components";
 import { colors, radius, spacing, typography } from "@/constants/design";
 import { useUpdateProfileMutation } from "@/hooks/mutations/use-auth";
-import { mediaService } from "@/services/social/media.service";
+import { mediaService } from "@/scripts/services/social/media.service";
 import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
@@ -9,17 +9,18 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
-const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=333&color=fff&name=U";
+const DEFAULT_AVATAR =
+  "https://ui-avatars.com/api/?background=333&color=fff&name=U";
 
 async function uploadImageToAzure(localUri: string): Promise<string> {
   const fileName = `avatar-${Date.now()}.jpg`;
@@ -28,12 +29,18 @@ async function uploadImageToAzure(localUri: string): Promise<string> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const { upload_url, blob_url } = await mediaService.getUploadUrl(fileName, "image/jpeg");
+      const { upload_url, blob_url } = await mediaService.getUploadUrl(
+        fileName,
+        "image/jpeg",
+      );
       const fileRes = await fetch(localUri);
       const blob = await fileRes.blob();
       const res = await fetch(upload_url, {
         method: "PUT",
-        headers: { "Content-Type": "image/jpeg", "x-ms-blob-type": "BlockBlob" },
+        headers: {
+          "Content-Type": "image/jpeg",
+          "x-ms-blob-type": "BlockBlob",
+        },
         body: blob,
       });
       if (!res.ok) throw new Error(`Azure PUT failed: ${res.status}`);
@@ -49,12 +56,15 @@ async function uploadImageToAzure(localUri: string): Promise<string> {
 export default function EditProfileScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const { mutate: updateProfile, isPending: isSaving } = useUpdateProfileMutation();
+  const { mutate: updateProfile, isPending: isSaving } =
+    useUpdateProfileMutation();
 
   const [firstName, setFirstName] = useState(user?.first_name ?? "");
   const [lastName, setLastName] = useState(user?.last_name ?? "");
   const [username, setUsername] = useState(user?.username ?? "");
-  const [avatarUri, setAvatarUri] = useState<string | null>(user?.avatar ?? null);
+  const [avatarUri, setAvatarUri] = useState<string | null>(
+    user?.avatar ?? null,
+  );
   const [pendingAvatarUrl, setPendingAvatarUrl] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
@@ -123,7 +133,8 @@ export default function EditProfileScreen() {
         },
         onError: (err: any) => {
           const detail = err?.response?.data?.detail;
-          const msg = typeof detail === "string" ? detail : "Could not save changes.";
+          const msg =
+            typeof detail === "string" ? detail : "Could not save changes.";
           Alert.alert("Error", msg);
         },
       },
@@ -132,12 +143,23 @@ export default function EditProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Edit Profile" onBackPress={() => router.back()} showBackButton />
+      <ScreenHeader
+        title="Edit Profile"
+        onBackPress={() => router.back()}
+        showBackButton
+      />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.body}>
           {/* Avatar */}
-          <TouchableOpacity onPress={pickImage} style={styles.avatarContainer} disabled={isUploadingAvatar}>
+          <TouchableOpacity
+            onPress={pickImage}
+            style={styles.avatarContainer}
+            disabled={isUploadingAvatar}
+          >
             <ExpoImage
               source={{ uri: avatarUri ?? DEFAULT_AVATAR }}
               style={styles.avatar}
@@ -204,7 +226,12 @@ export default function EditProfileScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email</Text>
               <View style={[styles.inputRow, styles.inputRowReadOnly]}>
-                <Ionicons name="mail-outline" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />
+                <Ionicons
+                  name="mail-outline"
+                  size={16}
+                  color={colors.textMuted}
+                  style={{ marginRight: 8 }}
+                />
                 <Text style={styles.inputReadOnly}>{user?.email ?? "—"}</Text>
               </View>
               <Text style={styles.hint}>Email cannot be changed here</Text>
@@ -212,7 +239,10 @@ export default function EditProfileScreen() {
           </View>
 
           <TouchableOpacity
-            style={[styles.saveButton, (isSaving || isUploadingAvatar) && styles.saveButtonDisabled]}
+            style={[
+              styles.saveButton,
+              (isSaving || isUploadingAvatar) && styles.saveButtonDisabled,
+            ]}
             onPress={handleSave}
             disabled={isSaving || isUploadingAvatar}
             activeOpacity={0.8}
