@@ -1,6 +1,10 @@
 import { queryClient } from "@/lib/queryClient";
-import { authService } from "@/services/auth.service";
-import type { AuthUser, LoginRequest, RegisterRequest } from "@/services/auth/types";
+import { authService } from "@/scripts/services/auth.service";
+import type {
+  AuthUser,
+  LoginRequest,
+  RegisterRequest,
+} from "@/scripts/services/auth/types";
 import { useAuthStore } from "@/stores/auth.store";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
@@ -118,7 +122,9 @@ export function useUpdateProfileMutation() {
       updates,
     }: {
       userId: string;
-      updates: Partial<Pick<AuthUser, "username" | "first_name" | "last_name" | "avatar">>;
+      updates: Partial<
+        Pick<AuthUser, "username" | "first_name" | "last_name" | "avatar">
+      >;
     }) => authService.updateUser(userId, updates),
     onSuccess: (updatedUser) => {
       updateUser(updatedUser);

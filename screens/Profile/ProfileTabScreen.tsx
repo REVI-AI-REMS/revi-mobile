@@ -1,6 +1,6 @@
 import { Fonts } from "@/constants/theme";
 import { useBookmarks, useSearch, useUserStats } from "@/hooks";
-import type { PostRead } from "@/services/social/types";
+import type { PostRead } from "@/scripts/services/social/types";
 import { useAuthStore } from "@/stores/auth.store";
 import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
@@ -10,13 +10,13 @@ import { useRouter } from "expo-router";
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Dimensions,
-  FlatList,
-  ListRenderItemInfo,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    Dimensions,
+    FlatList,
+    ListRenderItemInfo,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -72,8 +72,10 @@ const layout = {
   screenPadding: 16,
   minTouchTarget: 44,
   get gridThumbSize() {
-    return (SCREEN_WIDTH - (this.gridColumns - 1) * this.gridGap) / this.gridColumns;
-  }
+    return (
+      (SCREEN_WIDTH - (this.gridColumns - 1) * this.gridGap) / this.gridColumns
+    );
+  },
 };
 
 const NUM_COLUMNS = layout.gridColumns;
@@ -137,7 +139,11 @@ const GridThumbnail = React.memo(function GridThumbnail({
 
   useEffect(() => {
     if (!isVideo || localThumb || generatingRef.current) return;
-    if (post.media_type === "video_upload" && !post.media_url?.includes(".m3u8")) return; // still transcoding
+    if (
+      post.media_type === "video_upload" &&
+      !post.media_url?.includes(".m3u8")
+    )
+      return; // still transcoding
 
     generatingRef.current = true;
     generateVideoThumbnail(post.media_url)
@@ -148,8 +154,17 @@ const GridThumbnail = React.memo(function GridThumbnail({
         }
       })
       .catch(() => {})
-      .finally(() => { generatingRef.current = false; });
-  }, [isVideo, localThumb, post.media_url, post.media_type, post.id, setThumbnail]);
+      .finally(() => {
+        generatingRef.current = false;
+      });
+  }, [
+    isVideo,
+    localThumb,
+    post.media_url,
+    post.media_type,
+    post.id,
+    setThumbnail,
+  ]);
 
   const imageUri = isVideo ? localThumb : post.media_url;
 
@@ -166,7 +181,11 @@ const GridThumbnail = React.memo(function GridThumbnail({
         />
       ) : (
         <View style={styles.gridVideoPlaceholder}>
-          <Ionicons name="play-circle-outline" size={24} color="rgba(255,255,255,0.4)" />
+          <Ionicons
+            name="play-circle-outline"
+            size={24}
+            color="rgba(255,255,255,0.4)"
+          />
         </View>
       )}
       {isVideo && (
@@ -186,20 +205,14 @@ export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
 
   const user = useAuthStore((s) => s.user);
-  
+
   // Fetch user posts via search (using username)
   const { data: searchData } = useSearch(user?.username ?? "");
   const { data: bookmarksData } = useBookmarks();
   const { data: stats } = useUserStats(user?.id ?? null);
 
-  const gridPosts = useMemo(
-    () => searchData?.posts ?? [],
-    [searchData?.posts],
-  );
-  const savedPosts = useMemo(
-    () => bookmarksData ?? [],
-    [bookmarksData],
-  );
+  const gridPosts = useMemo(() => searchData?.posts ?? [], [searchData?.posts]);
+  const savedPosts = useMemo(() => bookmarksData ?? [], [bookmarksData]);
 
   const activePosts = activeTab === "saved" ? savedPosts : gridPosts;
 
@@ -224,10 +237,7 @@ export default function ProfileScreen() {
 
   const renderGridItem = useCallback(
     ({ item }: ListRenderItemInfo<PostRead>) => (
-      <GridThumbnail
-        post={item}
-        onPress={() => handlePostPress(item.id)}
-      />
+      <GridThumbnail post={item} onPress={() => handlePostPress(item.id)} />
     ),
     [handlePostPress],
   );
@@ -268,7 +278,10 @@ export default function ProfileScreen() {
             <StatItem value={stats?.follower_count ?? 0} label="Followers" />
             <StatItem value={stats?.following_count ?? 0} label="Following" />
           </View>
-          <Pressable style={styles.editProfileButton} onPress={handleEditProfile}>
+          <Pressable
+            style={styles.editProfileButton}
+            onPress={handleEditProfile}
+          >
             <Text style={styles.editProfileText}>Edit Profile</Text>
           </Pressable>
         </View>
@@ -294,14 +307,25 @@ export default function ProfileScreen() {
         </View>
       </View>
     ),
-    [user, gridPosts.length, stats, activeTab, handleTabPress, handleEditProfile],
+    [
+      user,
+      gridPosts.length,
+      stats,
+      activeTab,
+      handleTabPress,
+      handleEditProfile,
+    ],
   );
 
   const ListEmptyComponent = useMemo(
     () =>
       activeTab === "tagged" ? (
         <View style={styles.emptyState}>
-          <Ionicons name="pricetag-outline" size={48} color={colors.textMuted} />
+          <Ionicons
+            name="pricetag-outline"
+            size={48}
+            color={colors.textMuted}
+          />
           <Text style={styles.emptyStateTitle}>No tagged posts</Text>
           <Text style={styles.emptyStateSubtitle}>
             When people tag you in posts, they'll appear here.
@@ -309,7 +333,11 @@ export default function ProfileScreen() {
         </View>
       ) : activeTab === "saved" ? (
         <View style={styles.emptyState}>
-          <Ionicons name="bookmark-outline" size={48} color={colors.textMuted} />
+          <Ionicons
+            name="bookmark-outline"
+            size={48}
+            color={colors.textMuted}
+          />
           <Text style={styles.emptyStateTitle}>No saved posts</Text>
           <Text style={styles.emptyStateSubtitle}>
             Tap the bookmark icon on posts to save them here.
@@ -348,7 +376,9 @@ export default function ProfileScreen() {
         keyExtractor={keyExtractor}
         renderItem={renderGridItem}
         numColumns={NUM_COLUMNS}
-        columnWrapperStyle={activePosts.length > 0 ? columnWrapperStyle : undefined}
+        columnWrapperStyle={
+          activePosts.length > 0 ? columnWrapperStyle : undefined
+        }
         getItemLayout={getItemLayout}
         ListHeaderComponent={ListHeaderComponent}
         ListEmptyComponent={ListEmptyComponent}
@@ -388,7 +418,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
 
   // Scroll
   scrollContent: {

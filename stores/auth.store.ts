@@ -2,9 +2,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import { authService } from "@/services/auth.service";
-import { setAccessToken } from "@/services/auth/token-accessor";
-import type { AuthUser } from "@/services/auth/types";
+import { authService } from "@/scripts/services/auth.service";
+import { setAccessToken } from "@/scripts/services/auth/token-accessor";
+import type { AuthUser } from "@/scripts/services/auth/types";
 
 // ─── Re-export AuthUser for existing consumers ────────────────────────────────
 export type { AuthUser };
@@ -122,6 +122,23 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
+        // Stale dev tokens from a previous DEV_MODE=true session.
+        // Clear them so the user lands on the login screen instead of
+        // hitting 403 "could not validate credentials" on every API call.
+        if (
+          accessToken === "dev-access-token" ||
+          refreshToken === "dev-refresh-token"
+        ) {
+          set({
+            user: null,
+            accessToken: null,
+            refreshToken: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+          return;
+        }
+
         // ── Fast path ──────────────────────────────────────────────────────
         // Persisted tokens + user → unblock the UI immediately.
         // Token validity is verified lazily: the first API call that 401s
@@ -236,4 +253,3 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 );
-

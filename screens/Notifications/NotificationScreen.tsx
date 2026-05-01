@@ -1,21 +1,21 @@
 import { ScreenHeader } from "@/components";
 import { Fonts } from "@/constants/theme";
 import {
-  useMarkNotificationRead,
-  useNotifications,
+    useMarkNotificationRead,
+    useNotifications,
 } from "@/hooks/queries/use-notifications";
-import { NotificationRead } from "@/services/social/types";
+import { NotificationRead } from "@/scripts/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useRouter } from "expo-router";
 import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 dayjs.extend(relativeTime);

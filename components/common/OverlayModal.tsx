@@ -8,7 +8,9 @@ import {
 } from "@gorhom/bottom-sheet";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { Dimensions, Platform, StyleSheet, TouchableOpacity, View } from "react-native";
+
+const MAX_SHEET_HEIGHT = Dimensions.get("window").height * 0.8;
 
 interface OverlayModalProps {
   visible: boolean;
@@ -91,18 +93,29 @@ export default function OverlayModal({
       ref={ref}
       snapPoints={snapPoints}
       enableDynamicSizing={isAutoHeight}
+      // Cap auto-height sheets at 80% so they never cover the full screen.
+      maxDynamicContentSize={isAutoHeight ? MAX_SHEET_HEIGHT : undefined}
       enablePanDownToClose={false}
       onDismiss={handleDismiss}
       backdropComponent={renderBackdrop}
       backgroundStyle={styles.background}
       handleIndicatorStyle={styles.handle}
       handleStyle={styles.handleArea}
-      android_keyboardInputMode="adjustResize"
+      // ── Keyboard handling ────────────────────────────────────────────────
+      // iOS  → keyboardBehavior="extend" slides the sheet above the keyboard.
+      //        Do NOT combine with android_keyboardInputMode — they conflict.
+      // Android → android_keyboardInputMode="adjustResize" shrinks the modal
+      //           window by the keyboard height so the sheet repositions inside
+      //           the smaller space. No keyboardBehavior needed — the OS handles
+      //           it. adjustResize on the BottomSheetModal is more reliable than
+      //           the global softwareKeyboardLayoutMode for modal windows.
+      keyboardBehavior={isAutoHeight && Platform.OS === "ios" ? "extend" : undefined}
+      keyboardBlurBehavior={isAutoHeight && Platform.OS === "ios" ? "restore" : undefined}
+      android_keyboardInputMode={isAutoHeight ? "adjustResize" : undefined}
     >
       {isAutoHeight ? (
-        // collapsable={false} prevents Android's layout optimiser from
-        // skipping the height measurement pass — without it enableDynamicSizing
-        // gets a stale/zero height on Android and the sheet fills the screen.
+        // collapsable={false} forces Android to run the height measurement pass
+        // that enableDynamicSizing depends on.
         <BottomSheetView style={styles.content}>
           <View collapsable={false}>
             {closeButton}
