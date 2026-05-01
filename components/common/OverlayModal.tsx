@@ -1,16 +1,19 @@
-import { Ionicons } from "@expo/vector-icons";
-import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetScrollView,
-  BottomSheetView,
-  type BottomSheetBackdropProps,
-} from "@gorhom/bottom-sheet";
+import { BlurView } from "expo-blur";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Dimensions, Platform, StyleSheet, TouchableOpacity, View } from "react-native";
-
-const MAX_SHEET_HEIGHT = Dimensions.get("window").height * 0.8;
+import {
+  Dimensions,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal as RNModal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 interface OverlayModalProps {
   visible: boolean;
@@ -21,6 +24,16 @@ interface OverlayModalProps {
   dismissOnBackdrop?: boolean;
 }
 
+const { height: WINDOW_HEIGHT } = Dimensions.get("window");
+
+function resolveMaxHeight(height: number | string | undefined): number {
+  if (height === undefined || height === "auto") return WINDOW_HEIGHT * 0.9;
+  if (typeof height === "string" && height.endsWith("%")) {
+    return (WINDOW_HEIGHT * parseFloat(height)) / 100;
+  }
+  return Number(height);
+}
+
 export default function OverlayModal({
   visible,
   onClose,
@@ -29,127 +42,159 @@ export default function OverlayModal({
   height = "auto",
   dismissOnBackdrop = false,
 }: OverlayModalProps) {
-  const ref = useRef<BottomSheetModal>(null);
-  const isProgrammaticDismiss = useRef(false);
-  const hasEverPresented = useRef(false);
-  const isAutoHeight = height === "auto";
+  const insets = useSafeAreaInsets();
+  const maxHeight = resolveMaxHeight(height);
 
-  useEffect(() => {
-    if (visible) {
-      hasEverPresented.current = true;
-      isProgrammaticDismiss.current = false;
-      ref.current?.present();
-    } else if (hasEverPresented.current) {
-      isProgrammaticDismiss.current = true;
-      ref.current?.dismiss();
-    }
-  }, [visible]);
-
-  const handleCloseButton = useCallback(() => {
-    isProgrammaticDismiss.current = true;
-    ref.current?.dismiss();
-    onClose();
-  }, [onClose]);
-
-  const handleDismiss = useCallback(() => {
-    if (isProgrammaticDismiss.current) {
-      isProgrammaticDismiss.current = false;
-      return;
-    }
-    onClose();
-  }, [onClose]);
-
-  const snapPoints = useMemo(
-    () => (isAutoHeight ? undefined : [height as string | number]),
-    [height, isAutoHeight],
-  );
-
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        pressBehavior={dismissOnBackdrop ? "close" : "none"}
-        opacity={0.65}
-      />
-    ),
-    [dismissOnBackdrop],
-  );
-
-  const closeButton = showCloseButton ? (
-    <TouchableOpacity
-      style={styles.closeButton}
-      onPress={handleCloseButton}
-      activeOpacity={0.7}
-      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+  const content = (
+    <View
+      style={[
+        styles.sheetContent,
+        { paddingBottom: Math.max(insets.bottom, 20) },
+        { maxHeight },
+      ]}
     >
-      <Ionicons name="close" size={18} color="#FFFFFF" />
-    </TouchableOpacity>
-  ) : null;
+      {/* Drag handle indicator */}
+      <View style={styles.handle} />
+
+      {showCloseButton && (
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={onClose}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="close" size={18} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
+      <ScrollView
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={styles.scrollContent}
+      >
+        {children}
+      </ScrollView>
+    </View>
+  );
 
   return (
-    <BottomSheetModal
-      ref={ref}
-      snapPoints={snapPoints}
-      enableDynamicSizing={isAutoHeight}
-      // Cap auto-height sheets at 80% so they never cover the full screen.
-      maxDynamicContentSize={isAutoHeight ? MAX_SHEET_HEIGHT : undefined}
-      enablePanDownToClose={false}
-      onDismiss={handleDismiss}
-      backdropComponent={renderBackdrop}
-      backgroundStyle={styles.background}
-      handleIndicatorStyle={styles.handle}
-      handleStyle={styles.handleArea}
-      // ── Keyboard handling ────────────────────────────────────────────────
-      // iOS  → keyboardBehavior="extend" slides the sheet above the keyboard.
-      //        Do NOT combine with android_keyboardInputMode — they conflict.
-      // Android → android_keyboardInputMode="adjustResize" shrinks the modal
-      //           window by the keyboard height so the sheet repositions inside
-      //           the smaller space. No keyboardBehavior needed — the OS handles
-      //           it. adjustResize on the BottomSheetModal is more reliable than
-      //           the global softwareKeyboardLayoutMode for modal windows.
-      keyboardBehavior={isAutoHeight && Platform.OS === "ios" ? "extend" : undefined}
-      keyboardBlurBehavior={isAutoHeight && Platform.OS === "ios" ? "restore" : undefined}
-      android_keyboardInputMode={isAutoHeight ? "adjustResize" : undefined}
+    <RNModal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+      navigationBarTranslucent
     >
-      {isAutoHeight ? (
-        // collapsable={false} forces Android to run the height measurement pass
-        // that enableDynamicSizing depends on.
-        <BottomSheetView style={styles.content}>
-          <View collapsable={false}>
-            {closeButton}
-            {children}
-          </View>
-        </BottomSheetView>
-      ) : (
-        <BottomSheetScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          bounces={false}
+      <View style={styles.overlay}>
+        <TouchableWithoutFeedback onPress={dismissOnBackdrop ? onClose : Keyboard.dismiss}>
+          <View style={styles.backdropFill} />
+        </TouchableWithoutFeedback>
+
+        <KeyboardAvoidingView
+          behavior="padding"
+          keyboardVerticalOffset={0}
+          style={styles.kav}
         >
-          {closeButton}
-          {children}
-        </BottomSheetScrollView>
-      )}
-    </BottomSheetModal>
+          {/* Flex spacer fills all space above the sheet. minHeight: 80 means
+              at least 80px of backdrop is always visible above the sheet —
+              the sheet never reaches the very top of the screen. */}
+          <TouchableWithoutFeedback onPress={dismissOnBackdrop ? onClose : Keyboard.dismiss}>
+            <View style={styles.spacer} />
+          </TouchableWithoutFeedback>
+
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.sheetWrapper}>
+              {Platform.OS === "ios" ? (
+                <BlurView intensity={60} tint="dark" style={styles.blur}>
+                  {content}
+                </BlurView>
+              ) : (
+                <View style={styles.androidSheet}>
+                  <View style={styles.androidOverlay} />
+                  {content}
+                </View>
+              )}
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </View>
+    </RNModal>
   );
 }
 
+const RADIUS = 28;
+
 const styles = StyleSheet.create({
-  background: {
-    backgroundColor: "#1A1A1A",
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
+  overlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
-  handleArea: {
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
+  backdropFill: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  kav: {
+    flex: 1,
+  },
+  spacer: {
+    flex: 1,
+    minHeight: 80,
+  },
+  sheetWrapper: {
+    width: "100%",
+  },
+  blur: {
+    width: "100%",
+    borderTopLeftRadius: RADIUS,
+    borderTopRightRadius: RADIUS,
+    overflow: "hidden",
+  },
+  androidSheet: {
+    width: "100%",
+    borderTopLeftRadius: RADIUS,
+    borderTopRightRadius: RADIUS,
+    overflow: "hidden",
+    backgroundColor: "rgba(0,0,0,0.85)",
+    elevation: 24,
+  },
+  androidOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: RADIUS,
+    borderTopRightRadius: RADIUS,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(31,31,31,0.3)",
+  },
+  sheetContent: {
+    width: "100%",
+    backgroundColor:
+      Platform.OS === "ios" ? "rgba(28,28,30,0.75)" : "transparent",
+    borderTopLeftRadius: RADIUS,
+    borderTopRightRadius: RADIUS,
+    paddingTop: 32,
+    paddingHorizontal: 24,
+    minHeight: 200,
+  },
+  scrollContent: {
+    paddingBottom: 16,
   },
   handle: {
-    backgroundColor: "#3A3A3C",
     width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    alignSelf: "center",
+    marginBottom: 16,
   },
   closeButton: {
     position: "absolute",
@@ -159,13 +204,8 @@ const styles = StyleSheet.create({
     width: 35,
     height: 35,
     borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  content: {
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 48,
   },
 });

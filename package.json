@@ -23,6 +23,7 @@
     "axios": "^1.13.6",
     "dayjs": "^1.11.20",
     "expo": "^55",
+    "expo-blur": "~55.0.14",
     "expo-constants": "~55.0.15",
     "expo-dev-client": "~55.0.28",
     "expo-document-picker": "~55.0.13",

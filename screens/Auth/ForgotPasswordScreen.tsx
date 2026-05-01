@@ -9,18 +9,14 @@ import {
 } from "@/hooks/mutations/use-auth";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Alert,
-  Dimensions,
-  Keyboard,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
@@ -41,21 +37,6 @@ export default function ForgotPasswordScreen() {
   const [visible, setVisible] = useState(true);
   const [step, setStep] = useState<Step>("confirm");
   const [email, setEmail] = useState(userEmail);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const screenHeight = Dimensions.get("window").height;
-
-  useEffect(() => {
-    // keyboardWillShow only fires on iOS; Android needs keyboardDidShow
-    const show = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      (e) => setKeyboardHeight(e.endCoordinates.height),
-    );
-    const hide = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => setKeyboardHeight(0),
-    );
-    return () => { show.remove(); hide.remove(); };
-  }, []);
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -192,27 +173,17 @@ export default function ForgotPasswordScreen() {
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
 
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            contentContainerStyle={{
-              paddingBottom: Platform.OS === "ios" ? 34 : 50,
-            }}
-            bounces={false}
-          >
-            {step !== "success" && (
-              <View style={styles.header}>
-                <View style={styles.logoContainer}>
-                  <ReviaiLogo width={39} height={37} />
-                </View>
-                <Text style={styles.title}>{getTitle()}</Text>
-                <Text style={styles.subtitle}>{getSubtitle()}</Text>
-              </View>
-            )}
+        {step !== "success" && (
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <ReviaiLogo width={39} height={37} />
+            </View>
+            <Text style={styles.title}>{getTitle()}</Text>
+            <Text style={styles.subtitle}>{getSubtitle()}</Text>
+          </View>
+        )}
 
-            <View style={styles.formSection}>
+        <View style={styles.formSection}>
               {step === "confirm" && (
                 <View
                   style={[
@@ -419,15 +390,7 @@ export default function ForgotPasswordScreen() {
                 </TouchableOpacity>
               )}
 
-              {/* Spacer: grows the BottomSheetView when keyboard is open so the
-                  sheet auto-expands above the keyboard. Collapses when keyboard
-                  closes so the sheet shrinks back to content height. */}
-              {(step === "code" || step === "newPassword") && (
-                <View style={{ height: Math.max(0, keyboardHeight - 120) }} />
-              )}
-            </View>
-          </ScrollView>
-        </TouchableWithoutFeedback>
+        </View>
       </OverlayModal>
     </View>
   );
@@ -491,9 +454,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     paddingBottom: 16,
   },
-  formSection: {
-    flex: 1,
-  },
+  formSection: {},
   confirmText: {
     fontSize: 15,
     fontFamily: Fonts.regular,

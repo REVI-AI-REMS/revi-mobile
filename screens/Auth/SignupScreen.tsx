@@ -15,8 +15,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
-  Dimensions,
-  Keyboard,
   Platform,
   StyleSheet,
   Text,
@@ -53,27 +51,11 @@ export default function SignUpScreen() {
   const [resendTimer, setResendTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
 
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const screenHeight = Dimensions.get("window").height;
-
   useFocusEffect(
     useCallback(() => {
       setVisible(true);
     }, []),
   );
-
-  useEffect(() => {
-    // keyboardWillShow only fires on iOS; Android needs keyboardDidShow
-    const show = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      (e) => setKeyboardHeight(e.endCoordinates.height),
-    );
-    const hide = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => setKeyboardHeight(0),
-    );
-    return () => { show.remove(); hide.remove(); };
-  }, []);
 
   const { mutate: register, isPending: isRegistering } = useRegisterMutation();
   const { mutate: confirmVerification, isPending: isVerifying } =
@@ -482,9 +464,6 @@ export default function SignUpScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Keyboard spacer — grows the BottomSheetView when keyboard opens
-                so the sheet expands above the keyboard. Collapses on dismiss. */}
-            <View style={{ height: Math.max(0, keyboardHeight - 120) }} />
           </>
         )}
 
