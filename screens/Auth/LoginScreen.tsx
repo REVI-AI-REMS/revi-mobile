@@ -69,11 +69,7 @@ export default function LoginScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#0F0F10" }}>
-      <OverlayModal
-        visible={visible}
-        onClose={handleClose}
-        height={Platform.OS === "ios" ? "80%" : "70%"}
-      >
+      <OverlayModal visible={visible} onClose={handleClose} height="80%">
         {step === "password" && (
           <TouchableOpacity
             style={styles.backButton}
