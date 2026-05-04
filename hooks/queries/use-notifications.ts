@@ -1,4 +1,4 @@
-import { notificationsService } from "@/scripts/services/social/notifications.service";
+import { notificationsService } from "@/services/social/notifications.service";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const useNotifications = (skip = 0, limit = 50, isRead?: boolean) => {

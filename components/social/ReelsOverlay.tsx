@@ -1,7 +1,7 @@
 import { Fonts } from "@/constants/theme";
 import { useLikePostMutation } from "@/hooks/mutations/use-feed-mutations";
 
-import type { PostRead } from "@/scripts/services/social/types";
+import type { PostRead } from "@/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";

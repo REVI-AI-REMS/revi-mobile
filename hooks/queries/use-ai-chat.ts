@@ -1,12 +1,16 @@
+import { aiService } from "@/services/ai";
 import type {
-    ChatMessage,
-    ChatMessageListResponse,
-    ChatSession,
-    ChatSessionListResponse,
-    SendMessageArgs,
-} from "@/scripts/services/ai";
-import { aiService } from "@/scripts/services/ai";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+  ChatMessage,
+  ChatMessageListResponse,
+  ChatSession,
+  ChatSessionListResponse,
+  SendMessageArgs,
+} from "@/services/ai";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 // ─── Query keys ───────────────────────────────────────────────────────────
 
@@ -40,7 +44,11 @@ export function useCreateSessionMutation() {
 
 export function useRenameSessionMutation() {
   const queryClient = useQueryClient();
-  return useMutation<ChatSession, Error, { id: string; title: string }>({
+  return useMutation<
+    ChatSession,
+    Error,
+    { id: string; title: string }
+  >({
     mutationFn: ({ id, title }) => aiService.renameSession(id, title),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: aiKeys.sessions() });

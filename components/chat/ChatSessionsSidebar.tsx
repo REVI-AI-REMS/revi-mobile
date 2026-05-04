@@ -1,27 +1,27 @@
 import { Fonts } from "@/constants/theme";
 import {
-    useChatSessions,
-    useDeleteAllSessionsMutation,
-    useDeleteSessionMutation,
-    useRenameSessionMutation,
+  useChatSessions,
+  useDeleteAllSessionsMutation,
+  useDeleteSessionMutation,
+  useRenameSessionMutation,
 } from "@/hooks/queries/use-ai-chat";
-import type { ChatSession } from "@/scripts/services/ai";
+import type { ChatSession } from "@/services/ai";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -192,7 +192,9 @@ export default function ChatSessionsSidebar({
   return (
     <View style={[StyleSheet.absoluteFill, { zIndex: 1000 }]}>
       <TouchableWithoutFeedback onPress={onClose}>
-        <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]} />
+        <Animated.View
+          style={[styles.backdrop, { opacity: fadeAnim }]}
+        />
       </TouchableWithoutFeedback>
 
       <Animated.View
@@ -236,7 +238,9 @@ export default function ChatSessionsSidebar({
 
           {isError && !isLoading && (
             <View style={styles.centered}>
-              <Text style={styles.errorText}>Couldn't load conversations.</Text>
+              <Text style={styles.errorText}>
+                Couldn't load conversations.
+              </Text>
               <TouchableOpacity onPress={() => refetch()}>
                 <Text style={styles.retryText}>Retry</Text>
               </TouchableOpacity>
@@ -246,7 +250,9 @@ export default function ChatSessionsSidebar({
           {!isLoading && !isError && sessions.length === 0 && (
             <View style={styles.centered}>
               <Text style={styles.emptyText}>No conversations yet.</Text>
-              <Text style={styles.emptySub}>Ask Revi anything to start.</Text>
+              <Text style={styles.emptySub}>
+                Ask Revi anything to start.
+              </Text>
             </View>
           )}
 
@@ -260,7 +266,11 @@ export default function ChatSessionsSidebar({
               onPress={() => handleSessionPress(session.id)}
             >
               <View style={styles.sessionIconContainer}>
-                <Ionicons name="chatbubble-outline" size={20} color="#FFFFFF" />
+                <Ionicons
+                  name="chatbubble-outline"
+                  size={20}
+                  color="#FFFFFF"
+                />
               </View>
               <View style={styles.sessionContent}>
                 <Text style={styles.sessionTitle} numberOfLines={1}>
@@ -278,7 +288,11 @@ export default function ChatSessionsSidebar({
                   handleSessionMenu(session);
                 }}
               >
-                <Ionicons name="ellipsis-vertical" size={16} color="#666666" />
+                <Ionicons
+                  name="ellipsis-vertical"
+                  size={16}
+                  color="#666666"
+                />
               </TouchableOpacity>
             </TouchableOpacity>
           ))}

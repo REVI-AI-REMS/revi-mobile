@@ -6,6 +6,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { useState } from "react";
 import {
     Alert,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -68,7 +69,7 @@ export default function TellStoryModal({
     };
 
     return (
-        <OverlayModal visible={visible} onClose={onClose} height="80%">
+        <OverlayModal visible={visible} onClose={onClose} height="90%">
             <View style={styles.header}>
                 <Text style={styles.title}>{title}</Text>
                 <Text style={styles.subtitle}>
@@ -76,7 +77,10 @@ export default function TellStoryModal({
                 </Text>
             </View>
 
-            <View style={styles.scrollContent}>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+            >
                 {/* Email */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>Enter your email</Text>
@@ -140,7 +144,7 @@ export default function TellStoryModal({
                     onPress={handleSend}
                     style={styles.sendButton}
                 />
-            </View>
+            </ScrollView>
         </OverlayModal>
     );
 }

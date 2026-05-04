@@ -22,14 +22,10 @@ export {
 
 // ─── Mutation Hooks ──────────────────────────────────────────────────────────
 export {
-    useConfirmEmailVerificationMutation,
-    useConfirmPasswordResetMutation,
+    useForgotPasswordMutation,
     useLoginMutation,
     useLogoutMutation,
     useRegisterMutation,
-    useRequestEmailVerificationMutation,
-    useRequestPasswordResetMutation,
-    useVerifyPasswordResetOtpMutation,
 } from "./mutations/use-auth";
 
 export {

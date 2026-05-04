@@ -1,4 +1,3 @@
-import { getAccessToken } from "@/scripts/services/auth/token-accessor";
 import { useAuthStore } from "@/stores/auth.store";
 import axios from "axios";
 
@@ -17,58 +16,12 @@ export const aiClient = axios.create({
 });
 
 aiClient.interceptors.request.use((config) => {
-  const token = getAccessToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  const token = useAuthStore.getState().accessToken;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
-
-// Silent token refresh on 401 — same pattern as the social api.ts interceptor.
-let isRefreshing = false;
-let queue: Array<{
-  resolve: (t: string) => void;
-  reject: (e: unknown) => void;
-}> = [];
-
-const drain = (err: unknown, token?: string) => {
-  queue.forEach((p) => (err ? p.reject(err) : p.resolve(token!)));
-  queue = [];
-};
-
-aiClient.interceptors.response.use(
-  (r) => r,
-  async (error) => {
-    const orig = error.config as typeof error.config & { _retry?: boolean };
-    if (error.response?.status !== 401 || orig._retry)
-      return Promise.reject(error);
-
-    if (isRefreshing) {
-      return new Promise<string>((resolve, reject) =>
-        queue.push({ resolve, reject }),
-      ).then((token) => {
-        orig.headers.Authorization = `Bearer ${token}`;
-        return aiClient(orig);
-      });
-    }
-
-    orig._retry = true;
-    isRefreshing = true;
-    try {
-      const newToken = await useAuthStore.getState().refreshAccessToken();
-      if (!newToken) {
-        drain(error);
-        return Promise.reject(error);
-      }
-      drain(undefined, newToken);
-      orig.headers.Authorization = `Bearer ${newToken}`;
-      return aiClient(orig);
-    } catch (e) {
-      drain(e);
-      return Promise.reject(e);
-    } finally {
-      isRefreshing = false;
-    }
-  },
-);
 
 // Mirror the social api's dev-only debug log so requests are visible in
 // Metro when something misbehaves. Warn (not error) so LogBox doesn't flash

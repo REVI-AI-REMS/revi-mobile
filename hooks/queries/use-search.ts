@@ -1,5 +1,5 @@
-import type { SearchResult } from "@/scripts/services/social/search.service";
-import { searchService } from "@/scripts/services/social/search.service";
+import { searchService } from "@/services/social/search.service";
+import type { SearchResult } from "@/services/social/search.service";
 import { useQuery } from "@tanstack/react-query";
 
 export const searchKeys = {

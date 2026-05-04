@@ -1,7 +1,6 @@
 import { ScreenHeader } from "@/components";
 import { colors, layout, radius, spacing, typography } from "@/constants/design";
 import { formatCount } from "@/data/mock";
-import { useUserStats } from "@/hooks/queries/use-relationships";
 import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
@@ -13,7 +12,6 @@ const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=333&color=fff&nam
 export default function MyProfileScreen() {
     const router = useRouter();
     const user = useAuthStore((s) => s.user);
-    const { data: stats } = useUserStats(user?.id);
 
     const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "No name set";
 
@@ -62,11 +60,11 @@ export default function MyProfileScreen() {
                     {/* Stats */}
                     <View style={styles.statsRow}>
                         <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>{formatCount(stats?.follower_count ?? 0)}</Text>
+                            <Text style={styles.statNumber}>{formatCount(0)}</Text>
                             <Text style={styles.statLabel}>Followers</Text>
                         </View>
                         <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>{formatCount(stats?.following_count ?? 0)}</Text>
+                            <Text style={styles.statNumber}>{formatCount(0)}</Text>
                             <Text style={styles.statLabel}>Following</Text>
                         </View>
                         <View style={styles.statItem}>

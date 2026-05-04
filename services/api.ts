@@ -7,12 +7,13 @@ const BASE_URL =
 
 export const api = axios.create({
   baseURL: BASE_URL,
-  // 20s timeout. Azure Container Apps cold-start takes 15-25s on first
-  // wake, but if the server is completely unreachable (e.g. crashed or
-  // scaled-to-zero with no recovery) 45s leaves users staring at a spinner.
-  // 20s is long enough for a normal cold-start and short enough to surface
-  // a proper error quickly when the server is down.
-  timeout: 20_000,
+  // 45s timeout — Azure Container Apps scale-to-zero cold starts typically
+  // take 15-25s. A short 15s timeout was forcing every cold boot to fail
+  // and rely on React Query retries, which flooded the logs with network
+  // errors and added retry delay on top. 45s lets the first request ride
+  // out the cold start so the user waits once, quietly. Warm responses
+  // still return in <1s and never come close to this ceiling.
+  timeout: 45_000,
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",

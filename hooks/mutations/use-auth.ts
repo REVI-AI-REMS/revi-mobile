@@ -1,15 +1,14 @@
 import { queryClient } from "@/lib/queryClient";
-import { authService } from "@/scripts/services/auth.service";
-import type {
-  AuthUser,
-  LoginRequest,
-  RegisterRequest,
-} from "@/scripts/services/auth/types";
+import { authService } from "@/services/auth.service";
+import type { AuthUser, LoginRequest, RegisterRequest } from "@/services/auth/types";
 import { useAuthStore } from "@/stores/auth.store";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 
 // ─── Dev-mode mock user ───────────────────────────────────────────────────────
+// When EXPO_PUBLIC_DEV_MODE=true the auth backend is not used.
+// We set a synthetic user whose id matches EXPO_PUBLIC_DEV_USER_ID so that
+// the social API's X-Dev-User-Id header stays consistent.
 const DEV_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "dev-user";
 const DEV_MOCK_USER: AuthUser = {
   id: DEV_USER_ID,
@@ -34,6 +33,8 @@ const DEV_MOCK_USER: AuthUser = {
 };
 
 // ─── Login ────────────────────────────────────────────────────────────────────
+// In dev mode: bypass the real auth backend and set mock state immediately.
+// In production: call POST /auth/login and persist the returned tokens + user.
 
 export function useLoginMutation() {
   const setTokens = useAuthStore((s) => s.setTokens);
@@ -43,6 +44,7 @@ export function useLoginMutation() {
   return useMutation({
     mutationFn: async (payload: LoginRequest) => {
       if (isDev) {
+        // Skip the real API — return synthetic tokens + the mock user
         return {
           access_token: "dev-access-token",
           refresh_token: "dev-refresh-token",
@@ -60,6 +62,7 @@ export function useLoginMutation() {
 }
 
 // ─── Register ─────────────────────────────────────────────────────────────────
+// Returns the new AuthUser. The caller is responsible for auto-login.
 
 export function useRegisterMutation() {
   return useMutation({
@@ -67,97 +70,30 @@ export function useRegisterMutation() {
   });
 }
 
-// ─── Email Verification ───────────────────────────────────────────────────────
-
-export function useRequestEmailVerificationMutation() {
-  return useMutation({
-    mutationFn: (email: string) => authService.requestEmailVerification(email),
-  });
-}
-
-export function useConfirmEmailVerificationMutation() {
-  return useMutation({
-    mutationFn: ({ email, otp }: { email: string; otp: string }) =>
-      authService.confirmEmailVerification(email, otp),
-  });
-}
-
-// ─── Password Reset ───────────────────────────────────────────────────────────
-
-export function useRequestPasswordResetMutation() {
-  return useMutation({
-    mutationFn: (email: string) => authService.requestPasswordReset(email),
-  });
-}
-
-export function useVerifyPasswordResetOtpMutation() {
-  return useMutation({
-    mutationFn: ({ email, otp }: { email: string; otp: string }) =>
-      authService.verifyPasswordResetOtp(email, otp),
-  });
-}
-
-export function useConfirmPasswordResetMutation() {
-  return useMutation({
-    mutationFn: ({
-      email,
-      otp,
-      new_password,
-    }: {
-      email: string;
-      otp: string;
-      new_password: string;
-    }) => authService.confirmPasswordReset(email, otp, new_password),
-  });
-}
-
-// ─── Update Profile ───────────────────────────────────────────────────────────
-
-export function useUpdateProfileMutation() {
-  const updateUser = useAuthStore((s) => s.updateUser);
-
-  return useMutation({
-    mutationFn: ({
-      userId,
-      updates,
-    }: {
-      userId: string;
-      updates: Partial<
-        Pick<AuthUser, "username" | "first_name" | "last_name" | "avatar">
-      >;
-    }) => authService.updateUser(userId, updates),
-    onSuccess: (updatedUser) => {
-      updateUser(updatedUser);
-    },
-  });
-}
-
-// ─── Change Password ──────────────────────────────────────────────────────────
-
-export function useChangePasswordMutation() {
-  return useMutation({
-    mutationFn: ({
-      current_password,
-      new_password,
-    }: {
-      current_password: string;
-      new_password: string;
-    }) => authService.changePassword(current_password, new_password),
-  });
-}
-
 // ─── Logout ───────────────────────────────────────────────────────────────────
+// No server-side logout endpoint — just clear local state.
 
 export function useLogoutMutation() {
   const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
 
   return useMutation({
-    mutationFn: async () => {},
+    mutationFn: async () => {
+      /* no logout endpoint on this backend */
+    },
     onSettled: () => {
       logout();
+      // Wipe all cached server state so no stale data bleeds into next session
       queryClient.clear();
       router.replace("/login");
     },
+  });
+}
+
+// ─── Forgot Password ─────────────────────────────────────────────────────────
+
+export function useForgotPasswordMutation() {
+  return useMutation({
+    mutationFn: (email: string) => authService.forgotPassword(email),
   });
 }

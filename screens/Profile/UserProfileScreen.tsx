@@ -4,20 +4,20 @@ import { formatCount } from "@/data/mock";
 import { useSearch, useUserStats } from "@/hooks";
 import { useFollowMutation } from "@/hooks/mutations/use-feed-mutations";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
-import type { PostRead } from "@/scripts/services/social/types";
+import type { PostRead } from "@/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as React from "react";
 import { useCallback, useMemo } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    ListRenderItemInfo,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  FlatList,
+  ListRenderItemInfo,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -29,8 +29,7 @@ const GRID_GAP = layout.gridGap;
 const THUMB_SIZE = layout.gridThumbSize;
 const AVATAR_SIZE = 80;
 
-const DEFAULT_AVATAR =
-  "https://ui-avatars.com/api/?background=333&color=fff&name=U";
+const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=333&color=fff&name=U";
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
@@ -74,11 +73,7 @@ const GridThumbnail = React.memo(function GridThumbnail({
         />
       ) : (
         <View style={styles.gridVideoPlaceholder}>
-          <Ionicons
-            name="play-circle-outline"
-            size={24}
-            color="rgba(255,255,255,0.4)"
-          />
+          <Ionicons name="play-circle-outline" size={24} color="rgba(255,255,255,0.4)" />
         </View>
       )}
       {isVideo && (
@@ -166,22 +161,14 @@ export default function UserProfileScreen() {
 
           {currentUserId && currentUserId !== userId && (
             <Pressable
-              style={[
-                styles.followButton,
-                isFollowing && styles.followButtonOutline,
-              ]}
+              style={[styles.followButton, isFollowing && styles.followButtonOutline]}
               onPress={handleFollowToggle}
               disabled={followMutation.isPending}
             >
               {followMutation.isPending ? (
                 <ActivityIndicator size="small" color={colors.textPrimary} />
               ) : (
-                <Text
-                  style={[
-                    styles.followButtonText,
-                    isFollowing && styles.followButtonTextOutline,
-                  ]}
-                >
+                <Text style={[styles.followButtonText, isFollowing && styles.followButtonTextOutline]}>
                   {isFollowing ? "Unfollow" : "Follow"}
                 </Text>
               )}
@@ -194,15 +181,7 @@ export default function UserProfileScreen() {
         </View>
       </View>
     ),
-    [
-      displayName,
-      gridPosts.length,
-      stats,
-      isFollowing,
-      handleFollowToggle,
-      followMutation.isPending,
-      userId,
-    ],
+    [displayName, gridPosts.length, stats, isFollowing, handleFollowToggle, followMutation.isPending, userId],
   );
 
   const ListEmptyComponent = useMemo(
@@ -229,9 +208,7 @@ export default function UserProfileScreen() {
         keyExtractor={keyExtractor}
         renderItem={renderGridItem}
         numColumns={NUM_COLUMNS}
-        columnWrapperStyle={
-          gridPosts.length > 0 ? columnWrapperStyle : undefined
-        }
+        columnWrapperStyle={gridPosts.length > 0 ? columnWrapperStyle : undefined}
         getItemLayout={getItemLayout}
         ListHeaderComponent={ListHeaderComponent}
         ListEmptyComponent={ListEmptyComponent}

@@ -1,5 +1,5 @@
-import { adsService } from "@/scripts/services/social/ads.service";
-import { AdCampaignCreate } from "@/scripts/services/social/types";
+import { adsService } from "@/services/social/ads.service";
+import { AdCampaignCreate } from "@/services/social/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const useAdCampaigns = () => {

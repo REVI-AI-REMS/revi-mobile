@@ -4,23 +4,28 @@ import { PostOptionsSheet } from "@/components/social/PostOptionsSheet";
 import { ReelsOverlay } from "@/components/social/ReelsOverlay";
 import { Fonts } from "@/constants/theme";
 import {
-    useFollowMutation,
-    useLikePostMutation,
+  useFollowMutation,
+  useLikePostMutation,
 } from "@/hooks/mutations/use-feed-mutations";
 import {
-    useBookmarkMutation,
-    useBookmarks,
-    useRemoveBookmarkMutation,
+  useBookmarkMutation,
+  useBookmarks,
+  useRemoveBookmarkMutation,
 } from "@/hooks/queries/use-bookmarks";
 import { usePost } from "@/hooks/queries/use-feed";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
 import { useFeedVideoPlayer } from "@/hooks/use-feed-video-player";
-import { PostRead } from "@/scripts/services/social/types";
+import { PostRead } from "@/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const CURRENT_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
@@ -112,11 +117,11 @@ export default function PostDetailScreen() {
   // shared store also keeps the Social feed's video paused while the user
   // is in detail view.
   const setActiveVideoId = useVideoStore((s) => s.setActiveVideoId);
-  const postIsVideo =
-    !!post &&
-    (post.media_type === "video" ||
-      post.media_type === "video_upload" ||
-      !!post.media_url?.includes(".m3u8"));
+  const postIsVideo = !!post && (
+    post.media_type === "video" ||
+    post.media_type === "video_upload" ||
+    !!post.media_url?.includes(".m3u8")
+  );
   useEffect(() => {
     if (post && postIsVideo) setActiveVideoId(post.id);
     return () => setActiveVideoId(null);
@@ -155,7 +160,10 @@ export default function PostDetailScreen() {
         />
         <Ionicons name="alert-circle-outline" size={48} color="#FF6B6B" />
         <Text style={styles.errorText}>Post not found or failed to load</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => refetch()}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </SafeAreaView>

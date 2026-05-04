@@ -1,27 +1,27 @@
 import OverlayModal from "@/components/common/OverlayModal";
 import { Fonts } from "@/constants/theme";
 import {
-    useAddCommentMutation,
-    useDeleteCommentMutation,
+  useAddCommentMutation,
+  useDeleteCommentMutation,
 } from "@/hooks/mutations/use-feed-mutations";
 import { useComments } from "@/hooks/queries/use-feed";
-import type { CommentRead } from "@/scripts/services/social/types";
+import type { CommentRead } from "@/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
 } from "react-native-reanimated";
 import { formatRelativeTime } from "./PostCard";
 
@@ -113,11 +113,14 @@ export function CommentsSheet({
     [postId, deleteComment],
   );
 
-  const handleReply = useCallback((commentId: string, authorId: string) => {
-    setReplyTo({ id: commentId, author: shortHandle(authorId) });
-    setText("");
-    setTimeout(() => inputRef.current?.focus(), 100);
-  }, []);
+  const handleReply = useCallback(
+    (commentId: string, authorId: string) => {
+      setReplyTo({ id: commentId, author: shortHandle(authorId) });
+      setText("");
+      setTimeout(() => inputRef.current?.focus(), 100);
+    },
+    [],
+  );
 
   const handleCancelReply = useCallback(() => {
     setReplyTo(null);
@@ -220,7 +223,9 @@ export function CommentsSheet({
       {/* Title + count */}
       <View style={styles.titleRow}>
         <Text style={styles.title}>Comments</Text>
-        {countLabel && <Text style={styles.countLabel}>{countLabel}</Text>}
+        {countLabel && (
+          <Text style={styles.countLabel}>{countLabel}</Text>
+        )}
       </View>
       <View style={styles.divider} />
 
@@ -232,7 +237,11 @@ export function CommentsSheet({
       ) : comments.length === 0 ? (
         <View style={styles.stateBox}>
           <View style={styles.emptyHalo}>
-            <Ionicons name="chatbubble-outline" size={28} color="#8E8E93" />
+            <Ionicons
+              name="chatbubble-outline"
+              size={28}
+              color="#8E8E93"
+            />
           </View>
           <Text style={styles.emptyTitle}>No comments yet</Text>
           <Text style={styles.emptySubtitle}>
@@ -274,7 +283,12 @@ export function CommentsSheet({
       {/* Input */}
       <View style={styles.inputRow}>
         <Avatar author={currentUserId} size={30} />
-        <View style={[styles.inputWrap, isFocused && styles.inputWrapFocused]}>
+        <View
+          style={[
+            styles.inputWrap,
+            isFocused && styles.inputWrapFocused,
+          ]}
+        >
           <TextInput
             ref={inputRef}
             style={styles.input}

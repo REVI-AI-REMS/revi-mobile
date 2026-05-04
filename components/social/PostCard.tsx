@@ -1,6 +1,6 @@
 import { colors, radius, spacing, typography } from "@/constants/design";
 import { Fonts } from "@/constants/theme";
-import type { PostRead } from "@/scripts/services/social/types";
+import type { PostRead } from "@/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,23 +8,23 @@ import { Image } from "expo-image";
 import { VideoView, type VideoPlayer } from "expo-video";
 import { memo, useEffect, useRef, useState } from "react";
 import {
-    Dimensions,
-    Modal,
-    Platform,
-    ScrollView,
-    Share,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  Modal,
+  Platform,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withSequence,
-    withSpring,
-    withTiming,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
 } from "react-native-reanimated";
 import { LikesSheet } from "./LikesSheet";
 
@@ -169,9 +169,7 @@ function PostCardComponent({
   const isVideo =
     post.media_type === "video" ||
     post.media_type === "video_upload" ||
-    (post.media_url &&
-      typeof post.media_url === "string" &&
-      post.media_url.includes(".m3u8"));
+    (post.media_url && typeof post.media_url === 'string' && post.media_url.includes(".m3u8"));
   const isTranscoded =
     post.media_type === "video" || post.media_url?.includes(".m3u8");
   const isProcessing = post.media_type === "video_upload" && !isTranscoded;
@@ -248,15 +246,7 @@ function PostCardComponent({
     return () => {
       cancelled = true;
     };
-  }, [
-    isVideo,
-    isProcessing,
-    thumbnailUri,
-    thumbnailFailed,
-    post.id,
-    post.media_url,
-    setThumbnail,
-  ]);
+  }, [isVideo, isProcessing, thumbnailUri, thumbnailFailed, post.id, post.media_url, setThumbnail]);
 
   // Heart pulse animation on like
   const heartScale = useSharedValue(1);
@@ -397,14 +387,8 @@ function PostCardComponent({
                       </>
                     ) : isProcessing ? (
                       <View style={styles.videoPlaceholder}>
-                        <Ionicons
-                          name="time-outline"
-                          size={32}
-                          color="#FFFFFF"
-                        />
-                        <Text style={styles.videoPlaceholderText}>
-                          Processing video...
-                        </Text>
+                        <Ionicons name="time-outline" size={32} color="#FFFFFF" />
+                        <Text style={styles.videoPlaceholderText}>Processing video...</Text>
                       </View>
                     ) : (
                       <Image
@@ -530,9 +514,7 @@ function PostCardComponent({
 
           <TouchableOpacity style={styles.actionButton}>
             <Ionicons name="eye-outline" size={24} color="#FFFFFF" />
-            <Text style={styles.actionText}>
-              {formatCount(post.view_count)}
-            </Text>
+            <Text style={styles.actionText}>{formatCount(post.view_count)}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -652,13 +634,12 @@ function PostCardComponent({
         </View>
       </Modal>
 
-      {showLikes && (
-        <LikesSheet
-          postId={post.id}
-          likeCount={Math.max(post.like_count, liked ? 1 : 0)}
-          onClose={() => setShowLikes(false)}
-        />
-      )}
+      {/* Likes sheet */}
+      <LikesSheet
+        postId={showLikes ? post.id : null}
+        likeCount={Math.max(post.like_count, liked ? 1 : 0)}
+        onClose={() => setShowLikes(false)}
+      />
     </>
   );
 }
