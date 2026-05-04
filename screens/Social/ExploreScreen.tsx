@@ -1,34 +1,40 @@
 import { Fonts } from "@/constants/theme";
 import { useMainFeed } from "@/hooks/queries/use-feed";
 import { useSearch } from "@/hooks/queries/use-search";
-import type { PostRead, UserSync } from "@/services/social/types";
+import type { PostRead, UserSync } from "@/scripts/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  Keyboard,
-  ListRenderItemInfo,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    Keyboard,
+    ListRenderItemInfo,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import Animated, {
-  FadeIn,
-  FadeOut,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
+    FadeIn,
+    FadeOut,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -80,7 +86,8 @@ const GRID_GAP = 2;
 const SCREEN_PADDING = 0; // The grid typically spans full width
 const THUMB_SIZE = (SCREEN_WIDTH - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
 
-const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=333&color=fff&name=U";
+const DEFAULT_AVATAR =
+  "https://ui-avatars.com/api/?background=333&color=fff&name=U";
 const DEFAULT_BLURHASH = "L6Pj0^jE.AyE_3t7t7R**0o#DgR4";
 
 // ─── Dev location (match social feed) ────────────────────────────────────────
@@ -98,15 +105,18 @@ const SkeletonGrid = React.memo(function SkeletonGrid() {
   const items = Array.from({ length: 12 }, (_, i) => i);
   return (
     <View style={styles.skeletonContainer}>
-      {Array.from({ length: Math.ceil(items.length / NUM_COLUMNS) }, (_, row) => (
-        <View key={row} style={styles.skeletonRow}>
-          {items
-            .slice(row * NUM_COLUMNS, row * NUM_COLUMNS + NUM_COLUMNS)
-            .map((i) => (
-              <View key={i} style={styles.skeletonThumb} />
-            ))}
-        </View>
-      ))}
+      {Array.from(
+        { length: Math.ceil(items.length / NUM_COLUMNS) },
+        (_, row) => (
+          <View key={row} style={styles.skeletonRow}>
+            {items
+              .slice(row * NUM_COLUMNS, row * NUM_COLUMNS + NUM_COLUMNS)
+              .map((i) => (
+                <View key={i} style={styles.skeletonThumb} />
+              ))}
+          </View>
+        ),
+      )}
     </View>
   );
 });
@@ -133,7 +143,7 @@ const GridThumbnail = React.memo(function GridThumbnail({
   // cannot render as a still. Pull a generated frame from the video store
   // (same store the Social feed populates) or generate one on first render.
   const thumbnailUri = useVideoStore((s) =>
-    isVideo ? s.thumbnails[post.id] ?? null : null,
+    isVideo ? (s.thumbnails[post.id] ?? null) : null,
   );
   const setThumbnail = useVideoStore((s) => s.setThumbnail);
   const [thumbFailed, setThumbFailed] = useState(false);
@@ -149,7 +159,14 @@ const GridThumbnail = React.memo(function GridThumbnail({
     return () => {
       cancelled = true;
     };
-  }, [isVideo, thumbnailUri, thumbFailed, post.id, post.media_url, setThumbnail]);
+  }, [
+    isVideo,
+    thumbnailUri,
+    thumbFailed,
+    post.id,
+    post.media_url,
+    setThumbnail,
+  ]);
 
   const imageSource = isVideo ? thumbnailUri : post.media_url;
 
@@ -187,11 +204,18 @@ interface UserChipProps {
   onPress?: () => void;
 }
 
-const UserChip = React.memo(function UserChip({ user, onPress }: UserChipProps) {
+const UserChip = React.memo(function UserChip({
+  user,
+  onPress,
+}: UserChipProps) {
   const initials = (user.first_name?.[0] ?? "") + (user.last_name?.[0] ?? "");
 
   return (
-    <TouchableOpacity style={styles.userChip} activeOpacity={0.7} onPress={onPress}>
+    <TouchableOpacity
+      style={styles.userChip}
+      activeOpacity={0.7}
+      onPress={onPress}
+    >
       {user.avatar ? (
         <Image
           source={{ uri: user.avatar }}
@@ -202,7 +226,9 @@ const UserChip = React.memo(function UserChip({ user, onPress }: UserChipProps) 
         />
       ) : (
         <View style={[styles.userChipAvatar, styles.userAvatarPlaceholder]}>
-          <Text style={styles.userAvatarText}>{initials || user.username?.[0]?.toUpperCase() || "?"}</Text>
+          <Text style={styles.userAvatarText}>
+            {initials || user.username?.[0]?.toUpperCase() || "?"}
+          </Text>
         </View>
       )}
       <Text style={styles.userChipName} numberOfLines={1}>
@@ -286,7 +312,8 @@ export default function ExploreScreen() {
         if (v) {
           try {
             const parsed = JSON.parse(v);
-            if (Array.isArray(parsed)) setHistory(parsed.filter((x) => typeof x === "string"));
+            if (Array.isArray(parsed))
+              setHistory(parsed.filter((x) => typeof x === "string"));
           } catch {
             // corrupt — ignore
           }
@@ -305,10 +332,7 @@ export default function ExploreScreen() {
   }, [history, historyLoaded]);
 
   // Main feed data (useInfiniteQuery — flatten pages)
-  const {
-    data: feedData,
-    isLoading: feedLoading,
-  } = useMainFeed(DEV_LOCATION);
+  const { data: feedData, isLoading: feedLoading } = useMainFeed(DEV_LOCATION);
 
   const feedPosts = React.useMemo(
     () => feedData?.pages.flat() ?? [],
@@ -421,7 +445,9 @@ export default function ExploreScreen() {
     const t = query.trim();
     if (!t) return;
     // Move to front if already present, otherwise prepend. Cap at HISTORY_MAX.
-    setHistory((prev) => [t, ...prev.filter((h) => h !== t)].slice(0, HISTORY_MAX));
+    setHistory((prev) =>
+      [t, ...prev.filter((h) => h !== t)].slice(0, HISTORY_MAX),
+    );
   }, [query]);
 
   const handleUserPress = useCallback(
@@ -448,18 +474,17 @@ export default function ExploreScreen() {
     ({ item }: ListRenderItemInfo<PostRead>) => (
       <GridThumbnail
         post={item}
-        onPress={() => router.push({ pathname: "/post/[id]", params: { id: item.id } })}
+        onPress={() =>
+          router.push({ pathname: "/post/[id]", params: { id: item.id } })
+        }
       />
     ),
-    [router]
+    [router],
   );
 
   const gridKeyExtractor = useCallback((item: PostRead) => item.id, []);
 
-  const columnWrapperStyle = useMemo(
-    () => ({ gap: GRID_GAP }),
-    []
-  );
+  const columnWrapperStyle = useMemo(() => ({ gap: GRID_GAP }), []);
 
   const getItemLayout = useCallback(
     (_data: ArrayLike<PostRead> | null | undefined, index: number) => ({
@@ -467,7 +492,7 @@ export default function ExploreScreen() {
       offset: (THUMB_SIZE + GRID_GAP) * Math.floor(index / NUM_COLUMNS),
       index,
     }),
-    []
+    [],
   );
 
   // ---- Search results content ------------------------------------------------
@@ -519,7 +544,9 @@ export default function ExploreScreen() {
         data={filteredPosts}
         keyExtractor={gridKeyExtractor}
         numColumns={NUM_COLUMNS}
-        columnWrapperStyle={filteredPosts.length > 0 ? columnWrapperStyle : undefined}
+        columnWrapperStyle={
+          filteredPosts.length > 0 ? columnWrapperStyle : undefined
+        }
         renderItem={renderGridItem}
         getItemLayout={getItemLayout}
         showsVerticalScrollIndicator={false}
@@ -559,9 +586,7 @@ export default function ExploreScreen() {
             )}
 
             {/* Posts section header */}
-            {filteredPosts.length > 0 && (
-              <SectionHeader title="Posts" />
-            )}
+            {filteredPosts.length > 0 && <SectionHeader title="Posts" />}
           </>
         }
       />
@@ -620,9 +645,15 @@ export default function ExploreScreen() {
         //   <SectionHeader title="Explore" />
         // }
         ListEmptyComponent={
-          feedLoading ? <SkeletonGrid /> : (
+          feedLoading ? (
+            <SkeletonGrid />
+          ) : (
             <View style={styles.center}>
-              <Ionicons name="images-outline" size={48} color={colors.textMuted} />
+              <Ionicons
+                name="images-outline"
+                size={48}
+                color={colors.textMuted}
+              />
               <Text style={styles.hint}>No posts yet</Text>
             </View>
           )
@@ -635,20 +666,13 @@ export default function ExploreScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header row */}
       <View style={styles.headerRow}>
-
-
         <Text style={styles.headerTitle}>Search</Text>
-
       </View>
 
       {/* Search bar area */}
       <View style={styles.searchBarContainer}>
         <View style={styles.searchBar}>
-          <Ionicons
-            name="search"
-            size={20}
-            color={colors.textTertiary}
-          />
+          <Ionicons name="search" size={20} color={colors.textTertiary} />
           <TextInput
             ref={inputRef}
             style={styles.searchInput}

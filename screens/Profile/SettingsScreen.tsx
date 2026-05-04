@@ -1,5 +1,6 @@
 import { ScreenHeader } from "@/components";
 import { colors, radius, spacing, typography } from "@/constants/design";
+import { useChangePasswordMutation } from "@/hooks/mutations/use-auth";
 import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
@@ -92,6 +93,39 @@ export default function SettingsScreen() {
     const router = useRouter();
     const user = useAuthStore((s) => s.user);
     const logout = useAuthStore((s) => s.logout);
+    const { mutate: changePassword } = useChangePasswordMutation();
+
+    const handleChangePassword = () => {
+      Alert.prompt(
+        "Current Password",
+        "Enter your current password",
+        (currentPwd) => {
+          if (!currentPwd) return;
+          Alert.prompt(
+            "New Password",
+            "Enter your new password (min 8 characters)",
+            (newPwd) => {
+              if (!newPwd || newPwd.length < 8) {
+                Alert.alert("Invalid", "New password must be at least 8 characters.");
+                return;
+              }
+              changePassword(
+                { current_password: currentPwd, new_password: newPwd },
+                {
+                  onSuccess: () => Alert.alert("Success", "Your password has been changed."),
+                  onError: (err: any) => {
+                    const d = err?.response?.data?.detail;
+                    Alert.alert("Error", typeof d === "string" ? d : "Could not change password.");
+                  },
+                },
+              );
+            },
+            "secure-text",
+          );
+        },
+        "secure-text",
+      );
+    };
 
     const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "No name set";
 
@@ -131,12 +165,7 @@ export default function SettingsScreen() {
                         <SettingsRow
                             icon="lock-closed-outline"
                             title="Change Password"
-                            onPress={() =>
-                                Alert.alert("Change Password", "A password reset link will be sent to your email.", [
-                                    { text: "Cancel", style: "cancel" },
-                                    { text: "Send Link" },
-                                ])
-                            }
+                            onPress={handleChangePassword}
                         />
                         <View style={styles.divider} />
                         <SettingsRow

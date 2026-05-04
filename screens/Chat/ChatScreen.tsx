@@ -9,8 +9,14 @@ import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
 import {
   Alert,
+  BackHandler,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -70,6 +76,33 @@ export default function ChatHomeScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const greetingName = user?.first_name?.trim() || "there";
+
+  // Perplexity-style backdrop depth: scale + round + dim the background when
+  // any bottom sheet opens, making it recede visually behind the sheet.
+  const sheetDepth = useSharedValue(0);
+  const anySheetOpen = actionModalVisible || reportModalVisible || tellStoryModalVisible;
+
+  useEffect(() => {
+    sheetDepth.value = withSpring(anySheetOpen ? 1 : 0, {
+      damping: 20,
+      stiffness: 180,
+    });
+  }, [anySheetOpen, sheetDepth]);
+
+  const bgDepthStyle = useAnimatedStyle(() => ({
+    flex: 1,
+    transform: [{ scale: 1 - 0.08 * sheetDepth.value }],
+    borderRadius: 24 * sheetDepth.value,
+    overflow: "hidden",
+    opacity: 1 - 0.3 * sheetDepth.value,
+  }));
+
+  // Android hardware back — chat home is a root tab, nothing to go back to.
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => true);
+    return () => sub.remove();
+  }, []);
 
   // Track keyboard visibility so the input spacing can adapt. Not currently
   // used in render, but keeping the listener avoids leaking it when the tab
@@ -180,7 +213,7 @@ export default function ChatHomeScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#0F0F10" }}
+      style={{ flex: 1, backgroundColor: "#000000" }}
       // iOS: padding slides the view up. Android: "height" shrinks the
       // KeyboardAvoidingView itself by the keyboard height. With edge-to-edge
       // enabled on Android 15+, the OS stops auto-resizing the window, so we
@@ -191,6 +224,7 @@ export default function ChatHomeScreen() {
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.container}>
+          <Animated.View style={[{ flex: 1 }, bgDepthStyle]}>
           <ChatHeader
             onMenuPress={() => setSidebarVisible(true)}
             onNewChatPress={handleNewChat}
@@ -203,24 +237,30 @@ export default function ChatHomeScreen() {
             onClose={() => setSidebarVisible(false)}
           />
 
-          <ChatActionModal
-            visible={actionModalVisible}
-            onClose={() => setActionModalVisible(false)}
-            onActionPress={handleActionPress}
-          />
+          {actionModalVisible && (
+            <ChatActionModal
+              visible={actionModalVisible}
+              onClose={() => setActionModalVisible(false)}
+              onActionPress={handleActionPress}
+            />
+          )}
 
-          <ReportModal
-            visible={reportModalVisible}
-            onClose={() => setReportModalVisible(false)}
-            title={reportModalTitle}
-            onSuccess={handleSuccess}
-          />
+          {reportModalVisible && (
+            <ReportModal
+              visible={reportModalVisible}
+              onClose={() => setReportModalVisible(false)}
+              title={reportModalTitle}
+              onSuccess={handleSuccess}
+            />
+          )}
 
-          <TellStoryModal
-            visible={tellStoryModalVisible}
-            onClose={() => setTellStoryModalVisible(false)}
-            onSuccess={handleSuccess}
-          />
+          {tellStoryModalVisible && (
+            <TellStoryModal
+              visible={tellStoryModalVisible}
+              onClose={() => setTellStoryModalVisible(false)}
+              onSuccess={handleSuccess}
+            />
+          )}
 
           <SuccessModal
             visible={successModalVisible}
@@ -301,6 +341,7 @@ export default function ChatHomeScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          </Animated.View>
         </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>

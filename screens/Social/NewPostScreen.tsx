@@ -1,31 +1,31 @@
 import { Fonts } from "@/constants/theme";
 import { useCreatePostMutation } from "@/hooks/mutations/use-feed-mutations";
-import { mediaService } from "@/services/social/media.service";
-import type { MediaType } from "@/services/social/types";
+import { mediaService } from "@/scripts/services/social/media.service";
+import type { MediaType } from "@/scripts/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
 import { Ionicons } from "@expo/vector-icons";
-import { ResizeMode, Video } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  KeyboardAvoidingView,
-  Linking,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    KeyboardAvoidingView,
+    Linking,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -102,6 +102,15 @@ export default function NewPostScreen() {
   // Which image is shown large in the preview pane
   const [focusedUri, setFocusedUri] = useState<string | null>(null);
   const [focusedIsVideo, setFocusedIsVideo] = useState(false);
+
+  const previewPlayer = useVideoPlayer(
+    focusedIsVideo && focusedUri ? focusedUri : null,
+    (player) => {
+      player.loop = true;
+      player.muted = true;
+      player.play();
+    },
+  );
 
   const { mutateAsync: createPostAsync } = useCreatePostMutation();
   const uploadStore = useUploadStore();
@@ -573,14 +582,11 @@ export default function NewPostScreen() {
         {focusedUri ? (
           <>
             {focusedIsVideo ? (
-              <Video
-                source={{ uri: focusedUri }}
+              <VideoView
+                player={previewPlayer}
                 style={styles.previewImage}
-                resizeMode={ResizeMode.COVER}
-                shouldPlay
-                isLooping
-                isMuted
-                useNativeControls={false}
+                contentFit="cover"
+                nativeControls={false}
               />
             ) : (
               <Image
@@ -670,8 +676,7 @@ export default function NewPostScreen() {
           <Ionicons name="lock-closed-outline" size={40} color="#666" />
           <Text style={styles.permissionTitle}>Photo access is off</Text>
           <Text style={styles.permissionSubtitle}>
-            Enable photo library access in Settings to pick media for your
-            post.
+            Enable photo library access in Settings to pick media for your post.
           </Text>
           <TouchableOpacity
             style={styles.permissionBtn}
@@ -689,107 +694,110 @@ export default function NewPostScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-      <FlatList
-        data={gridData}
-        renderItem={({ item }) => {
-          if (item === "camera") {
+        <FlatList
+          data={gridData}
+          renderItem={({ item }) => {
+            if (item === "camera") {
+              return (
+                <TouchableOpacity
+                  style={styles.gridItem}
+                  onPress={handleCamera}
+                >
+                  <View style={styles.cameraItem}>
+                    <Ionicons name="camera-outline" size={30} color="#FFF" />
+                  </View>
+                </TouchableOpacity>
+              );
+            }
+            const asset = item as MediaLibrary.Asset;
+            const selectedIdx = selectedUris.indexOf(asset.uri);
+            const isSelected = selectedIdx >= 0;
             return (
-              <TouchableOpacity style={styles.gridItem} onPress={handleCamera}>
-                <View style={styles.cameraItem}>
-                  <Ionicons name="camera-outline" size={30} color="#FFF" />
-                </View>
-              </TouchableOpacity>
-            );
-          }
-          const asset = item as MediaLibrary.Asset;
-          const selectedIdx = selectedUris.indexOf(asset.uri);
-          const isSelected = selectedIdx >= 0;
-          return (
-            <TouchableOpacity
-              style={styles.gridItem}
-              onPress={() => {
-                if (isSelected) {
-                  // Deselect
-                  const newUris = selectedUris.filter((u) => u !== asset.uri);
-                  const newAssets = selectedAssets.filter(
-                    (a) => a.id !== asset.id,
-                  );
-                  const newVideoUris = selectedVideoUris.filter(
-                    (u) => u !== asset.uri,
-                  );
-                  setSelectedUris(newUris);
-                  setSelectedAssets(newAssets);
-                  setSelectedVideoUris(newVideoUris);
-                  if (focusedUri === asset.uri) {
-                    const lastUri =
-                      newUris.length > 0 ? newUris[newUris.length - 1] : null;
-                    setFocusedUri(lastUri);
-                    setFocusedIsVideo(
-                      !!lastUri &&
-                        (newVideoUris.includes(lastUri) ||
-                          /\.(mp4|mov|m4v|avi|mkv)$/i.test(
-                            lastUri.toLowerCase(),
-                          )),
+              <TouchableOpacity
+                style={styles.gridItem}
+                onPress={() => {
+                  if (isSelected) {
+                    // Deselect
+                    const newUris = selectedUris.filter((u) => u !== asset.uri);
+                    const newAssets = selectedAssets.filter(
+                      (a) => a.id !== asset.id,
                     );
-                  }
-                } else {
-                  const isVideo = asset.mediaType === "video";
-                  if (isVideo) {
-                    // Video: clear all other selections, only allow one video
-                    setSelectedUris([asset.uri]);
-                    setSelectedAssets([asset]);
-                    setSelectedVideoUris([asset.uri]);
-                  } else {
-                    // Image: don't allow adding images when a video is selected
-                    if (focusedIsVideo) {
-                      setSelectedUris([asset.uri]);
-                      setSelectedAssets([asset]);
-                      setSelectedVideoUris([]);
-                    } else {
-                      if (selectedUris.length >= 10) return;
-                      setSelectedUris((prev) => [...prev, asset.uri]);
-                      setSelectedAssets((prev) => [...prev, asset]);
-                      setSelectedVideoUris((prev) =>
-                        prev.filter((u) => u !== asset.uri),
+                    const newVideoUris = selectedVideoUris.filter(
+                      (u) => u !== asset.uri,
+                    );
+                    setSelectedUris(newUris);
+                    setSelectedAssets(newAssets);
+                    setSelectedVideoUris(newVideoUris);
+                    if (focusedUri === asset.uri) {
+                      const lastUri =
+                        newUris.length > 0 ? newUris[newUris.length - 1] : null;
+                      setFocusedUri(lastUri);
+                      setFocusedIsVideo(
+                        !!lastUri &&
+                          (newVideoUris.includes(lastUri) ||
+                            /\.(mp4|mov|m4v|avi|mkv)$/i.test(
+                              lastUri.toLowerCase(),
+                            )),
                       );
                     }
+                  } else {
+                    const isVideo = asset.mediaType === "video";
+                    if (isVideo) {
+                      // Video: clear all other selections, only allow one video
+                      setSelectedUris([asset.uri]);
+                      setSelectedAssets([asset]);
+                      setSelectedVideoUris([asset.uri]);
+                    } else {
+                      // Image: don't allow adding images when a video is selected
+                      if (focusedIsVideo) {
+                        setSelectedUris([asset.uri]);
+                        setSelectedAssets([asset]);
+                        setSelectedVideoUris([]);
+                      } else {
+                        if (selectedUris.length >= 10) return;
+                        setSelectedUris((prev) => [...prev, asset.uri]);
+                        setSelectedAssets((prev) => [...prev, asset]);
+                        setSelectedVideoUris((prev) =>
+                          prev.filter((u) => u !== asset.uri),
+                        );
+                      }
+                    }
+                    setFocusedUri(asset.uri);
+                    setFocusedIsVideo(isVideo);
                   }
-                  setFocusedUri(asset.uri);
-                  setFocusedIsVideo(isVideo);
-                }
-              }}
-            >
-              <Image
-                source={{ uri: asset.uri }}
-                style={[
-                  styles.gridImage,
-                  isSelected && styles.gridImageSelected,
-                ]}
-                contentFit="cover"
-              />
-              {asset.mediaType === "video" && (
-                <View style={styles.videoIndicator}>
-                  <Text style={styles.videoDuration}>
-                    {`${Math.floor(asset.duration / 60)}:${String(Math.round(asset.duration % 60)).padStart(2, "0")}`}
-                  </Text>
-                </View>
-              )}
-              {isSelected ? (
-                <View style={styles.selectionBadge}>
-                  <Text style={styles.selectionBadgeText}>
-                    {selectedIdx + 1}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.unselectedCircle} />
-              )}
-            </TouchableOpacity>
-          );
-        }}
-        keyExtractor={(item) => (typeof item === "string" ? item : item.id)}
-        numColumns={4}
-        showsVerticalScrollIndicator={false}
-      />
+                }}
+              >
+                <Image
+                  source={{ uri: asset.uri }}
+                  style={[
+                    styles.gridImage,
+                    isSelected && styles.gridImageSelected,
+                  ]}
+                  contentFit="cover"
+                />
+                {asset.mediaType === "video" && (
+                  <View style={styles.videoIndicator}>
+                    <Text style={styles.videoDuration}>
+                      {`${Math.floor(asset.duration / 60)}:${String(Math.round(asset.duration % 60)).padStart(2, "0")}`}
+                    </Text>
+                  </View>
+                )}
+                {isSelected ? (
+                  <View style={styles.selectionBadge}>
+                    <Text style={styles.selectionBadgeText}>
+                      {selectedIdx + 1}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.unselectedCircle} />
+                )}
+              </TouchableOpacity>
+            );
+          }}
+          keyExtractor={(item) => (typeof item === "string" ? item : item.id)}
+          numColumns={4}
+          showsVerticalScrollIndicator={false}
+        />
       )}
     </SafeAreaView>
   );
@@ -986,8 +994,7 @@ const styles = StyleSheet.create({
     gap: 6,
     flexDirection: "row",
   },
-  stripThumbWrapper: {
-  },
+  stripThumbWrapper: {},
   stripThumb: {
     width: 52,
     height: 52,
