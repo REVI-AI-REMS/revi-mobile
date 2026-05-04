@@ -1,10 +1,10 @@
 import { ScreenHeader } from "@/components";
 import { Fonts } from "@/constants/theme";
 import {
-  useBookmarks,
-  useRemoveBookmarkMutation,
+    useBookmarks,
+    useRemoveBookmarkMutation,
 } from "@/hooks/queries/use-bookmarks";
-import type { PostRead } from "@/services/social/types";
+import type { PostRead } from "@/scripts/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,17 +12,17 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const { width } = Dimensions.get("window");
@@ -83,7 +83,7 @@ const SavedCard = memo(function SavedCard({
   // the shared video thumbnail store (same store Social/Explore populate),
   // and fall back to generating one on demand.
   const thumbnailUri = useVideoStore((s) =>
-    isVideo ? s.thumbnails[post.id] ?? null : null,
+    isVideo ? (s.thumbnails[post.id] ?? null) : null,
   );
   const setThumbnail = useVideoStore((s) => s.setThumbnail);
   const [thumbFailed, setThumbFailed] = useState(false);
@@ -99,7 +99,14 @@ const SavedCard = memo(function SavedCard({
     return () => {
       cancelled = true;
     };
-  }, [isVideo, thumbnailUri, thumbFailed, post.id, post.media_url, setThumbnail]);
+  }, [
+    isVideo,
+    thumbnailUri,
+    thumbFailed,
+    post.id,
+    post.media_url,
+    setThumbnail,
+  ]);
 
   const imageSource = isVideo ? thumbnailUri : post.media_url;
 
@@ -329,10 +336,7 @@ export default function SavedScreen() {
           <Text style={styles.stateSubtitle}>
             Check your connection and try again.
           </Text>
-          <TouchableOpacity
-            style={styles.retryBtn}
-            onPress={() => refetch()}
-          >
+          <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -357,7 +361,11 @@ export default function SavedScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Saved" showMenuButton={false} showBackButton={false} />
+      <ScreenHeader
+        title="Saved"
+        showMenuButton={false}
+        showBackButton={false}
+      />
 
       <FlatList
         data={filtered}

@@ -6,7 +6,6 @@ import * as DocumentPicker from "expo-document-picker";
 import { useState } from "react";
 import {
     Alert,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -75,7 +74,7 @@ export default function ReportModal({
     };
 
     return (
-        <OverlayModal visible={visible} onClose={onClose} height="90%">
+        <OverlayModal visible={visible} onClose={onClose} height="80%">
             <View style={styles.header}>
                 {/* Close button handled by OverlayModal, but we can add title */}
                 <Text style={styles.title}>{title}</Text>
@@ -84,10 +83,7 @@ export default function ReportModal({
                 </Text>
             </View>
 
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
-            >
+            <View style={styles.scrollContent}>
                 {/* Email */}
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>Enter your email</Text>
@@ -219,7 +215,7 @@ export default function ReportModal({
                     onPress={handleSend}
                     style={styles.sendButton}
                 />
-            </ScrollView>
+            </View>
         </OverlayModal>
     );
 }

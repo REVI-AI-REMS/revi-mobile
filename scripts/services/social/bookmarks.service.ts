@@ -1,4 +1,4 @@
-import { api } from "@/services/api";
+import { api } from "@/scripts/services/api";
 import type { PostRead } from "./types";
 
 /**

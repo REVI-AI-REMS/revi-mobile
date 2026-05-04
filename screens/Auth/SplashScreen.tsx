@@ -3,7 +3,9 @@ import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import Animated, {
+    cancelAnimation,
     useAnimatedStyle,
+    useReducedMotion,
     useSharedValue,
     withSequence,
     withTiming,
@@ -11,23 +13,28 @@ import Animated, {
 
 export default function SplashScreen() {
   const router = useRouter();
-  const opacity = useSharedValue(0);
-  const scale = useSharedValue(0.8);
+  const reducedMotion = useReducedMotion();
+  const opacity = useSharedValue(reducedMotion ? 1 : 0);
+  const scale = useSharedValue(reducedMotion ? 1 : 0.8);
 
   useEffect(() => {
-    // Animate logo appearance
-    opacity.value = withTiming(1, { duration: 800 });
-    scale.value = withSequence(
-      withTiming(1.1, { duration: 600 }),
-      withTiming(1, { duration: 400 }),
-    );
+    if (!reducedMotion) {
+      opacity.value = withTiming(1, { duration: 800 });
+      scale.value = withSequence(
+        withTiming(1.1, { duration: 600 }),
+        withTiming(1, { duration: 400 }),
+      );
+    }
 
-    // Navigate to auth screen after 3 seconds
     const timer = setTimeout(() => {
       router.replace("/auth");
     }, 3000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      cancelAnimation(opacity);
+      cancelAnimation(scale);
+    };
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
