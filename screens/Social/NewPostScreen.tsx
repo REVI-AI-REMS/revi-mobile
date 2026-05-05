@@ -1,5 +1,6 @@
 import { Fonts } from "@/constants/theme";
 import { useCreatePostMutation } from "@/hooks/mutations/use-feed-mutations";
+import { feedKeys } from "@/hooks/queries/use-feed";
 import { mediaService } from "@/scripts/services/social/media.service";
 import type { MediaType } from "@/scripts/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
@@ -8,6 +9,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Image } from "@/components/ExpoImage";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
+import { useQueryClient } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -32,7 +34,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const { width } = Dimensions.get("window");
 
 // Hardcoded Lagos coords — replace with expo-location when ready
-const DEV_COORDS = { latitude: 6.5244, longitude: 3.3792 };
+const DEV_COORDS = { latitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LAT ?? "6.5244"), longitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LNG ?? "3.3792") };
 
 type Step = "pick" | "caption";
 
@@ -113,6 +115,7 @@ export default function NewPostScreen() {
   );
 
   const { mutateAsync: createPostAsync } = useCreatePostMutation();
+  const queryClient = useQueryClient();
   const uploadStore = useUploadStore();
 
   useEffect(() => {
@@ -456,6 +459,9 @@ export default function NewPostScreen() {
         latitude: DEV_COORDS.latitude,
         longitude: DEV_COORDS.longitude,
       });
+
+      // Bust feed cache so the new post appears immediately on the social screen.
+      queryClient.invalidateQueries({ queryKey: feedKeys.all });
 
       if (requiresTranscoding) {
         // Video needs server-side HLS transcoding (~15-30s)

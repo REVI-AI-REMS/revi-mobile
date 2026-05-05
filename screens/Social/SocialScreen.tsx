@@ -26,7 +26,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { FlashList, type ViewToken } from "@shopify/flash-list";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -38,8 +38,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 // feed (~21 posts today) in one request. Drop this back to PAGE_SIZE once
 // the server honors `skip` correctly.
 const DEV_LOCATION: MainFeedParams = {
-  latitude: 6.5244, // Lagos, Nigeria
-  longitude: 3.3792,
+  latitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LAT ?? "6.5244"), // Lagos, Nigeria
+  longitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LNG ?? "3.3792"),
   radius_km: 20,
   limit: 50,
 };
@@ -92,6 +92,32 @@ export default function SocialsScreen() {
   const setActiveVideoId = useVideoStore((s) => s.setActiveVideoId);
   const setVisiblePostIds = useVideoStore((s) => s.setVisiblePostIds);
   const router = useRouter();
+
+  // Mirrors the last value passed to setActiveVideoId so we can restore it
+  // when the screen comes back into focus.
+  const lastActiveVideoIdRef = useRef<string | null>(null);
+
+  // Pause feed video when reels overlay opens, resume when it closes.
+  useEffect(() => {
+    if (reelsPost) {
+      setActiveVideoId(null);
+    } else if (lastActiveVideoIdRef.current) {
+      setActiveVideoId(lastActiveVideoIdRef.current);
+    }
+  }, [reelsPost, setActiveVideoId]);
+
+  // Pause on blur (navigate to another tab/screen), resume on focus.
+  useFocusEffect(
+    useCallback(() => {
+      if (!reelsPost && lastActiveVideoIdRef.current) {
+        setActiveVideoId(lastActiveVideoIdRef.current);
+      }
+      return () => {
+        setActiveVideoId(null);
+      };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [setActiveVideoId]),
+  );
 
   // ─── Relationship status ───────────────────────────────────────────────────
   // Load who the current user already follows so Follow buttons initialise
@@ -165,6 +191,7 @@ export default function SocialsScreen() {
       if (didVisibilityChange) {
         setVisiblePostIds([...visibleIdsRef.current]);
       }
+      lastActiveVideoIdRef.current = firstVideoId;
       setActiveVideoId(firstVideoId);
 
       if (viewedIdsRef.current.size >= 50) {

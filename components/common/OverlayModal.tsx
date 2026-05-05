@@ -22,6 +22,9 @@ interface OverlayModalProps {
   showCloseButton?: boolean;
   height?: number | string;
   dismissOnBackdrop?: boolean;
+  /** Pass false when children already contain a scroll/list component (e.g. FlatList).
+   *  Avoids the "VirtualizedList nested inside ScrollView" warning. */
+  scrollable?: boolean;
 }
 
 const { height: WINDOW_HEIGHT } = Dimensions.get("window");
@@ -41,6 +44,7 @@ export default function OverlayModal({
   showCloseButton = true,
   height = "auto",
   dismissOnBackdrop = false,
+  scrollable = true,
 }: OverlayModalProps) {
   const insets = useSafeAreaInsets();
   const maxHeight = resolveMaxHeight(height);
@@ -50,8 +54,9 @@ export default function OverlayModal({
       style={[
         styles.sheetContent,
         { paddingBottom: Math.max(insets.bottom, 20) },
-        { maxHeight },
+        scrollable ? { maxHeight } : { height: maxHeight },
       ]}
+      collapsable={false}
     >
       {/* Drag handle indicator */}
       <View style={styles.handle} />
@@ -66,15 +71,21 @@ export default function OverlayModal({
           <Ionicons name="close" size={18} color="#FFFFFF" />
         </TouchableOpacity>
       )}
-      <ScrollView
-        bounces={false}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        contentContainerStyle={styles.scrollContent}
-      >
-        {children}
-      </ScrollView>
+      {scrollable ? (
+        <ScrollView
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={styles.scrollContent}
+        >
+          {children}
+        </ScrollView>
+      ) : (
+        <View style={styles.directContent}>
+          {children}
+        </View>
+      )}
     </View>
   );
 
@@ -187,6 +198,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 16,
+  },
+  directContent: {
+    flex: 1,
   },
   handle: {
     width: 40,

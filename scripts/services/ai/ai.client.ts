@@ -7,7 +7,7 @@ import axios from "axios";
 // the other. Reuses the same Zustand access token that auth.service already
 // populates at login — the AI backend shares the same auth service.
 export const aiClient = axios.create({
-  baseURL: "https://backend.reviai.ai",
+  baseURL: process.env.EXPO_PUBLIC_AUTH_API_URL ?? "https://backend.reviai.ai",
   // AI responses can legitimately take 30-60s when the model is cold or the
   // prompt is long. Anything shorter just causes retry churn.
   timeout: 60_000,

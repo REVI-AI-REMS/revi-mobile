@@ -32,7 +32,7 @@ const THUMB_SIZE = layout.gridThumbSize;
 const AVATAR_SIZE = 80;
 
 const DEFAULT_AVATAR =
-  "https://ui-avatars.com/api/?background=333&color=fff&name=U";
+  process.env.EXPO_PUBLIC_DEFAULT_AVATAR_URL ?? "https://ui-avatars.com/api/?background=333&color=fff&name=U";
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 

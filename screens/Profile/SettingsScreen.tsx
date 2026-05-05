@@ -9,7 +9,7 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "rea
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=333&color=fff&name=U";
+const DEFAULT_AVATAR = process.env.EXPO_PUBLIC_DEFAULT_AVATAR_URL ?? "https://ui-avatars.com/api/?background=333&color=fff&name=U";
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 

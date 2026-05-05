@@ -8,7 +8,7 @@ import { Image as ExpoImage } from "expo-image";
 import { useRouter } from "expo-router";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-const DEFAULT_AVATAR = "https://ui-avatars.com/api/?background=333&color=fff&name=U";
+const DEFAULT_AVATAR = process.env.EXPO_PUBLIC_DEFAULT_AVATAR_URL ?? "https://ui-avatars.com/api/?background=333&color=fff&name=U";
 
 export default function MyProfileScreen() {
     const router = useRouter();

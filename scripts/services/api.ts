@@ -74,7 +74,6 @@ api.interceptors.request.use(
       const devUserId = process.env.EXPO_PUBLIC_DEV_USER_ID;
       if (devUserId) {
         config.headers["X-Dev-User-Id"] = devUserId;
-        // Also clear Authorization to avoid conflicts
         delete config.headers.Authorization;
       }
     } else {
