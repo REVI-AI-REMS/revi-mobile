@@ -1,11 +1,11 @@
 import { Fonts } from "@/constants/theme";
-import { useBookmarks, useSearch, useUserStats } from "@/hooks";
+import { useBookmarks, useUserPosts, useUserStats } from "@/hooks";
 import type { PostRead } from "@/scripts/services/social/types";
 import { useAuthStore } from "@/stores/auth.store";
 import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
-import { Image as ExpoImage } from "expo-image";
+import { Image } from "@/components/ExpoImage";
 import { useRouter } from "expo-router";
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -166,13 +166,13 @@ const GridThumbnail = React.memo(function GridThumbnail({
     setThumbnail,
   ]);
 
-  const imageUri = isVideo ? localThumb : post.media_url;
+  const imageSource = isVideo ? localThumb : post.media_url;
 
   return (
     <Pressable onPress={onPress} style={styles.gridCell}>
-      {imageUri ? (
-        <ExpoImage
-          source={{ uri: imageUri }}
+      {imageSource ? (
+        <Image
+          source={{ uri: imageSource }}
           style={styles.gridImage}
           contentFit="cover"
           cachePolicy="memory-disk"
@@ -206,12 +206,12 @@ export default function ProfileScreen() {
 
   const user = useAuthStore((s) => s.user);
 
-  // Fetch user posts via search (using username)
-  const { data: searchData } = useSearch(user?.username ?? "");
+  // Fetch user posts by ID instead of search for better reliability
+  const { data: userPosts = [] } = useUserPosts(user?.id ?? null);
   const { data: bookmarksData } = useBookmarks();
   const { data: stats } = useUserStats(user?.id ?? null);
 
-  const gridPosts = useMemo(() => searchData?.posts ?? [], [searchData?.posts]);
+  const gridPosts = userPosts;
   const savedPosts = useMemo(() => bookmarksData ?? [], [bookmarksData]);
 
   const activePosts = activeTab === "saved" ? savedPosts : gridPosts;
@@ -261,7 +261,7 @@ export default function ProfileScreen() {
         {/* Profile Info */}
         <View style={styles.profileSection}>
           <View style={styles.avatarWrapper}>
-            <ExpoImage
+            <Image
               source={{ uri: user?.avatar ?? DEFAULT_AVATAR }}
               style={styles.avatar}
               contentFit="cover"

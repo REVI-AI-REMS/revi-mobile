@@ -44,12 +44,27 @@ function initialsFor(id: string): string {
 
 const Avatar = memo(function Avatar({
   size = 36,
-  author,
+  authorId,
+  username,
+  avatarUrl,
 }: {
   size?: number;
-  author: string;
+  authorId: string;
+  username?: string | null;
+  avatarUrl?: string | null;
 }) {
   const fontSize = Math.round(size * 0.38);
+
+  if (avatarUrl) {
+    return (
+      <Image
+        source={{ uri: avatarUrl }}
+        style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
+        contentFit="cover"
+      />
+    );
+  }
+
   return (
     <View
       style={[
@@ -58,7 +73,7 @@ const Avatar = memo(function Avatar({
       ]}
     >
       <Text style={[styles.avatarText, { fontSize }]}>
-        {initialsFor(author)}
+        {(username || authorId).charAt(0).toUpperCase()}
       </Text>
     </View>
   );
@@ -155,11 +170,15 @@ export function CommentsSheet({
 
       return (
         <View style={styles.commentRow}>
-          <Avatar author={c.author_id} />
+          <Avatar 
+            authorId={c.author_id} 
+            username={c.author_username} 
+            avatarUrl={c.author_avatar} 
+          />
           <View style={styles.commentBody}>
             <View style={styles.commentMeta}>
               <Text style={styles.commentAuthor} numberOfLines={1}>
-                {isOwn ? "You" : shortHandle(c.author_id)}
+                {isOwn ? "You" : (c.author_username ? `@${c.author_username}` : shortHandle(c.author_id))}
               </Text>
               <Text style={styles.commentTime}>
                 {isPending ? "sending…" : formatRelativeTime(c.created_at)}
@@ -270,9 +289,11 @@ export function CommentsSheet({
         </View>
       )}
 
-      {/* Input */}
       <View style={styles.inputRow}>
-        <Avatar author={currentUserId} size={30} />
+        <Avatar 
+          authorId={currentUserId} 
+          size={30} 
+        />
         <View style={[styles.inputWrap, isFocused && styles.inputWrapFocused]}>
           <TextInput
             ref={inputRef}

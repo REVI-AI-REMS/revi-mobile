@@ -1,12 +1,13 @@
 import { ScreenHeader } from "@/components";
 import { colors, layout, spacing, typography } from "@/constants/design";
 import { formatCount } from "@/data/mock";
-import { useSearch, useUserStats } from "@/hooks";
 import { useFollowMutation } from "@/hooks/mutations/use-feed-mutations";
 import { useUserFollowing, useUserProfile } from "@/hooks/queries/use-relationships";
+import { useUserPosts } from "@/hooks/queries/use-feed";
+import { useUserStats } from "@/hooks";
 import type { PostRead } from "@/scripts/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
-import { Image as ExpoImage } from "expo-image";
+import { Image } from "@/components/ExpoImage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as React from "react";
 import { useCallback, useMemo } from "react";
@@ -66,7 +67,7 @@ const GridThumbnail = React.memo(function GridThumbnail({
   return (
     <Pressable onPress={onPress} style={styles.gridCell}>
       {!isVideo && post.media_url ? (
-        <ExpoImage
+        <Image
           source={{ uri: post.media_url }}
           style={styles.gridImage}
           contentFit="cover"
@@ -98,7 +99,7 @@ export default function UserProfileScreen() {
   const router = useRouter();
   const { userId } = useLocalSearchParams<{ userId: string }>();
 
-  const { data: searchData } = useSearch(userId ?? "");
+  const { data: userPosts = [] } = useUserPosts(userId ?? null);
   const { data: profile } = useUserProfile(userId ?? null);
   const { data: stats } = useUserStats(userId ?? null);
   
@@ -106,7 +107,7 @@ export default function UserProfileScreen() {
   const { data: followingList } = useUserFollowing(currentUserId || null);
   const followMutation = useFollowMutation();
 
-  const gridPosts = useMemo(() => searchData?.posts ?? [], [searchData?.posts]);
+  const gridPosts = userPosts;
 
   const isFollowing = useMemo(() => {
     if (!followingList || !userId) return false;
@@ -155,7 +156,7 @@ export default function UserProfileScreen() {
       <View>
         <View style={styles.profileSection}>
           <View style={styles.avatarWrapper}>
-            <ExpoImage
+            <Image
               source={{ uri: avatarUri }}
               style={styles.avatar}
               contentFit="cover"

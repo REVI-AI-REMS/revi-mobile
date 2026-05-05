@@ -238,8 +238,22 @@ export const ReelItem = memo(function ReelItem({
             style={[styles.bottomInfo, { paddingBottom: insets.bottom + 70 }]}
           >
             <View style={styles.authorRow}>
-              <View style={styles.avatar} />
-              <Text style={styles.authorName}>{shortId(post.author_id)}</Text>
+              {post.author_avatar ? (
+                <Image 
+                  source={{ uri: post.author_avatar }} 
+                  style={styles.avatar} 
+                  contentFit="cover" 
+                />
+              ) : (
+                <View style={styles.avatar}>
+                   <Text style={{ color: '#FFF', fontSize: 12, fontFamily: Fonts.semiBold }}>
+                      {(post.author_username || post.author_id).charAt(0).toUpperCase()}
+                   </Text>
+                </View>
+              )}
+              <Text style={styles.authorName}>
+                {post.author_username ? `@${post.author_username}` : shortId(post.author_id)}
+              </Text>
             </View>
             {post.caption ? (
               <Text style={styles.caption} numberOfLines={2}>
@@ -433,6 +447,9 @@ export const styles = StyleSheet.create({
     backgroundColor: "#2C2C2E",
     borderWidth: 2,
     borderColor: "#FFF",
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   authorName: {
     fontSize: 15,

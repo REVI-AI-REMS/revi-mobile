@@ -28,6 +28,7 @@ export const feedKeys = {
     [...feedKeys.all, "video", params] as const,
   post: (postId: string) => [...feedKeys.all, "post", postId] as const,
   comments: (postId: string) => [...feedKeys.all, "comments", postId] as const,
+  userPosts: (userId: string) => [...feedKeys.all, "user", userId] as const,
 };
 
 // ─── Hooks ──────────────────────────────────────────────────────────────────
@@ -166,5 +167,18 @@ export function useComments(postId: string, skip = 0, limit = 50) {
     queryKey: feedKeys.comments(postId),
     queryFn: () => interactionsService.getComments(postId, skip, limit),
     enabled: Boolean(postId),
+  });
+}
+
+/**
+ * All posts by a specific user.
+ * Used for the profile screen grid.
+ */
+export function useUserPosts(userId: string | null, skip = 0, limit = 50) {
+  return useQuery({
+    queryKey: feedKeys.userPosts(userId ?? ""),
+    queryFn: () => postsService.getUserPosts(userId!, skip, limit),
+    enabled: Boolean(userId),
+    staleTime: 1000 * 60, // 1 minute
   });
 }

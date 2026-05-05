@@ -99,4 +99,18 @@ export const postsService = {
   reportPost: async (postId: string, report: ReportRequest): Promise<void> => {
     await api.post(`/api/v1/posts/${postId}/report`, report);
   },
+  /**
+   * GET /api/v1/posts/user/{user_id}
+   * Returns all active posts authored by a specific user.
+   */
+  getUserPosts: async (
+    userId: string,
+    skip = 0,
+    limit = 20,
+  ): Promise<PostRead[]> => {
+    const { data } = await api.get<PostRead[]>(`/api/v1/posts/user/${userId}`, {
+      params: { skip, limit },
+    });
+    return data;
+  },
 };

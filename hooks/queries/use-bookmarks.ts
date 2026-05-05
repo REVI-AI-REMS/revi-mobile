@@ -24,10 +24,8 @@ export function useBookmarks(skip = 0, limit = 20) {
     queryKey: bookmarkKeys.list(skip, limit),
     queryFn: () => bookmarksService.listBookmarks(skip, limit),
     staleTime: 1000 * 60 * 2,
-    // Backend endpoint is currently 500-ing for some users — don't retry;
-    // the global queryClient default retries 5xx three times, which floods
-    // the logs. Revert to default once the server is fixed.
-    retry: false,
+    retry: 2,
+    retryDelay: 2000,
   });
 }
 

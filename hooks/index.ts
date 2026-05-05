@@ -8,7 +8,8 @@ export {
     useGeospatialFeed,
     useMainFeed,
     usePost,
-    useVideoFeed
+    useVideoFeed,
+    useUserPosts
 } from "./queries/use-feed";
 
 export { bookmarkKeys, useBookmarks } from "./queries/use-bookmarks";

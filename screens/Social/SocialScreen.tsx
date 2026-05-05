@@ -139,7 +139,7 @@ export default function SocialsScreen() {
     const viewedIds = viewedIdsRef.current;
     return () => {
       if (viewedIds.size > 0) {
-        batchLogViews([...viewedIds]);
+        batchLogViews(Array.from(viewedIds));
         viewedIds.clear();
       }
     };
@@ -189,13 +189,13 @@ export default function SocialsScreen() {
       });
 
       if (didVisibilityChange) {
-        setVisiblePostIds([...visibleIdsRef.current]);
+        setVisiblePostIds(Array.from(visibleIdsRef.current));
       }
       lastActiveVideoIdRef.current = firstVideoId;
       setActiveVideoId(firstVideoId);
 
       if (viewedIdsRef.current.size >= 50) {
-        batchLogViews([...viewedIdsRef.current]);
+        batchLogViews(Array.from(viewedIdsRef.current));
         viewedIdsRef.current.clear();
       }
     },
@@ -382,6 +382,10 @@ export default function SocialsScreen() {
             clearInterval(refreshTimer);
             setUploadProgress(100);
             setUploadStatus("done");
+            // Smoothly glide back to the top once the new post is ready
+            setTimeout(() => {
+              listRef.current?.scrollToOffset({ offset: 0, animated: true });
+            }, 100);
           }
 
           if (refreshCount >= MAX_REFRESHES) {
@@ -433,6 +437,7 @@ export default function SocialsScreen() {
 
   // ─── Comments sheet ────────────────────────────────────────────────────────
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+  const listRef = useRef<FlashList<PostRead>>(null);
 
   // ─── Post options sheet ───────────────────────────────────────────────────
   const [optionsPost, setOptionsPost] = useState<PostRead | null>(null);
@@ -620,6 +625,7 @@ export default function SocialsScreen() {
         its Video torn down to become an image card.
       */}
       <FlashList
+        ref={listRef}
         data={posts}
         keyExtractor={(item) => item.id}
         renderItem={renderPost}
