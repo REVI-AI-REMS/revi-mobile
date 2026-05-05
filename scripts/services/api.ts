@@ -20,7 +20,9 @@ export const api = axios.create({
 });
 
 // ─── Debug Interceptor (dev only) ────────────────────────────────────────────
-if (process.env.EXPO_PUBLIC_DEV_MODE === "true") {
+// Using __DEV__ so that network logs always appear in the local Metro terminal
+// even when EXPO_PUBLIC_DEV_MODE is false.
+if (__DEV__) {
   api.interceptors.request.use((config) => {
     console.log(
       `[API] → ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,

@@ -27,8 +27,8 @@ export const bookmarksService = {
    * Blocked or deleted posts are silently excluded.
    */
   listBookmarks: async (skip = 0, limit = 20): Promise<PostRead[]> => {
-    // Some endpoints may fail if pagination params are sent but not supported
-    const { data } = await api.get<PostRead[]>("/api/v1/bookmarks");
+    // Added trailing slash to avoid 307 redirect dropping Auth header
+    const { data } = await api.get<PostRead[]>("/api/v1/bookmarks/");
     return data;
   },
 };

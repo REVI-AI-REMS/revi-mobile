@@ -6,7 +6,7 @@ import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Image } from "expo-image";
+import { Image } from "@/components/ExpoImage";
 import { useRouter } from "expo-router";
 import React, {
     useCallback,

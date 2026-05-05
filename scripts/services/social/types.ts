@@ -24,6 +24,9 @@ export interface PostRead {
   is_sponsored?: boolean;
   campaign_id?: string | null; // present when is_sponsored=true
   is_liked?: boolean; // client-side, set after like mutations
+  // Hydrated client-side by useAuthorProfiles — not returned by the API
+  author_username?: string | null;
+  author_avatar?: string | null;
 }
 
 export interface PostCreate {

@@ -17,11 +17,11 @@ import {
 } from "@/hooks/queries/use-bookmarks";
 import { useGeospatialFeed, useMainFeed } from "@/hooks/queries/use-feed";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
-import { useAuthStore } from "@/stores/auth.store";
 import { useFeedVideoPlayer } from "@/hooks/use-feed-video-player";
 import type { MainFeedParams, PostRead } from "@/scripts/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
 import { useVideoStore } from "@/stores/video.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
@@ -482,7 +482,7 @@ export default function SocialsScreen() {
         isFollowing={followingIds.has(item.author_id)}
         isBookmarked={bookmarkedIds.has(item.id)}
         likePending={likePending}
-        currentUserId={currentUserId}
+        currentUserId={currentUserId || ""}
         videoPlayer={videoPlayer}
         isMuted={isMuted}
         onToggleMute={handleToggleMute}
@@ -627,7 +627,7 @@ export default function SocialsScreen() {
       {commentsPostId !== null && (
         <CommentsSheet
           postId={commentsPostId}
-          currentUserId={currentUserId}
+          currentUserId={currentUserId || ""}
           onClose={() => setCommentsPostId(null)}
         />
       )}
@@ -635,7 +635,7 @@ export default function SocialsScreen() {
       {optionsPost !== null && (
         <PostOptionsSheet
           post={optionsPost}
-          currentUserId={currentUserId}
+          currentUserId={currentUserId || ""}
           onClose={() => setOptionsPost(null)}
         />
       )}
@@ -645,7 +645,7 @@ export default function SocialsScreen() {
         <ReelsOverlay
           initialPost={reelsPost}
           feedVideoPosts={feedVideoPosts}
-          currentUserId={currentUserId}
+          currentUserId={currentUserId || ""}
           onClose={() => setReelsPost(null)}
         />
       )}

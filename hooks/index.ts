@@ -18,6 +18,7 @@ export {
     useUserFollowers,
     useUserFollowing,
     useUserStats,
+    useUserProfile,
 } from "./queries/use-relationships";
 
 // ─── Mutation Hooks ──────────────────────────────────────────────────────────

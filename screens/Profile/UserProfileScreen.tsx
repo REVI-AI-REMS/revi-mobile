@@ -3,7 +3,7 @@ import { colors, layout, spacing, typography } from "@/constants/design";
 import { formatCount } from "@/data/mock";
 import { useSearch, useUserStats } from "@/hooks";
 import { useFollowMutation } from "@/hooks/mutations/use-feed-mutations";
-import { useUserFollowing } from "@/hooks/queries/use-relationships";
+import { useUserFollowing, useUserProfile } from "@/hooks/queries/use-relationships";
 import type { PostRead } from "@/scripts/services/social/types";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
@@ -19,10 +19,12 @@ import {
     Text,
     View,
 } from "react-native";
+import { useAuthStore } from "@/stores/auth.store";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const currentUserId = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
+// No longer hardcoded — fetched from store
+// const currentUserId = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
 
 const NUM_COLUMNS = layout.gridColumns;
 const GRID_GAP = layout.gridGap;
@@ -97,7 +99,10 @@ export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
 
   const { data: searchData } = useSearch(userId ?? "");
+  const { data: profile } = useUserProfile(userId ?? null);
   const { data: stats } = useUserStats(userId ?? null);
+  
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const { data: followingList } = useUserFollowing(currentUserId || null);
   const followMutation = useFollowMutation();
 
@@ -142,7 +147,8 @@ export default function UserProfileScreen() {
 
   const columnWrapperStyle = useMemo(() => ({ gap: GRID_GAP }), []);
 
-  const displayName = userId ? `@${userId.slice(0, 8)}` : "";
+  const displayName = profile?.username ? `@${profile.username}` : (userId ? `@${userId.slice(0, 8)}` : "");
+  const avatarUri = profile?.avatar || DEFAULT_AVATAR;
 
   const ListHeaderComponent = useMemo(
     () => (
@@ -150,7 +156,7 @@ export default function UserProfileScreen() {
         <View style={styles.profileSection}>
           <View style={styles.avatarWrapper}>
             <ExpoImage
-              source={{ uri: DEFAULT_AVATAR }}
+              source={{ uri: avatarUri }}
               style={styles.avatar}
               contentFit="cover"
               cachePolicy="memory-disk"
@@ -158,13 +164,18 @@ export default function UserProfileScreen() {
             />
           </View>
           <Text style={styles.displayName}>{displayName}</Text>
+          {profile?.first_name && (
+            <Text style={styles.fullName}>
+              {profile.first_name} {profile.last_name}
+            </Text>
+          )}
           <View style={styles.statsRow}>
             <StatItem value={gridPosts.length} label="Posts" />
             <StatItem value={stats?.follower_count ?? 0} label="Followers" />
             <StatItem value={stats?.following_count ?? 0} label="Following" />
           </View>
 
-          {currentUserId && currentUserId !== userId && (
+          {currentUserId && currentUserId.toString() !== userId?.toString() && (
             <Pressable
               style={[
                 styles.followButton,
@@ -279,6 +290,11 @@ const styles = StyleSheet.create({
   displayName: {
     ...typography.displaySm,
     color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  fullName: {
+    ...typography.bodyMd,
+    color: colors.textSecondary,
     marginBottom: spacing.md,
   },
 

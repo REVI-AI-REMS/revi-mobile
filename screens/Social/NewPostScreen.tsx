@@ -5,7 +5,7 @@ import type { MediaType } from "@/scripts/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
 import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
-import { Image } from "expo-image";
+import { Image } from "@/components/ExpoImage";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
 import { Stack, useRouter } from "expo-router";
@@ -278,29 +278,75 @@ export default function NewPostScreen() {
         }),
       );
 
-      // HEIC to JPEG conversion (common on iOS)
+      // HEIC / image conversion — runs for ALL images on iOS.
+      // iOS MediaLibrary resolves ph:// URIs to local paths that often
+      // lack an extension (e.g. /var/mobile/.../image.HEIC or just a
+      // temp path). We detect HEIC by extension OR by checking the
+      // original asset's extension. Any non-JPEG/PNG/WebP image is
+      // converted to JPEG for maximum compatibility with Azure + the feed.
       const { manipulateAsync, SaveFormat } =
         await import("expo-image-manipulator");
       const uploadUris = await Promise.all(
-        resolvedUris.map(async (uri) => {
-          if (uri.toLowerCase().endsWith(".heic")) {
+        resolvedUris.map(async (uri, i) => {
+          const lowerUri = uri.toLowerCase();
+
+          // Skip videos entirely
+          if (lowerUri.match(/\.(mp4|mov|m4v|avi|mkv)$/)) {
             try {
-              const result = await manipulateAsync(
+              // Dynamically import to keep bundle fast
+              const { Video: VideoCompressor } = await import("react-native-compressor");
+              console.log("[new-post] Compressing video...", uri);
+              const compressedUri = await VideoCompressor.compress(
                 uri,
-                [{ resize: { width: 1600 } }],
-                {
-                  compress: 0.9,
-                  format: SaveFormat.JPEG,
+                { compressionMethod: "auto" },
+                (progress) => {
+                  uploadStore.setProgress(5 + progress * 15);
                 },
               );
-              return result.uri;
+              console.log("[new-post] Video compressed:", compressedUri);
+              return compressedUri;
             } catch (err) {
+              console.warn("[new-post] Video compression failed, using original:", err);
               return uri;
             }
           }
+
+          // For images: check if we need to convert.
+          // HEIC by extension, OR any image without a safe extension
+          // (JPEG/PNG/WebP are safe to upload directly).
+          const isSafeFormat = lowerUri.match(/\.(jpe?g|png|webp)$/);
+          const originalAsset = selectedAssets[i];
+          const assetFilename = originalAsset?.filename?.toLowerCase() ?? "";
+          const isHeic =
+            lowerUri.endsWith(".heic") ||
+            assetFilename.endsWith(".heic") ||
+            assetFilename.endsWith(".heif");
+
+          if (isHeic || !isSafeFormat) {
+            try {
+              console.log("[new-post] Converting image to JPEG:", uri);
+              const result = await manipulateAsync(
+                uri,
+                // Cap at 2048px wide — keeps file sizes sensible without
+                // visible quality loss on phone screens.
+                [{ resize: { width: Math.min(2048, 1600) } }],
+                {
+                  compress: 0.92,
+                  format: SaveFormat.JPEG,
+                },
+              );
+              console.log("[new-post] Converted to JPEG:", result.uri);
+              return result.uri;
+            } catch (err) {
+              console.warn("[new-post] Image conversion failed, using original:", err);
+              return uri;
+            }
+          }
+
           return uri;
         }),
       );
+
 
       // Determine content type and file extension for each file
       const fileInfos = uploadUris.map((uri, i) => {

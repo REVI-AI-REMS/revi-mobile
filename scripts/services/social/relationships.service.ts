@@ -55,4 +55,10 @@ export const relationshipsService = {
     );
     return data;
   },
+
+  /** GET /api/v1/users/{user_id} */
+  getProfile: async (userId: string): Promise<any> => {
+    const { data } = await api.get(`/api/v1/users/${userId}`);
+    return data;
+  },
 };

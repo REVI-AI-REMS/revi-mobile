@@ -4,7 +4,7 @@ import { useLikePostMutation } from "@/hooks/mutations/use-feed-mutations";
 import type { PostRead } from "@/scripts/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { Image } from "@/components/ExpoImage";
 import { StatusBar } from "expo-status-bar";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -341,9 +341,9 @@ export function ReelsOverlay({
         })}
         initialScrollIndex={initialIndex}
         scrollEnabled={!commentsPostId}
-        initialNumToRender={1}
-        maxToRenderPerBatch={2}
-        windowSize={3}
+        initialNumToRender={2}
+        maxToRenderPerBatch={3}
+        windowSize={5}
         removeClippedSubviews={Platform.OS === "android"}
         decelerationRate="fast"
         snapToInterval={screenHeight}

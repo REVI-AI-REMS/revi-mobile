@@ -53,3 +53,14 @@ export function useUserStats(userId: string | null | undefined) {
     retryDelay: 2000,
   });
 }
+
+// ─── Fetch public profile details (username, avatar) for `userId` ────────────
+
+export function useUserProfile(userId: string | null | undefined) {
+  return useQuery({
+    queryKey: [...relationshipKeys.all, "profile", userId] as const,
+    queryFn: () => relationshipsService.getProfile(userId!),
+    enabled: Boolean(userId),
+    staleTime: 1000 * 60 * 10, // Profile data is fairly static
+  });
+}

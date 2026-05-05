@@ -4,7 +4,7 @@ import type { PostRead } from "@/scripts/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { Image } from "@/components/ExpoImage";
 import { VideoView, type VideoPlayer } from "expo-video";
 import { memo, useEffect, useRef, useState } from "react";
 import {
@@ -175,7 +175,7 @@ function PostCardComponent({
   const isTranscoded =
     post.media_type === "video" || post.media_url?.includes(".m3u8");
   const isProcessing = post.media_type === "video_upload" && !isTranscoded;
-  const isOwnPost = post.author_id === currentUserId;
+  const isOwnPost = post.author_id?.toString() === currentUserId?.toString();
   const mediaUrls =
     post.media_type === "carousel" && post.media_urls?.length
       ? post.media_urls
@@ -305,10 +305,23 @@ function PostCardComponent({
             activeOpacity={0.7}
             onPress={() => onAuthorPress?.(post.author_id)}
           >
-            <View style={styles.userAvatar} />
+            {/* Avatar — shows profile image if available, otherwise initials circle */}
+            {post.author_avatar ? (
+              <Image
+                source={{ uri: post.author_avatar }}
+                style={styles.userAvatarImage}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={styles.userAvatar}>
+                <Text style={styles.userAvatarInitial}>
+                  {(post.author_username ?? post.author_id).charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
             <View style={styles.userInfo}>
               <Text style={styles.userName}>
-                {shortAuthorId(post.author_id)}
+                {post.author_username ? `@${post.author_username}` : shortAuthorId(post.author_id)}
               </Text>
               <Text style={styles.postTime}>
                 {formatRelativeTime(post.created_at)}
@@ -367,9 +380,15 @@ function PostCardComponent({
                     isVideo && styles.videoContainer,
                   ]}
                 >
-                  <Animated.View style={StyleSheet.absoluteFill}>
+              <Animated.View style={StyleSheet.absoluteFill}>
                     {isVideoUrl ? (
                       <>
+                        {/* Layer 0: Dark fallback — always shown so card is never
+                            pure black. Sits below both the thumbnail and VideoView. */}
+                        <View style={styles.videoFallback}>
+                          <Ionicons name="play-circle-outline" size={48} color="rgba(255,255,255,0.3)" />
+                        </View>
+
                         {/* Layer 1: Thumbnail — always rendered as base for
                             video posts so the card never looks empty. The
                             VideoView mounts on top once active. */}
@@ -394,6 +413,17 @@ function PostCardComponent({
                             allowsPictureInPicture={false}
                           />
                         )}
+
+                        {/* Layer 3: Play button overlay — visible when not
+                            actively playing (thumbnail mode). Tells users this
+                            is a tappable video. Fades out once VideoView active. */}
+                        {!canRenderVideo && (
+                          <View style={styles.playOverlay}>
+                            <View style={styles.playOverlayCircle}>
+                              <Ionicons name="play" size={26} color="#FFF" />
+                            </View>
+                          </View>
+                        )}
                       </>
                     ) : isProcessing ? (
                       <View style={styles.videoPlaceholder}>
@@ -408,7 +438,7 @@ function PostCardComponent({
                       </View>
                     ) : (
                       <Image
-                        source={{ uri: url }}
+                        source={{ uri: url ?? undefined }}
                         style={styles.postImage}
                         contentFit="cover"
                         transition={200}
@@ -689,6 +719,20 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     backgroundColor: colors.bgTertiary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  userAvatarImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.bgTertiary,
+  },
+  userAvatarInitial: {
+    fontSize: 11,
+    fontFamily: "System",
+    fontWeight: "600",
+    color: colors.textSecondary,
   },
   userInfo: {
     gap: spacing.xs,
@@ -745,6 +789,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.bgSecondary,
     gap: spacing.xs,
+  },
+  videoFallback: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#111",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playOverlayCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.4)",
   },
   videoPlaceholderText: {
     ...typography.labelMd,

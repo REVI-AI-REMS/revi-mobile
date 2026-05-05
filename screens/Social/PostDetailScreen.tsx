@@ -17,13 +17,15 @@ import { useUserFollowing } from "@/hooks/queries/use-relationships";
 import { useFeedVideoPlayer } from "@/hooks/use-feed-video-player";
 import { PostRead } from "@/scripts/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const CURRENT_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
+// No longer hardcoded
+// const CURRENT_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
 
 const baseScreenOptions = {
   title: "Post",
@@ -44,9 +46,10 @@ const baseScreenOptions = {
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   const { data: post, isLoading, error, refetch } = usePost(id);
-  const { data: following = [] } = useUserFollowing(CURRENT_USER_ID);
+  const { data: following = [] } = useUserFollowing(currentUserId);
   const { data: bookmarks = [] } = useBookmarks();
 
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
@@ -181,7 +184,7 @@ export default function PostDetailScreen() {
         >
           <PostCard
             post={post}
-            currentUserId={CURRENT_USER_ID}
+            currentUserId={currentUserId || ""}
             isFollowing={isFollowing}
             isBookmarked={isBookmarked}
             likePending={likePending}
@@ -200,13 +203,13 @@ export default function PostDetailScreen() {
 
         <CommentsSheet
           postId={commentsPostId}
-          currentUserId={CURRENT_USER_ID}
+          currentUserId={currentUserId || ""}
           onClose={() => setCommentsPostId(null)}
         />
 
         <PostOptionsSheet
           post={optionsPost}
-          currentUserId={CURRENT_USER_ID}
+          currentUserId={currentUserId || ""}
           onClose={() => setOptionsPost(null)}
         />
       </SafeAreaView>
@@ -215,7 +218,7 @@ export default function PostDetailScreen() {
         <ReelsOverlay
           initialPost={reelsPost}
           feedVideoPosts={[]}
-          currentUserId={CURRENT_USER_ID}
+          currentUserId={currentUserId || ""}
           onClose={() => setReelsPost(null)}
         />
       )}
