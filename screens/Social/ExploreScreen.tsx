@@ -139,14 +139,12 @@ const GridThumbnail = React.memo(function GridThumbnail({
   const isCarousel =
     post.media_type === "carousel" && (post.media_urls?.length ?? 0) > 1;
 
-  // For video posts, media_url is an HLS .m3u8 manifest which expo-image
-  // cannot render as a still. Pull a generated frame from the video store
-  // (same store the Social feed populates) or generate one on first render.
   const thumbnailUri = useVideoStore((s) =>
     isVideo ? (s.thumbnails[post.id] ?? null) : null,
   );
   const setThumbnail = useVideoStore((s) => s.setThumbnail);
   const [thumbFailed, setThumbFailed] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     if (!isVideo || thumbnailUri || thumbFailed) return;
@@ -156,23 +154,22 @@ const GridThumbnail = React.memo(function GridThumbnail({
       if (uri) setThumbnail(post.id, uri);
       else setThumbFailed(true);
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    isVideo,
-    thumbnailUri,
-    thumbFailed,
-    post.id,
-    post.media_url,
-    setThumbnail,
-  ]);
+    return () => { cancelled = true; };
+  }, [isVideo, thumbnailUri, thumbFailed, post.id, post.media_url, setThumbnail]);
 
-  const imageSource = isVideo ? thumbnailUri : post.media_url;
+  // Reset image error state when the post changes (FlatList cell recycling).
+  useEffect(() => { setImgError(false); }, [post.id]);
+
+  // For non-video posts prefer media_url, fall back to first carousel URL.
+  const imageSource = isVideo
+    ? thumbnailUri
+    : (post.media_url || post.media_urls?.[0] || null);
+
+  const showImage = imageSource && !imgError;
 
   return (
     <Pressable style={styles.thumbWrapper} onPress={onPress}>
-      {imageSource ? (
+      {showImage ? (
         <Image
           source={{ uri: imageSource }}
           style={styles.thumb}
@@ -180,7 +177,8 @@ const GridThumbnail = React.memo(function GridThumbnail({
           cachePolicy="memory-disk"
           recyclingKey={`explore-${post.id}`}
           placeholder={{ blurhash: DEFAULT_BLURHASH }}
-          transition={0}
+          transition={150}
+          onError={() => setImgError(true)}
         />
       ) : (
         <View style={[styles.thumb, styles.thumbFallback]} />
@@ -348,6 +346,22 @@ export default function ExploreScreen() {
     () => feedData?.pages.flat() ?? [],
     [feedData?.pages],
   );
+
+  // Subscribe to thumbnails so the grid re-renders as video stills arrive.
+  const thumbnails = useVideoStore((s) => s.thumbnails);
+
+  // Only show posts that have something to display. Video posts without a
+  // generated thumbnail are hidden — they look like broken blank tiles.
+  const gridPosts = React.useMemo(() => {
+    return feedPosts.filter((p) => {
+      const isVideo =
+        p.media_type === "video" ||
+        p.media_type === "video_upload" ||
+        p.media_url?.includes(".m3u8");
+      if (isVideo) return Boolean(thumbnails[p.id]);
+      return Boolean(p.media_url || p.media_urls?.[0]);
+    });
+  }, [feedPosts, thumbnails]);
 
   // ─── Pre-generate thumbnails for video posts ───────────────────────────────
   // HLS thumbnailing (master.m3u8 → variant.m3u8 → .ts segment → decode) takes
@@ -639,7 +653,7 @@ export default function ExploreScreen() {
 
     return (
       <FlatList
-        data={feedPosts}
+        data={gridPosts}
         keyExtractor={gridKeyExtractor}
         numColumns={NUM_COLUMNS}
         columnWrapperStyle={columnWrapperStyle}
@@ -898,6 +912,8 @@ const styles = StyleSheet.create({
   },
   thumbFallback: {
     backgroundColor: "#1C1C1E",
+    alignItems: "center",
+    justifyContent: "center",
   },
   carouselBadge: {
     position: "absolute",

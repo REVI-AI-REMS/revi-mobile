@@ -93,12 +93,29 @@ export default function SocialsScreen() {
   const setVisiblePostIds = useVideoStore((s) => s.setVisiblePostIds);
   const router = useRouter();
 
-  // Pause video when navigating away from this screen.
+  // Mirrors the last value passed to setActiveVideoId so we can restore it
+  // when the screen comes back into focus.
+  const lastActiveVideoIdRef = useRef<string | null>(null);
+
+  // Pause feed video when reels overlay opens, resume when it closes.
+  useEffect(() => {
+    if (reelsPost) {
+      setActiveVideoId(null);
+    } else if (lastActiveVideoIdRef.current) {
+      setActiveVideoId(lastActiveVideoIdRef.current);
+    }
+  }, [reelsPost, setActiveVideoId]);
+
+  // Pause on blur (navigate to another tab/screen), resume on focus.
   useFocusEffect(
     useCallback(() => {
+      if (!reelsPost && lastActiveVideoIdRef.current) {
+        setActiveVideoId(lastActiveVideoIdRef.current);
+      }
       return () => {
         setActiveVideoId(null);
       };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [setActiveVideoId]),
   );
 
@@ -174,6 +191,7 @@ export default function SocialsScreen() {
       if (didVisibilityChange) {
         setVisiblePostIds([...visibleIdsRef.current]);
       }
+      lastActiveVideoIdRef.current = firstVideoId;
       setActiveVideoId(firstVideoId);
 
       if (viewedIdsRef.current.size >= 50) {

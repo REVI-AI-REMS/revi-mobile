@@ -42,7 +42,12 @@ export function useFeedVideoPlayer(
       player.pause();
       return;
     }
-    if (lastIdRef.current === activeVideoId) return;
+    if (lastIdRef.current === activeVideoId) {
+      // Same source is already loaded (e.g. returning from another screen).
+      // Source doesn't need reloading — just resume from where it paused.
+      player.play();
+      return;
+    }
     const postId = activeVideoId;
     const url = activeVideoUrl;
     lastIdRef.current = postId;
