@@ -26,7 +26,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { FlashList, type ViewToken } from "@shopify/flash-list";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -92,6 +92,15 @@ export default function SocialsScreen() {
   const setActiveVideoId = useVideoStore((s) => s.setActiveVideoId);
   const setVisiblePostIds = useVideoStore((s) => s.setVisiblePostIds);
   const router = useRouter();
+
+  // Pause video when navigating away from this screen.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setActiveVideoId(null);
+      };
+    }, [setActiveVideoId]),
+  );
 
   // ─── Relationship status ───────────────────────────────────────────────────
   // Load who the current user already follows so Follow buttons initialise

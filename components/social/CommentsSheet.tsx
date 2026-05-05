@@ -212,10 +212,9 @@ export function CommentsSheet({
       onClose={onClose}
       height="80%"
       showCloseButton={false}
+      scrollable={false}
       dismissOnBackdrop
     >
-      {/* Handle */}
-      <View style={styles.handle} />
 
       {/* Title + count */}
       <View style={styles.titleRow}>
@@ -328,17 +327,6 @@ export function CommentsSheet({
 }
 
 const styles = StyleSheet.create({
-  // Handle
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 16,
-    marginTop: -16,
-    backgroundColor: "#3A3A3C",
-  },
-
   // Title row
   titleRow: {
     flexDirection: "row",
