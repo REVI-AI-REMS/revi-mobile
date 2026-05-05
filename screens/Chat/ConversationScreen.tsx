@@ -223,6 +223,18 @@ export default function ChatConversationScreen() {
 
   const { mutate: reactToMessage } = useReactToMessageMutation(sessionId);
 
+  // When the user taps a session in the sidebar, params.sessionId changes.
+  // sessionId state is only initialised once via useState, so we must sync it.
+  useEffect(() => {
+    if (initialSessionId && initialSessionId !== sessionId) {
+      setSessionId(initialSessionId);
+      setOptimisticMessage(null);
+      setAnimatingId(null);
+      seenAiIds.current.clear();
+      pendingResponseRef.current = false;
+    }
+  }, [initialSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-fire initial query from the home screen or suggestion cards.
   // lastProcessedQuery tracks which query we already fired so we never
   // double-send, but ALSO resets for a new conversation when the query changes.
@@ -481,7 +493,7 @@ export default function ChatConversationScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: "#000000" }]}
+      style={styles.root}
       // See ChatScreen for the reasoning — edge-to-edge Android stops
       // auto-resizing on keyboard, so the JS side has to shrink the view
       // or the input sits under the keyboard.
