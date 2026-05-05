@@ -191,6 +191,7 @@ function PostCardComponent({
   const thumbnailUri = useVideoStore((s) => s.thumbnails[post.id] ?? null);
   const setThumbnail = useVideoStore((s) => s.setThumbnail);
   const isActive = useVideoStore((s) => s.activeVideoId === post.id);
+  const isVideoReady = useVideoStore((s) => s.readyVideoId === post.id);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   // ─── Cell recycle reset ────────────────────────────────────────────────────
@@ -257,6 +258,7 @@ function PostCardComponent({
     post.media_url,
     setThumbnail,
   ]);
+
 
   // Heart pulse animation on like
   const heartScale = useSharedValue(1);
@@ -389,20 +391,9 @@ function PostCardComponent({
                           <Ionicons name="play-circle-outline" size={48} color="rgba(255,255,255,0.3)" />
                         </View>
 
-                        {/* Layer 1: Thumbnail — always rendered as base for
-                            video posts so the card never looks empty. The
-                            VideoView mounts on top once active. */}
-                        {thumbnailUri && (
-                          <Image
-                            source={{ uri: thumbnailUri }}
-                            style={StyleSheet.absoluteFill}
-                            contentFit="cover"
-                          />
-                        )}
-
-                        {/* Layer 2: VideoView bound to the hoisted player.
+                        {/* Layer 1: VideoView bound to the hoisted player.
                             Mounts only when this card is active; source is
-                            swapped by the parent via player.replace(). */}
+                            swapped by the parent via player.replaceAsync(). */}
                         {canRenderVideo && (
                           <VideoView
                             player={videoPlayer!}
@@ -412,6 +403,26 @@ function PostCardComponent({
                             fullscreenOptions={{ enable: false }}
                             allowsPictureInPicture={false}
                           />
+                        )}
+
+                        {/* Layer 2: Opaque cover — sits on TOP of VideoView.
+                            Shown whenever the player hasn't started playing
+                            this post's content yet, guaranteeing the old
+                            video's frame is never visible.
+                            - Not active: shows thumbnail (or dark bg) as the
+                              card's static preview.
+                            - Active but not ready: covers VideoView while
+                              replaceAsync is in flight. */}
+                        {(!isActive || !isVideoReady) && (
+                          thumbnailUri ? (
+                            <Image
+                              source={{ uri: thumbnailUri }}
+                              style={StyleSheet.absoluteFill}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
+                          )
                         )}
 
                         {/* Layer 3: Play button overlay — visible when not
