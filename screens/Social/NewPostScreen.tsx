@@ -32,7 +32,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const { width } = Dimensions.get("window");
 
 // Hardcoded Lagos coords — replace with expo-location when ready
-const DEV_COORDS = { latitude: 6.5244, longitude: 3.3792 };
+const DEV_COORDS = { latitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LAT ?? "6.5244"), longitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LNG ?? "3.3792") };
 
 type Step = "pick" | "caption";
 

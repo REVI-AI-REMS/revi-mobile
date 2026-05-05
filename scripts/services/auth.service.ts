@@ -11,7 +11,7 @@ import type {
 export type { AuthUser, LoginRequest, LoginResponse, RegisterRequest, RefreshResponse };
 
 const authAxios = axios.create({
-  baseURL: "https://backend.reviai.ai",
+  baseURL: process.env.EXPO_PUBLIC_AUTH_API_URL ?? "https://backend.reviai.ai",
   timeout: 15_000,
   headers: {
     "Content-Type": "application/json",

@@ -87,14 +87,14 @@ const SCREEN_PADDING = 0; // The grid typically spans full width
 const THUMB_SIZE = (SCREEN_WIDTH - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
 
 const DEFAULT_AVATAR =
-  "https://ui-avatars.com/api/?background=333&color=fff&name=U";
+  process.env.EXPO_PUBLIC_DEFAULT_AVATAR_URL ?? "https://ui-avatars.com/api/?background=333&color=fff&name=U";
 const DEFAULT_BLURHASH = "L6Pj0^jE.AyE_3t7t7R**0o#DgR4";
 
 // ─── Dev location (match social feed) ────────────────────────────────────────
 
 const DEV_LOCATION = {
-  latitude: 6.5244,
-  longitude: 3.3792,
+  latitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LAT ?? "6.5244"),
+  longitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LNG ?? "3.3792"),
   radius_km: 20,
   limit: 60,
 };
@@ -193,6 +193,16 @@ const GridThumbnail = React.memo(function GridThumbnail({
       {isCarousel && (
         <View style={styles.carouselBadge}>
           <Ionicons name="copy-outline" size={12} color="#FFF" />
+        </View>
+      )}
+      {post.like_count > 0 && (
+        <View style={styles.likeBadge}>
+          <Ionicons name="heart" size={10} color="#FF2D55" />
+          <Text style={styles.likeBadgeText}>
+            {post.like_count >= 1000
+              ? `${(post.like_count / 1000).toFixed(1)}k`
+              : post.like_count}
+          </Text>
         </View>
       )}
     </Pressable>
@@ -904,6 +914,23 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
     borderRadius: 4,
     padding: 3,
+  },
+  likeBadge: {
+    position: "absolute",
+    bottom: 6,
+    left: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+  },
+  likeBadgeText: {
+    fontSize: 10,
+    color: "#FFFFFF",
+    fontFamily: Fonts.semiBold,
   },
   retryButton: {
     paddingHorizontal: 20,

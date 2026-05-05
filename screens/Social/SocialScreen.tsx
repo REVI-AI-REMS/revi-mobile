@@ -38,8 +38,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 // feed (~21 posts today) in one request. Drop this back to PAGE_SIZE once
 // the server honors `skip` correctly.
 const DEV_LOCATION: MainFeedParams = {
-  latitude: 6.5244, // Lagos, Nigeria
-  longitude: 3.3792,
+  latitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LAT ?? "6.5244"), // Lagos, Nigeria
+  longitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LNG ?? "3.3792"),
   radius_km: 20,
   limit: 50,
 };

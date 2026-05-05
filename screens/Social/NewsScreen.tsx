@@ -8,7 +8,7 @@ import type { PostRead } from "@/scripts/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { Image as ExpoImage } from "expo-image";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -114,7 +114,7 @@ const SavedCard = memo(function SavedCard({
     <Pressable style={styles.card} onPress={onPress}>
       <View style={styles.cardImageWrapper}>
         {imageSource ? (
-          <Image
+          <ExpoImage
             source={{ uri: imageSource }}
             style={styles.cardImage}
             contentFit="cover"
@@ -152,16 +152,34 @@ const SavedCard = memo(function SavedCard({
       </View>
 
       <View style={styles.cardFooter}>
-        <View style={styles.uploaderAvatar}>
-          <Ionicons name="person" size={12} color="#888" />
-        </View>
+        {post.author_avatar ? (
+          <ExpoImage
+            source={{ uri: post.author_avatar }}
+            style={styles.uploaderAvatar}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+          />
+        ) : (
+          <View style={[styles.uploaderAvatar, styles.uploaderAvatarFallback]}>
+            <Ionicons name="person" size={12} color="#888" />
+          </View>
+        )}
         <View style={{ flex: 1 }}>
           <Text style={styles.uploadedByLabel} numberOfLines={1}>
-            @{post.author_id.slice(0, 8)}
+            @{post.author_username ?? post.author_id.slice(0, 8)}
           </Text>
-          <Text style={styles.timeLabel}>
-            {formatRelativeTime(post.created_at)}
-          </Text>
+          <View style={styles.metaRow}>
+            <Text style={styles.timeLabel}>
+              {formatRelativeTime(post.created_at)}
+            </Text>
+            {post.like_count > 0 && (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Ionicons name="heart" size={10} color="#FF2D55" />
+                <Text style={styles.timeLabel}>{post.like_count}</Text>
+              </>
+            )}
+          </View>
         </View>
       </View>
     </Pressable>
@@ -523,9 +541,21 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     backgroundColor: "#2C2C2E",
+    flexShrink: 0,
+    overflow: "hidden",
+  },
+  uploaderAvatarFallback: {
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  metaDot: {
+    fontSize: 10,
+    color: "#666666",
   },
   uploadedByLabel: {
     fontSize: 12,
