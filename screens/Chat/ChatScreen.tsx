@@ -9,11 +9,6 @@ import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from "react-native-reanimated";
 import {
   Alert,
   BackHandler,
@@ -28,6 +23,11 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
 interface SuggestionCard {
   id: string;
@@ -80,7 +80,8 @@ export default function ChatHomeScreen() {
   // Perplexity-style backdrop depth: scale + round + dim the background when
   // any bottom sheet opens, making it recede visually behind the sheet.
   const sheetDepth = useSharedValue(0);
-  const anySheetOpen = actionModalVisible || reportModalVisible || tellStoryModalVisible;
+  const anySheetOpen =
+    actionModalVisible || reportModalVisible || tellStoryModalVisible;
 
   useEffect(() => {
     sheetDepth.value = withSpring(anySheetOpen ? 1 : 0, {
@@ -213,7 +214,7 @@ export default function ChatHomeScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#000000" }}
+      style={{ flex: 1, backgroundColor: "#0F0F10" }}
       // iOS: padding slides the view up. Android: "height" shrinks the
       // KeyboardAvoidingView itself by the keyboard height. With edge-to-edge
       // enabled on Android 15+, the OS stops auto-resizing the window, so we
@@ -225,122 +226,122 @@ export default function ChatHomeScreen() {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.container}>
           <Animated.View style={[{ flex: 1 }, bgDepthStyle]}>
-          <ChatHeader
-            onMenuPress={() => setSidebarVisible(true)}
-            onNewChatPress={handleNewChat}
-            onMorePress={handleMore}
-            onProfilePress={handleProfile}
-          />
-
-          <ChatSessionsSidebar
-            visible={sidebarVisible}
-            onClose={() => setSidebarVisible(false)}
-          />
-
-          {actionModalVisible && (
-            <ChatActionModal
-              visible={actionModalVisible}
-              onClose={() => setActionModalVisible(false)}
-              onActionPress={handleActionPress}
+            <ChatHeader
+              onMenuPress={() => setSidebarVisible(true)}
+              onNewChatPress={handleNewChat}
+              onMorePress={handleMore}
+              onProfilePress={handleProfile}
             />
-          )}
 
-          {reportModalVisible && (
-            <ReportModal
-              visible={reportModalVisible}
-              onClose={() => setReportModalVisible(false)}
-              title={reportModalTitle}
-              onSuccess={handleSuccess}
+            <ChatSessionsSidebar
+              visible={sidebarVisible}
+              onClose={() => setSidebarVisible(false)}
             />
-          )}
 
-          {tellStoryModalVisible && (
-            <TellStoryModal
-              visible={tellStoryModalVisible}
-              onClose={() => setTellStoryModalVisible(false)}
-              onSuccess={handleSuccess}
+            {actionModalVisible && (
+              <ChatActionModal
+                visible={actionModalVisible}
+                onClose={() => setActionModalVisible(false)}
+                onActionPress={handleActionPress}
+              />
+            )}
+
+            {reportModalVisible && (
+              <ReportModal
+                visible={reportModalVisible}
+                onClose={() => setReportModalVisible(false)}
+                title={reportModalTitle}
+                onSuccess={handleSuccess}
+              />
+            )}
+
+            {tellStoryModalVisible && (
+              <TellStoryModal
+                visible={tellStoryModalVisible}
+                onClose={() => setTellStoryModalVisible(false)}
+                onSuccess={handleSuccess}
+              />
+            )}
+
+            <SuccessModal
+              visible={successModalVisible}
+              onClose={() => setSuccessModalVisible(false)}
             />
-          )}
 
-          <SuccessModal
-            visible={successModalVisible}
-            onClose={() => setSuccessModalVisible(false)}
-          />
+            <ScrollView
+              style={styles.content}
+              contentContainerStyle={styles.contentContainer}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.greetingSection}>
+                <Text style={styles.greeting}>Hi {greetingName},</Text>
+                <Text style={styles.question}>Where should we start?</Text>
+              </View>
 
-          <ScrollView
-            style={styles.content}
-            contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.greetingSection}>
-              <Text style={styles.greeting}>Hi {greetingName},</Text>
-              <Text style={styles.question}>Where should we start?</Text>
-            </View>
+              <View style={styles.suggestionsContainer}>
+                {suggestions.map((suggestion) => (
+                  <TouchableOpacity
+                    key={suggestion.id}
+                    style={styles.suggestionCard}
+                    onPress={() => handleSuggestionPress(suggestion.title)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.cardIconContainer}>
+                      <Ionicons
+                        name={suggestion.icon}
+                        size={24}
+                        color="#FFFFFF"
+                      />
+                    </View>
+                    <View style={styles.cardContent}>
+                      <Text style={styles.cardTitle}>{suggestion.title}</Text>
+                      <Text style={styles.cardDescription}>
+                        {suggestion.description}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
 
-            <View style={styles.suggestionsContainer}>
-              {suggestions.map((suggestion) => (
+            <View style={styles.inputContainer}>
+              <TouchableOpacity
+                style={styles.attachButton}
+                onPress={() => setActionModalVisible(true)}
+                activeOpacity={0.6}
+              >
+                <Ionicons name="add" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ask anything real estate"
+                  placeholderTextColor="#666666"
+                  value={message}
+                  onChangeText={setMessage}
+                  multiline
+                  onSubmitEditing={handleSendMessage}
+                  returnKeyType="send"
+                  blurOnSubmit={false}
+                />
                 <TouchableOpacity
-                  key={suggestion.id}
-                  style={styles.suggestionCard}
-                  onPress={() => handleSuggestionPress(suggestion.title)}
+                  style={[
+                    styles.sendButton,
+                    !message.trim() && styles.sendButtonDisabled,
+                  ]}
+                  onPress={handleSendMessage}
+                  disabled={!message.trim()}
                   activeOpacity={0.7}
                 >
-                  <View style={styles.cardIconContainer}>
-                    <Ionicons
-                      name={suggestion.icon}
-                      size={24}
-                      color="#FFFFFF"
-                    />
-                  </View>
-                  <View style={styles.cardContent}>
-                    <Text style={styles.cardTitle}>{suggestion.title}</Text>
-                    <Text style={styles.cardDescription}>
-                      {suggestion.description}
-                    </Text>
-                  </View>
+                  <Ionicons
+                    name="arrow-up"
+                    size={20}
+                    color={message.trim() ? "#000000" : "#666666"}
+                  />
                 </TouchableOpacity>
-              ))}
+              </View>
             </View>
-          </ScrollView>
-
-          <View style={styles.inputContainer}>
-            <TouchableOpacity
-              style={styles.attachButton}
-              onPress={() => setActionModalVisible(true)}
-              activeOpacity={0.6}
-            >
-              <Ionicons name="add" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Ask anything real estate"
-                placeholderTextColor="#666666"
-                value={message}
-                onChangeText={setMessage}
-                multiline
-                onSubmitEditing={handleSendMessage}
-                returnKeyType="send"
-                blurOnSubmit={false}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  !message.trim() && styles.sendButtonDisabled,
-                ]}
-                onPress={handleSendMessage}
-                disabled={!message.trim()}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="arrow-up"
-                  size={20}
-                  color={message.trim() ? "#000000" : "#666666"}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
           </Animated.View>
         </View>
       </TouchableWithoutFeedback>
@@ -351,6 +352,7 @@ export default function ChatHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#0F0F10",
   },
   content: {
     flex: 1,

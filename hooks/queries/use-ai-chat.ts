@@ -24,7 +24,8 @@ export function useChatSessions() {
   return useQuery<ChatSessionListResponse>({
     queryKey: aiKeys.sessions(),
     queryFn: () => aiService.listSessions(1, 50),
-    staleTime: 1000 * 30,
+    staleTime: 1000 * 60 * 5,  // 5 minutes — sidebar doesn't need to reload on every nav
+    refetchOnMount: false,       // use cached data when navigating back to chat
   });
 }
 
@@ -76,7 +77,8 @@ export function useChatMessages(sessionId: string | undefined) {
     queryKey: sessionId ? aiKeys.messages(sessionId) : aiKeys.messages("none"),
     queryFn: () => aiService.getMessages(sessionId!, 1, 50),
     enabled: Boolean(sessionId),
-    staleTime: 1000 * 15,
+    staleTime: 1000 * 60 * 5,  // 5 minutes — history doesn't change unless we send
+    refetchOnMount: false,       // don't re-load when navigating back mid-conversation
   });
 }
 
