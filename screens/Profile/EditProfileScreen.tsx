@@ -131,12 +131,6 @@ export default function EditProfileScreen() {
           Alert.alert("Saved", "Your profile has been updated.");
           router.back();
         },
-        onError: (err: any) => {
-          const detail = err?.response?.data?.detail;
-          const msg =
-            typeof detail === "string" ? detail : "Could not save changes.";
-          Alert.alert("Error", msg);
-        },
       },
     );
   };

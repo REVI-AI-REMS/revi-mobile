@@ -18,6 +18,7 @@ import {
 import { useGeospatialFeed, useMainFeed } from "@/hooks/queries/use-feed";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
 import { useFeedVideoPlayer } from "@/hooks/use-feed-video-player";
+import { useAuthorProfiles } from "@/hooks/queries/use-author-profiles";
 import type { MainFeedParams, PostRead } from "@/scripts/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
 import { useVideoStore } from "@/stores/video.store";
@@ -25,7 +26,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
-import { FlashList, type ViewToken } from "@shopify/flash-list";
+import { FlashList, type FlashListRef, type ViewToken } from "@shopify/flash-list";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -261,6 +262,13 @@ export default function SocialsScreen() {
     return out;
   }, [data]);
 
+  // ─── Author profiles (first + last name for display) ─────────────────────
+  const authorIds = useMemo(
+    () => [...new Set(posts.map((p) => p.author_id))],
+    [posts],
+  );
+  const authorProfiles = useAuthorProfiles(authorIds);
+
   // ─── Hoisted video player ──────────────────────────────────────────────────
   // One player drives the whole feed. The currently-active post's media_url
   // is loaded into it; every other card just shows a thumbnail. That keeps
@@ -437,7 +445,7 @@ export default function SocialsScreen() {
 
   // ─── Comments sheet ────────────────────────────────────────────────────────
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
-  const listRef = useRef<FlashList<PostRead>>(null);
+  const listRef = useRef<FlashListRef<PostRead>>(null);
 
   // ─── Post options sheet ───────────────────────────────────────────────────
   const [optionsPost, setOptionsPost] = useState<PostRead | null>(null);
@@ -501,25 +509,32 @@ export default function SocialsScreen() {
   );
 
   const renderPost = useCallback(
-    ({ item }: { item: PostRead }) => (
-      <PostCard
-        post={item}
-        onLike={handleLike}
-        onFollow={handleFollow}
-        onComment={handleComment}
-        onMore={handleMore}
-        onVideoPress={handleVideoPress}
-        onBookmark={handleBookmark}
-        onAuthorPress={handleAuthorPress}
-        isFollowing={followingIds.has(item.author_id)}
-        isBookmarked={bookmarkedIds.has(item.id)}
-        likePending={likePending}
-        currentUserId={currentUserId || ""}
-        videoPlayer={videoPlayer}
-        isMuted={isMuted}
-        onToggleMute={handleToggleMute}
-      />
-    ),
+    ({ item }: { item: PostRead }) => {
+      const profile = authorProfiles.get(item.author_id);
+      const authorName = profile
+        ? [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.username
+        : null;
+      return (
+        <PostCard
+          post={item}
+          onLike={handleLike}
+          onFollow={handleFollow}
+          onComment={handleComment}
+          onMore={handleMore}
+          onVideoPress={handleVideoPress}
+          onBookmark={handleBookmark}
+          onAuthorPress={handleAuthorPress}
+          isFollowing={followingIds.has(item.author_id)}
+          isBookmarked={bookmarkedIds.has(item.id)}
+          likePending={likePending}
+          currentUserId={currentUserId || ""}
+          videoPlayer={videoPlayer}
+          isMuted={isMuted}
+          onToggleMute={handleToggleMute}
+          authorName={authorName}
+        />
+      );
+    },
     [
       handleLike,
       handleFollow,
@@ -535,6 +550,7 @@ export default function SocialsScreen() {
       videoPlayer,
       isMuted,
       handleToggleMute,
+      authorProfiles,
     ],
   );
 

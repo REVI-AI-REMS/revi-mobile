@@ -1,12 +1,14 @@
 import { Fonts } from "@/constants/theme";
 import { useBookmarks, useUserPosts, useUserStats } from "@/hooks";
+import { feedKeys } from "@/hooks/queries/use-feed";
 import type { PostRead } from "@/scripts/services/social/types";
 import { useAuthStore } from "@/stores/auth.store";
 import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "@/components/ExpoImage";
-import { useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -202,9 +204,20 @@ const GridThumbnail = React.memo(function GridThumbnail({
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
 
   const user = useAuthStore((s) => s.user);
+
+  // Invalidate user posts every time this tab comes into focus so a freshly
+  // uploaded post always appears without waiting for staleTime to expire.
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: feedKeys.userPosts(user.id) });
+      }
+    }, [user?.id, queryClient]),
+  );
 
   // Fetch user posts by ID instead of search for better reliability
   const { data: userPosts = [] } = useUserPosts(user?.id ?? null);
@@ -255,12 +268,20 @@ export default function ProfileScreen() {
 
   const columnWrapperStyle = useMemo(() => ({ gap: GRID_GAP }), []);
 
+  const displayName = useMemo(() => {
+    const full = [user?.first_name, user?.last_name].filter(Boolean).join(" ");
+    return full || user?.username || "—";
+  }, [user]);
+
   const ListHeaderComponent = useMemo(
     () => (
       <View>
         {/* Profile Info */}
         <View style={styles.profileSection}>
-          <View style={styles.avatarWrapper}>
+          <Pressable
+            style={styles.avatarWrapper}
+            onPress={handleEditProfile}
+          >
             <Image
               source={{ uri: user?.avatar ?? DEFAULT_AVATAR }}
               style={styles.avatar}
@@ -268,11 +289,14 @@ export default function ProfileScreen() {
               cachePolicy="memory-disk"
               transition={0}
             />
-          </View>
-          <Text style={styles.displayName}>
-            {(user?.first_name ?? "") + " " + (user?.last_name ?? "")}
-          </Text>
-          <Text style={styles.username}>@{user?.username ?? ""}</Text>
+            <View style={styles.cameraBtn}>
+              <Ionicons name="camera-outline" size={13} color="#fff" />
+            </View>
+          </Pressable>
+          <Text style={styles.displayName}>{displayName}</Text>
+          {user?.username ? (
+            <Text style={styles.username}>@{user.username}</Text>
+          ) : null}
           <View style={styles.statsRow}>
             <StatItem value={gridPosts.length} label="Posts" />
             <StatItem value={stats?.follower_count ?? 0} label="Followers" />
@@ -309,6 +333,7 @@ export default function ProfileScreen() {
     ),
     [
       user,
+      displayName,
       gridPosts.length,
       stats,
       activeTab,
@@ -356,7 +381,9 @@ export default function ProfileScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <View />
+        <Text style={styles.headerUsername}>
+          {user?.username ? `@${user.username}` : "Profile"}
+        </Text>
         <Pressable
           style={styles.headerButton}
           hitSlop={8}
@@ -412,6 +439,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
 
+  headerUsername: {
+    fontSize: 16,
+    fontFamily: Fonts.semiBold,
+    color: colors.textPrimary,
+  },
   headerButton: {
     width: layout.minTouchTarget,
     height: layout.minTouchTarget,
@@ -436,8 +468,21 @@ const styles = StyleSheet.create({
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
     marginBottom: spacing.md,
-    overflow: "hidden",
+    overflow: "visible",
     backgroundColor: colors.bgSecondary,
+  },
+  cameraBtn: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#3A3A3C",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: colors.bg,
   },
   avatar: {
     width: "100%",

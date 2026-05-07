@@ -10,9 +10,8 @@ import type {
     PostCreate,
     PostRead,
 } from "@/scripts/services/social/types";
+import { useAuthStore } from "@/stores/auth.store";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-
-const CURRENT_USER_ID = process.env.EXPO_PUBLIC_DEV_USER_ID ?? "";
 
 // ─── Like / Unlike ───────────────────────────────────────────────────────────
 
@@ -144,7 +143,7 @@ export function useAddCommentMutation() {
       const tempComment: CommentRead & { parent_id?: string | null } = {
         id: `temp-${Date.now()}`,
         post_id,
-        author_id: CURRENT_USER_ID,
+        author_id: useAuthStore.getState().user?.id ?? "",
         content,
         created_at: new Date().toISOString(),
         // Include parent_id for UI use even though CommentRead doesn't model it.
@@ -329,7 +328,7 @@ export function useBatchLogViewsMutation() {
 
 export function useFollowMutation() {
   const queryClient = useQueryClient();
-  const currentUserId = CURRENT_USER_ID;
+  const currentUserId = useAuthStore.getState().user?.id ?? "";
 
   return useMutation<void, Error, { userId: string; isFollowing: boolean }>({
     mutationFn: async ({ userId, isFollowing }) => {

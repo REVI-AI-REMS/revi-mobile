@@ -87,8 +87,11 @@ export interface CommentRead {
   author_id: string;
   content: string;
   created_at: string;
+  parent_id?: string | null;
   author_username?: string | null;
   author_avatar?: string | null;
+  is_liked?: boolean;
+  like_count?: number;
 }
 
 export interface LikeCreate {

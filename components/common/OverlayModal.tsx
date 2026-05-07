@@ -1,11 +1,13 @@
+import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import {
   Dimensions,
   Keyboard,
   KeyboardAvoidingView,
-  Modal as RNModal,
   Platform,
+  Modal as RNModal,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -13,13 +15,14 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 
 interface OverlayModalProps {
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
   showCloseButton?: boolean;
+  /** When provided, renders a ← back button at the top-left, same level as the close button. */
+  onBackPress?: () => void;
   height?: number | string;
   dismissOnBackdrop?: boolean;
   /** Pass false when children already contain a scroll/list component (e.g. FlatList).
@@ -42,6 +45,7 @@ export default function OverlayModal({
   onClose,
   children,
   showCloseButton = true,
+  onBackPress,
   height = "auto",
   dismissOnBackdrop = false,
   scrollable = true,
@@ -49,18 +53,53 @@ export default function OverlayModal({
   const insets = useSafeAreaInsets();
   const maxHeight = resolveMaxHeight(height);
 
+  // For non-scrollable sheets (e.g. CommentsSheet with a FlatList), the sheet
+  // has a fixed pixel height. When the keyboard opens, KAV adds paddingBottom
+  // but the fixed-height sheet overflows behind the keyboard. Fix: shrink the
+  // sheet height by the keyboard height so it always fits above the keyboard.
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  useEffect(() => {
+    if (scrollable) return;
+    const show = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => setKeyboardHeight(e.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardHeight(0),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [scrollable]);
+
+  const sheetHeight = scrollable
+    ? maxHeight
+    : Math.max(300, maxHeight - keyboardHeight);
+
   const content = (
     <View
       style={[
         styles.sheetContent,
         { paddingBottom: Math.max(insets.bottom, 20) },
-        scrollable ? { maxHeight } : { height: maxHeight },
+        scrollable ? { maxHeight: sheetHeight } : { height: sheetHeight },
       ]}
       collapsable={false}
     >
       {/* Drag handle indicator */}
       <View style={styles.handle} />
 
+      {onBackPress && (
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={onBackPress}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
       {showCloseButton && (
         <TouchableOpacity
           style={styles.closeButton}
@@ -82,9 +121,7 @@ export default function OverlayModal({
           {children}
         </ScrollView>
       ) : (
-        <View style={styles.directContent}>
-          {children}
-        </View>
+        <View style={styles.directContent}>{children}</View>
       )}
     </View>
   );
@@ -99,9 +136,10 @@ export default function OverlayModal({
       navigationBarTranslucent
     >
       <View style={styles.overlay}>
-        <TouchableWithoutFeedback onPress={dismissOnBackdrop ? onClose : Keyboard.dismiss}>
-          <View style={styles.backdropFill} />
-        </TouchableWithoutFeedback>
+        {/* Backdrop — purely visual, pointerEvents="none" so it never
+            blocks touches on sheet content. The spacer above the sheet
+            handles dismiss taps via its own TouchableWithoutFeedback. */}
+        <View style={styles.backdropFill} pointerEvents="none" />
 
         <KeyboardAvoidingView
           behavior="padding"
@@ -111,24 +149,25 @@ export default function OverlayModal({
           {/* Flex spacer fills all space above the sheet. minHeight: 80 means
               at least 80px of backdrop is always visible above the sheet —
               the sheet never reaches the very top of the screen. */}
-          <TouchableWithoutFeedback onPress={dismissOnBackdrop ? onClose : Keyboard.dismiss}>
+          <TouchableWithoutFeedback
+            onPress={dismissOnBackdrop ? onClose : Keyboard.dismiss}
+          >
             <View style={styles.spacer} />
           </TouchableWithoutFeedback>
 
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.sheetWrapper}>
-              {Platform.OS === "ios" ? (
-                <BlurView intensity={60} tint="dark" style={styles.blur}>
-                  {content}
-                </BlurView>
-              ) : (
-                <View style={styles.androidSheet}>
-                  <View style={styles.androidOverlay} />
-                  {content}
-                </View>
-              )}
-            </View>
-          </TouchableWithoutFeedback>
+          <View style={styles.sheetWrapper}>
+            {Platform.OS === "ios" ? (
+              <BlurView intensity={60} tint="dark" style={styles.blur}>
+                {content}
+              </BlurView>
+            ) : (
+              <View style={styles.androidSheet}>
+                {/* Decorative border overlay — must not intercept touches */}
+                <View style={styles.androidOverlay} pointerEvents="none" />
+                {content}
+              </View>
+            )}
+          </View>
         </KeyboardAvoidingView>
       </View>
     </RNModal>
@@ -209,6 +248,18 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.25)",
     alignSelf: "center",
     marginBottom: 16,
+  },
+  backButton: {
+    position: "absolute",
+    top: 16,
+    left: 20,
+    zIndex: 10,
+    width: 35,
+    height: 35,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   closeButton: {
     position: "absolute",

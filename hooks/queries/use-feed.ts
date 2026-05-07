@@ -179,6 +179,7 @@ export function useUserPosts(userId: string | null, skip = 0, limit = 50) {
     queryKey: feedKeys.userPosts(userId ?? ""),
     queryFn: () => postsService.getUserPosts(userId!, skip, limit),
     enabled: Boolean(userId),
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 0,           // always consider stale so new posts appear immediately
+    refetchOnMount: true,
   });
 }

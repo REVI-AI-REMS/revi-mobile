@@ -1,8 +1,35 @@
-import { QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { parseApiError } from "@/utils/api-error";
+
+// Populated by ToastProvider once it mounts. Using a setter avoids a
+// circular dep between queryClient (module scope) and React context.
+let _showToast: ((msg: string, type: "error" | "success" | "info") => void) | null = null;
+export function registerToast(fn: typeof _showToast) {
+  _showToast = fn;
+}
 
 export const queryClient = new QueryClient({
+  // Surface every failed mutation as a toast automatically.
+  mutationCache: new MutationCache({
+    onError: (error, _vars, _ctx, mutation) => {
+      // Mutations with meta.silent handle their own error UI (e.g. auth modals
+      // that live inside RNModal where the toast would be hidden).
+      if (mutation.options.meta?.silent) return;
+      _showToast?.(parseApiError(error), "error");
+    },
+  }),
+  // Silently log query errors — don't toast on background refetch failures.
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      if (query.options.meta?.silent) return;
+      // Only toast if there's no cached data (first load = user sees blank screen).
+      if (query.state.data === undefined) {
+        _showToast?.(parseApiError(error), "error");
+      }
+    },
+  }),
   defaultOptions: {
     queries: {
       // Data considered fresh for 5 minutes — no refetch during this window
