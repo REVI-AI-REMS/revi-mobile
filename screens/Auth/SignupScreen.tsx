@@ -10,6 +10,7 @@ import {
   useRequestEmailVerificationMutation,
 } from "@/hooks/mutations/use-auth";
 import { useAuthStore } from "@/stores/auth.store";
+import { parseApiError } from "@/utils/api-error";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -25,12 +26,6 @@ import {
 
 type Step = "details" | "code" | "success";
 
-const errMsg = (err: any, fallback: string): string => {
-  const d = err?.response?.data?.detail;
-  if (typeof d === "string") return d;
-  if (Array.isArray(d) && d[0]?.msg) return d[0].msg;
-  return err?.message ?? fallback;
-};
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -63,6 +58,13 @@ export default function SignUpScreen() {
   const { mutate: requestVerification, isPending: isResending } =
     useRequestEmailVerificationMutation();
   const { mutate: login } = useLoginMutation();
+
+  // Focus first OTP box when code step mounts — autoFocus is unreliable in RNModal
+  useEffect(() => {
+    if (step !== "code") return;
+    const t = setTimeout(() => inputRefs.current[0]?.focus(), 350);
+    return () => clearTimeout(t);
+  }, [step]);
 
   // Resend countdown
   useEffect(() => {
@@ -113,7 +115,7 @@ export default function SignUpScreen() {
         onError: (error: any) => {
           Alert.alert(
             "Verification failed",
-            errMsg(error, "Invalid or expired code. Please try again."),
+            parseApiError(error),
           );
           setDigits(["", "", "", "", "", ""]);
           inputRefs.current[0]?.focus();
@@ -181,7 +183,7 @@ export default function SignUpScreen() {
               (typeof data?.username?.[0] === "string"
                 ? data.username[0]
                 : null) ??
-              errMsg(error, "Registration failed. Please try again.");
+              parseApiError(error);
             Alert.alert("Sign up failed", message);
           },
         },
@@ -200,7 +202,7 @@ export default function SignUpScreen() {
       },
       onError: (error: any) => {
         const message =
-          error?.response?.data?.detail ?? "Could not resend code.";
+          parseApiError(error);
         Alert.alert("Resend failed", message);
       },
     });
@@ -230,14 +232,8 @@ export default function SignUpScreen() {
         visible={hasAcceptedTerms && visible}
         onClose={handleClose}
         height={step === "details" ? "80%" : "auto"}
+        onBackPress={step !== "success" ? handleBack : undefined}
       >
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBack}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
 
         {/* Header */}
         {step !== "success" && (
@@ -428,7 +424,6 @@ export default function SignUpScreen() {
                   onKeyPress={(e) => handleDigitKeyPress(e, i)}
                   keyboardType="number-pad"
                   maxLength={1}
-                  autoFocus={i === 0}
                   selectTextOnFocus
                   textAlign="center"
                   editable={!isVerifying}
@@ -517,18 +512,6 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     color: "#A6A6A6",
     letterSpacing: 1,
-  },
-  backButton: {
-    position: "absolute",
-    top: 20,
-    left: 20,
-    zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    alignItems: "center",
-    justifyContent: "center",
   },
   header: {
     alignItems: "center",

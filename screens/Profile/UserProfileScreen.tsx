@@ -148,7 +148,11 @@ export default function UserProfileScreen() {
 
   const columnWrapperStyle = useMemo(() => ({ gap: GRID_GAP }), []);
 
-  const displayName = profile?.username ? `@${profile.username}` : (userId ? `@${userId.slice(0, 8)}` : "");
+  const displayName = useMemo(() => {
+    const full = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ");
+    return full || profile?.username || (userId ? userId.slice(0, 8) : "—");
+  }, [profile, userId]);
+  const handle = profile?.username ? `@${profile.username}` : "";
   const avatarUri = profile?.avatar || DEFAULT_AVATAR;
 
   const ListHeaderComponent = useMemo(
@@ -165,11 +169,7 @@ export default function UserProfileScreen() {
             />
           </View>
           <Text style={styles.displayName}>{displayName}</Text>
-          {profile?.first_name && (
-            <Text style={styles.fullName}>
-              {profile.first_name} {profile.last_name}
-            </Text>
-          )}
+          {handle ? <Text style={styles.handle}>{handle}</Text> : null}
           <View style={styles.statsRow}>
             <StatItem value={gridPosts.length} label="Posts" />
             <StatItem value={stats?.follower_count ?? 0} label="Followers" />
@@ -208,6 +208,7 @@ export default function UserProfileScreen() {
     ),
     [
       displayName,
+      handle,
       gridPosts.length,
       stats,
       isFollowing,
@@ -230,7 +231,7 @@ export default function UserProfileScreen() {
   return (
     <View style={styles.container}>
       <ScreenHeader
-        title={displayName}
+        title={handle || displayName}
         onBackPress={() => router.back()}
         showBackButton
         showMenuButton={false}
@@ -293,7 +294,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: spacing.xs,
   },
-  fullName: {
+  handle: {
     ...typography.bodyMd,
     color: colors.textSecondary,
     marginBottom: spacing.md,

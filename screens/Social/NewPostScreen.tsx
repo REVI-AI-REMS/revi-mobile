@@ -144,21 +144,13 @@ export default function NewPostScreen() {
         first: 100,
       });
       setAssets(loaded);
-      // Auto-select first photo on initial load
-      if (selectedUris.length === 0 && loaded.length > 0) {
-        const first = loaded[0];
-        setSelectedUris([first.uri]);
-        setSelectedAssets([first]);
-        setSelectedVideoUris(first.mediaType === "video" ? [first.uri] : []);
-        setFocusedUri(first.uri);
-        setFocusedIsVideo(first.mediaType === "video");
-      }
+      // No auto-selection — user picks manually.
     } catch (e) {
       // Log to Metro so developers can diagnose. We don't show a modal
       // because the Browse fallback covers this for the user.
       console.warn("[new-post] loadAssets failed", e);
     }
-  }, [permissionResponse?.status, activeTab, selectedUris.length]);
+  }, [permissionResponse?.status, activeTab]);
 
   useEffect(() => {
     if (permissionResponse?.status === "granted") {
@@ -188,8 +180,10 @@ export default function NewPostScreen() {
         );
         return;
       }
+      // On "Videos" tab open in video mode directly; otherwise photo mode.
+      const isVideoTab = activeTab === "Videos";
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ["images", "videos"],
+        mediaTypes: isVideoTab ? ["videos"] : ["images", "videos"],
         quality: 0.85,
         videoMaxDuration: 60,
       });
@@ -489,17 +483,12 @@ export default function NewPostScreen() {
         <StatusBar style="light" />
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          // Same reason as the chat screens: Android 15 edge-to-edge stops
-          // auto-resizing on keyboard, so behavior="height" is needed to
-          // shrink the view and keep the caption input visible.
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
-              onPress={() => {
-                if (!isBusy) setStep("pick");
-              }}
+              onPress={() => { if (!isBusy) setStep("pick"); }}
               style={styles.backButton}
             >
               <Ionicons name="chevron-back" size={24} color="#FFF" />
@@ -554,7 +543,6 @@ export default function NewPostScreen() {
             />
           </View>
 
-          {/* Character counter — only when the user has started typing */}
           {caption.length > 0 && (
             <Text
               style={[
@@ -566,19 +554,15 @@ export default function NewPostScreen() {
             </Text>
           )}
 
-          {/* Upload status */}
           {isBusy && (
             <View style={styles.statusRow}>
               <ActivityIndicator color="#A855F7" size="small" />
               <Text style={styles.statusText}>
-                {uploadStatus === "uploading"
-                  ? "Uploading media..."
-                  : "Creating post..."}
+                {uploadStatus === "uploading" ? "Uploading media..." : "Creating post..."}
               </Text>
             </View>
           )}
 
-          {/* Error */}
           {uploadError && (
             <View style={styles.errorRow}>
               <Ionicons name="alert-circle-outline" size={16} color="#FF6B6B" />
@@ -854,6 +838,7 @@ export default function NewPostScreen() {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

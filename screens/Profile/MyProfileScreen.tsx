@@ -1,6 +1,7 @@
 import { ScreenHeader } from "@/components";
 import { colors, layout, radius, spacing, typography } from "@/constants/design";
 import { formatCount } from "@/data/mock";
+import { useUserPosts } from "@/hooks/queries/use-feed";
 import { useUserStats } from "@/hooks/queries/use-relationships";
 import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,6 +15,7 @@ export default function MyProfileScreen() {
     const router = useRouter();
     const user = useAuthStore((s) => s.user);
     const { data: stats } = useUserStats(user?.id);
+    const { data: userPosts = [] } = useUserPosts(user?.id ?? null);
 
     const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "No name set";
 
@@ -70,7 +72,7 @@ export default function MyProfileScreen() {
                             <Text style={styles.statLabel}>Following</Text>
                         </View>
                         <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>{formatCount(0)}</Text>
+                            <Text style={styles.statNumber}>{formatCount(userPosts.length)}</Text>
                             <Text style={styles.statLabel}>Posts</Text>
                         </View>
                     </View>

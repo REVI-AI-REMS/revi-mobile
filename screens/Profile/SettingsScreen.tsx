@@ -113,10 +113,6 @@ export default function SettingsScreen() {
                 { current_password: currentPwd, new_password: newPwd },
                 {
                   onSuccess: () => Alert.alert("Success", "Your password has been changed."),
-                  onError: (err: any) => {
-                    const d = err?.response?.data?.detail;
-                    Alert.alert("Error", typeof d === "string" ? d : "Could not change password.");
-                  },
                 },
               );
             },

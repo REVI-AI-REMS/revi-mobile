@@ -69,16 +69,12 @@ export default function LoginScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#0F0F10" }}>
-      <OverlayModal visible={visible} onClose={handleClose} height="80%">
-        {step === "password" && (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
+      <OverlayModal
+        visible={visible}
+        onClose={handleClose}
+        height="80%"
+        onBackPress={step === "password" ? handleBack : undefined}
+      >
 
         {/* Header */}
         <View style={styles.header}>
@@ -239,18 +235,6 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  backButton: {
-    position: "absolute",
-    top: 20,
-    left: 20,
-    zIndex: 10,
-    width: 35,
-    height: 35,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   header: {
     alignItems: "center",
     marginBottom: 28,

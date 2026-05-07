@@ -1,27 +1,32 @@
 import OverlayModal from "@/components/common/OverlayModal";
+import { Image } from "@/components/ExpoImage";
 import { Fonts } from "@/constants/theme";
 import {
-    useAddCommentMutation,
-    useDeleteCommentMutation,
+  useAddCommentMutation,
+  useDeleteCommentMutation,
+  useLikeCommentMutation,
 } from "@/hooks/mutations/use-feed-mutations";
+import { useAuthorProfiles } from "@/hooks/queries/use-author-profiles";
 import { useComments } from "@/hooks/queries/use-feed";
 import type { CommentRead } from "@/scripts/services/social/types";
+import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
 } from "react-native-reanimated";
 import { formatRelativeTime } from "./PostCard";
 
@@ -38,9 +43,6 @@ const MAX_LEN = 500;
 // first two UUID chars. No rainbow hashing; the point is presence, not
 // decoration.
 
-function initialsFor(id: string): string {
-  return id.slice(0, 2).toUpperCase();
-}
 
 const Avatar = memo(function Avatar({
   size = 36,
@@ -53,14 +55,20 @@ const Avatar = memo(function Avatar({
   username?: string | null;
   avatarUrl?: string | null;
 }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const fontSize = Math.round(size * 0.38);
+  const letter = (username || authorId).charAt(0).toUpperCase();
 
-  if (avatarUrl) {
+  if (avatarUrl && !imgFailed) {
     return (
       <Image
         source={{ uri: avatarUrl }}
-        style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
+        style={[
+          styles.avatar,
+          { width: size, height: size, borderRadius: size / 2 },
+        ]}
         contentFit="cover"
+        onError={() => setImgFailed(true)}
       />
     );
   }
@@ -72,9 +80,7 @@ const Avatar = memo(function Avatar({
         { width: size, height: size, borderRadius: size / 2 },
       ]}
     >
-      <Text style={[styles.avatarText, { fontSize }]}>
-        {(username || authorId).charAt(0).toUpperCase()}
-      </Text>
+      <Text style={[styles.avatarText, { fontSize }]}>{letter}</Text>
     </View>
   );
 });
@@ -91,21 +97,116 @@ export function CommentsSheet({
   const [text, setText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [replyTo, setReplyTo] = useState<{
-    id: string;
-    author: string;
+    parentId: string; // always the top-level comment id (max 2 levels)
+    author: string; // display label for the banner
   } | null>(null);
   const inputRef = useRef<TextInput>(null);
-  const listRef = useRef<FlatList<CommentRead>>(null);
+  const listRef = useRef<FlatList<any>>(null);
 
   const { data: comments = [], isLoading } = useComments(postId ?? "");
   const { mutate: addComment, isPending: submitting } = useAddCommentMutation();
   const { mutate: deleteComment } = useDeleteCommentMutation();
+  const { mutate: likeComment } = useLikeCommentMutation();
+
+  const currentUser = useAuthStore((s) => s.user);
+  const router = useRouter();
+
+  const handleAuthorPress = useCallback(
+    (authorId: string) => {
+      onClose();
+      setTimeout(() => {
+        if (authorId === currentUserId) {
+          router.push("/profile/my-profile");
+        } else {
+          router.push({ pathname: "/profile/[userId]", params: { userId: authorId } });
+        }
+      }, 250);
+    },
+    [currentUserId, router, onClose],
+  );
+
+  // Collect unique author IDs so we can fetch their real avatars/usernames.
+  const authorIds = useMemo(
+    () => [...new Set(comments.map((c) => c.author_id))],
+    [comments],
+  );
+  const authorProfiles = useAuthorProfiles(authorIds);
+  const authorProfilesRef = useRef(authorProfiles);
+  authorProfilesRef.current = authorProfiles;
+
+  // Track which parent comments have their full reply list expanded.
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(
+    new Set(),
+  );
+
+  const toggleReplies = useCallback((parentId: string) => {
+    setExpandedReplies((prev) => {
+      const next = new Set(prev);
+      next.has(parentId) ? next.delete(parentId) : next.add(parentId);
+      return next;
+    });
+  }, []);
+
+  // Flat list items — discriminated union so we can insert "show more" rows.
+  type ListItem =
+    | { kind: "comment"; comment: CommentRead }
+    | { kind: "expand"; parentId: string; hidden: number };
+
+  const listItems = useMemo((): ListItem[] => {
+    const topLevel = comments.filter((c) => !c.parent_id);
+    const repliesMap = new Map<string, CommentRead[]>();
+    for (const c of comments) {
+      if (c.parent_id) {
+        const arr = repliesMap.get(c.parent_id) ?? [];
+        arr.push(c);
+        repliesMap.set(c.parent_id, arr);
+      }
+    }
+    const result: ListItem[] = [];
+    for (const parent of topLevel) {
+      result.push({ kind: "comment", comment: parent });
+      const children = repliesMap.get(parent.id) ?? [];
+      if (children.length === 0) continue;
+      const isExpanded = expandedReplies.has(parent.id);
+      if (isExpanded) {
+        children.forEach((r) => result.push({ kind: "comment", comment: r }));
+        result.push({ kind: "expand", parentId: parent.id, hidden: 0 }); // hide button
+      } else {
+        // Collapsed — show only the toggle button, no replies visible
+        result.push({
+          kind: "expand",
+          parentId: parent.id,
+          hidden: children.length,
+        });
+      }
+    }
+    // Orphaned replies go at the end
+    for (const c of comments) {
+      if (c.parent_id && !topLevel.find((p) => p.id === c.parent_id)) {
+        result.push({ kind: "comment", comment: c });
+      }
+    }
+    return result;
+  }, [comments, expandedReplies]);
 
   const sendScale = useSharedValue(1);
   const sendAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: sendScale.value }],
   }));
 
+  const topLevelCount = useMemo(
+    () => comments.filter((c) => !c.parent_id).length,
+    [comments],
+  );
+
+  // Base height on visible items (collapsed replies don't take space).
+  const sheetHeight = useMemo(() => {
+    const n = listItems.filter((i) => i.kind === "comment").length;
+    if (n === 0) return "55%";
+    if (n <= 3) return "65%";
+    if (n <= 6) return "80%";
+    return "90%";
+  }, [listItems]);
   const countLabel = useMemo(() => {
     const n = comments.length;
     if (n === 0) return null;
@@ -128,8 +229,15 @@ export function CommentsSheet({
     [postId, deleteComment],
   );
 
-  const handleReply = useCallback((commentId: string, authorId: string) => {
-    setReplyTo({ id: commentId, author: shortHandle(authorId) });
+  const handleReply = useCallback((comment: CommentRead) => {
+    const profile = authorProfilesRef.current.get(comment.author_id);
+    const label = profile?.username
+      ? `@${profile.username}`
+      : shortHandle(comment.author_id);
+    // Keep nesting at 2 levels: if replying to a reply, use its parent_id
+    // so all replies thread under the same top-level comment.
+    const parentId = comment.parent_id ?? comment.id;
+    setReplyTo({ parentId, author: label });
     setText("");
     setTimeout(() => inputRef.current?.focus(), 100);
   }, []);
@@ -149,7 +257,7 @@ export function CommentsSheet({
       {
         content: trimmed,
         post_id: postId,
-        parent_id: replyTo?.id ?? null,
+        parent_id: replyTo?.parentId ?? null,
       },
       {
         onSuccess: () => {
@@ -164,22 +272,63 @@ export function CommentsSheet({
   }, [text, postId, replyTo, addComment, sendScale]);
 
   const renderItem = useCallback(
-    ({ item: c }: { item: CommentRead }) => {
+    ({ item }: { item: any }) => {
+      if (item.kind === "expand") {
+        return (
+          <TouchableOpacity
+            style={styles.expandRow}
+            onPress={() => toggleReplies(item.parentId)}
+            activeOpacity={0.6}
+          >
+            <View style={styles.expandLine} />
+            <Text style={styles.expandText}>
+              {item.hidden > 0
+                ? `View ${item.hidden} more ${item.hidden === 1 ? "reply" : "replies"}`
+                : "Hide replies"}
+            </Text>
+          </TouchableOpacity>
+        );
+      }
+
+      const c = item.comment;
       const isOwn = c.author_id === currentUserId;
       const isPending = c.id.startsWith("temp-");
 
+      const profile = authorProfilesRef.current.get(c.author_id);
+      const isCurrentUser = c.author_id === currentUserId;
+      // For own comments use the auth-store avatar (most up-to-date).
+      // For others fall back to API field → social-API profile → nothing.
+      const avatarUrl = isCurrentUser
+        ? (currentUser?.avatar ?? c.author_avatar ?? profile?.avatar ?? null)
+        : (c.author_avatar ?? profile?.avatar ?? null);
+      const username = c.author_username ?? profile?.username ?? null;
+
+      const isReply = Boolean(c.parent_id);
+
       return (
-        <View style={styles.commentRow}>
-          <Avatar 
-            authorId={c.author_id} 
-            username={c.author_username} 
-            avatarUrl={c.author_avatar} 
-          />
+        <View style={[styles.commentRow, isReply && styles.replyRow]}>
+          {isReply && <View style={styles.replyThreadLine} />}
+          <TouchableOpacity
+            onPress={() => handleAuthorPress(c.author_id)}
+            activeOpacity={0.7}
+          >
+            <Avatar
+              authorId={c.author_id}
+              username={username}
+              avatarUrl={avatarUrl}
+              size={isReply ? 28 : 36}
+            />
+          </TouchableOpacity>
           <View style={styles.commentBody}>
             <View style={styles.commentMeta}>
-              <Text style={styles.commentAuthor} numberOfLines={1}>
-                {isOwn ? "You" : (c.author_username ? `@${c.author_username}` : shortHandle(c.author_id))}
-              </Text>
+              <TouchableOpacity
+                onPress={() => handleAuthorPress(c.author_id)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.commentAuthor} numberOfLines={1}>
+                  {isOwn ? "You" : (username ?? shortHandle(c.author_id))}
+                </Text>
+              </TouchableOpacity>
               <Text style={styles.commentTime}>
                 {isPending ? "sending…" : formatRelativeTime(c.created_at)}
               </Text>
@@ -194,16 +343,35 @@ export function CommentsSheet({
             </Text>
             {!isPending && (
               <View style={styles.commentActions}>
-                <TouchableOpacity style={styles.commentAction} disabled>
-                  <Ionicons name="heart-outline" size={15} color="#555" />
-                </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.commentAction}
-                  onPress={() => handleReply(c.id, c.author_id)}
                   activeOpacity={0.6}
+                  onPress={() =>
+                    likeComment({
+                      postId: c.post_id,
+                      commentId: c.id,
+                      isLiked: c.is_liked ?? false,
+                    })
+                  }
                 >
-                  <Text style={styles.replyText}>Reply</Text>
+                  <Ionicons
+                    name={c.is_liked ? "heart" : "heart-outline"}
+                    size={15}
+                    color={c.is_liked ? "#FF2D55" : "#555"}
+                  />
+                  {(c.like_count ?? 0) > 0 && (
+                    <Text style={styles.likeCount}>{c.like_count}</Text>
+                  )}
                 </TouchableOpacity>
+                {!isReply && (
+                  <TouchableOpacity
+                    style={styles.commentAction}
+                    onPress={() => handleReply(c)}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={styles.replyText}>Reply</Text>
+                  </TouchableOpacity>
+                )}
                 {isOwn && (
                   <TouchableOpacity
                     style={styles.commentAction}
@@ -219,22 +387,32 @@ export function CommentsSheet({
         </View>
       );
     },
-    [currentUserId, handleReply, handleDelete],
+    [
+      currentUserId,
+      handleReply,
+      handleDelete,
+      likeComment,
+      toggleReplies,
+      handleAuthorPress,
+    ],
   );
 
-  const keyExtractor = useCallback((c: CommentRead) => c.id, []);
+  const keyExtractor = useCallback(
+    (item: any) =>
+      item.kind === "comment" ? item.comment.id : `expand-${item.parentId}`,
+    [],
+  );
   const sendEnabled = text.trim().length > 0 && !submitting;
 
   return (
     <OverlayModal
       visible={Boolean(postId)}
       onClose={onClose}
-      height="80%"
+      height={sheetHeight}
       showCloseButton={false}
       scrollable={false}
       dismissOnBackdrop
     >
-
       {/* Title + count */}
       <View style={styles.titleRow}>
         <Text style={styles.title}>Comments</Text>
@@ -247,7 +425,7 @@ export function CommentsSheet({
         <View style={styles.stateBox}>
           <ActivityIndicator color="#FFFFFF" />
         </View>
-      ) : comments.length === 0 ? (
+      ) : topLevelCount === 0 ? (
         <View style={styles.stateBox}>
           <View style={styles.emptyHalo}>
             <Ionicons name="chatbubble-outline" size={28} color="#8E8E93" />
@@ -260,7 +438,7 @@ export function CommentsSheet({
       ) : (
         <FlatList
           ref={listRef}
-          data={comments}
+          data={listItems}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           style={styles.list}
@@ -290,9 +468,11 @@ export function CommentsSheet({
       )}
 
       <View style={styles.inputRow}>
-        <Avatar 
-          authorId={currentUserId} 
-          size={30} 
+        <Avatar
+          authorId={currentUserId}
+          username={currentUser?.username}
+          avatarUrl={currentUser?.avatar}
+          size={30}
         />
         <View style={[styles.inputWrap, isFocused && styles.inputWrapFocused]}>
           <TextInput
@@ -427,6 +607,38 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 18,
   },
+  replyRow: {
+    marginLeft: 36,
+    marginTop: -6,
+  },
+  expandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 52,
+    marginBottom: 14,
+    marginTop: -6,
+    gap: 8,
+  },
+  expandLine: {
+    width: 20,
+    height: 1.5,
+    backgroundColor: "#3A3A3C",
+    borderRadius: 1,
+  },
+  expandText: {
+    fontSize: 12,
+    fontFamily: Fonts.semiBold,
+    color: "#8E8E93",
+  },
+  replyThreadLine: {
+    position: "absolute",
+    left: -20,
+    top: -12,
+    bottom: 8,
+    width: 1.5,
+    backgroundColor: "#2C2C2E",
+    borderRadius: 1,
+  },
   commentBody: {
     flex: 1,
     gap: 4,
@@ -467,6 +679,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     paddingVertical: 2,
+  },
+  likeCount: {
+    fontSize: 11,
+    fontFamily: Fonts.regular,
+    color: "#8E8E93",
+    marginLeft: 2,
   },
   replyText: {
     fontSize: 12,

@@ -17,7 +17,9 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { queryClient, asyncStoragePersister } from "@/lib/queryClient";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
+import { ToastProvider, useToast } from "@/components/common/Toast";
+import { queryClient, asyncStoragePersister, registerToast } from "@/lib/queryClient";
 import { useAuthStore } from "@/stores/auth.store";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -67,6 +69,17 @@ const SCREENS = [
   "modal",
 ] as const;
 
+// Registers the toast fn with queryClient so MutationCache/QueryCache
+// can fire toasts without importing React context at module scope.
+function ToastBridge() {
+  const toast = useToast();
+  useEffect(() => {
+    registerToast(toast.show);
+    return () => registerToast(null);
+  }, [toast.show]);
+  return null;
+}
+
 // ─── Root Layout ─────────────────────────────────────────────────────────────
 
 export default function RootLayout() {
@@ -104,37 +117,42 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={{
-          persister: asyncStoragePersister,
-          maxAge: 1000 * 60 * 60 * 24,
-        }}
-      >
-        <SafeAreaProvider>
-          <ThemeProvider value={DarkTheme}>
-            <BottomSheetModalProvider>
-              <Stack screenOptions={{ headerShown: false }}>
-                {SCREENS.map((name) => (
-                  <Stack.Screen
-                    key={name}
-                    name={name}
-                    options={SPECIAL_SCREENS[name]}
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister: asyncStoragePersister,
+            maxAge: 1000 * 60 * 60 * 24,
+          }}
+        >
+          <SafeAreaProvider>
+            <ThemeProvider value={DarkTheme}>
+              <ToastProvider>
+                <ToastBridge />
+                <BottomSheetModalProvider>
+                  <Stack screenOptions={{ headerShown: false }}>
+                    {SCREENS.map((name) => (
+                      <Stack.Screen
+                        key={name}
+                        name={name}
+                        options={SPECIAL_SCREENS[name]}
+                      />
+                    ))}
+                  </Stack>
+                  <StatusBar
+                    style="light"
+                    backgroundColor={
+                      Platform.OS === "android" ? "#000000" : "transparent"
+                    }
+                    translucent={Platform.OS === "android"}
                   />
-                ))}
-              </Stack>
-              <StatusBar
-                style="light"
-                backgroundColor={
-                  Platform.OS === "android" ? "#000000" : "transparent"
-                }
-                translucent={Platform.OS === "android"}
-              />
-            </BottomSheetModalProvider>
-          </ThemeProvider>
-        </SafeAreaProvider>
-      </PersistQueryClientProvider>
-    </GestureHandlerRootView>
+                </BottomSheetModalProvider>
+              </ToastProvider>
+            </ThemeProvider>
+          </SafeAreaProvider>
+        </PersistQueryClientProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

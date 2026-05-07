@@ -40,7 +40,7 @@ export function useLoginMutation() {
   const setUser = useAuthStore((s) => s.setUser);
   const isDev = process.env.EXPO_PUBLIC_DEV_MODE === "true";
 
-  return useMutation({
+  return useMutation({ meta: { silent: true },
     mutationFn: async (payload: LoginRequest) => {
       if (isDev) {
         return {
@@ -62,7 +62,7 @@ export function useLoginMutation() {
 // ─── Register ─────────────────────────────────────────────────────────────────
 
 export function useRegisterMutation() {
-  return useMutation({
+  return useMutation({ meta: { silent: true },
     mutationFn: (payload: RegisterRequest) => authService.register(payload),
   });
 }
@@ -70,13 +70,13 @@ export function useRegisterMutation() {
 // ─── Email Verification ───────────────────────────────────────────────────────
 
 export function useRequestEmailVerificationMutation() {
-  return useMutation({
+  return useMutation({ meta: { silent: true },
     mutationFn: (email: string) => authService.requestEmailVerification(email),
   });
 }
 
 export function useConfirmEmailVerificationMutation() {
-  return useMutation({
+  return useMutation({ meta: { silent: true },
     mutationFn: ({ email, otp }: { email: string; otp: string }) =>
       authService.confirmEmailVerification(email, otp),
   });
@@ -85,20 +85,20 @@ export function useConfirmEmailVerificationMutation() {
 // ─── Password Reset ───────────────────────────────────────────────────────────
 
 export function useRequestPasswordResetMutation() {
-  return useMutation({
+  return useMutation({ meta: { silent: true },
     mutationFn: (email: string) => authService.requestPasswordReset(email),
   });
 }
 
 export function useVerifyPasswordResetOtpMutation() {
-  return useMutation({
+  return useMutation({ meta: { silent: true },
     mutationFn: ({ email, otp }: { email: string; otp: string }) =>
       authService.verifyPasswordResetOtp(email, otp),
   });
 }
 
 export function useConfirmPasswordResetMutation() {
-  return useMutation({
+  return useMutation({ meta: { silent: true },
     mutationFn: ({
       email,
       otp,
@@ -116,7 +116,7 @@ export function useConfirmPasswordResetMutation() {
 export function useUpdateProfileMutation() {
   const updateUser = useAuthStore((s) => s.updateUser);
 
-  return useMutation({
+  return useMutation({ meta: { silent: true },
     mutationFn: ({
       userId,
       updates,
@@ -135,7 +135,7 @@ export function useUpdateProfileMutation() {
 // ─── Change Password ──────────────────────────────────────────────────────────
 
 export function useChangePasswordMutation() {
-  return useMutation({
+  return useMutation({ meta: { silent: true },
     mutationFn: ({
       current_password,
       new_password,
@@ -152,7 +152,7 @@ export function useLogoutMutation() {
   const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
 
-  return useMutation({
+  return useMutation({ meta: { silent: true },
     mutationFn: async () => {},
     onSettled: () => {
       logout();

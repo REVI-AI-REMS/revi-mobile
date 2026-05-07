@@ -139,6 +139,8 @@ export interface PostCardProps {
   isBookmarked?: boolean;
   likePending: boolean;
   currentUserId: string;
+  /** Full name resolved by the parent (first + last from author profile). */
+  authorName?: string | null;
   // Hoisted video player — owned by the feed screen. When this card is
   // isActive, we render a VideoView bound to this player. Other cards
   // render only the thumbnail. Omit for thumbnail-only contexts.
@@ -165,6 +167,7 @@ function PostCardComponent({
   videoPlayer,
   isMuted = true,
   onToggleMute,
+  authorName,
 }: PostCardProps) {
   const isVideo =
     post.media_type === "video" ||
@@ -323,7 +326,7 @@ function PostCardComponent({
             )}
             <View style={styles.userInfo}>
               <Text style={styles.userName}>
-                {post.author_username ? `@${post.author_username}` : shortAuthorId(post.author_id)}
+                {authorName ?? post.author_username ?? shortAuthorId(post.author_id)}
               </Text>
               <Text style={styles.postTime}>
                 {formatRelativeTime(post.created_at)}
@@ -385,11 +388,6 @@ function PostCardComponent({
               <Animated.View style={StyleSheet.absoluteFill}>
                     {isVideoUrl ? (
                       <>
-                        {/* Layer 0: Dark fallback — always shown so card is never
-                            pure black. Sits below both the thumbnail and VideoView. */}
-                        <View style={styles.videoFallback}>
-                          <Ionicons name="play-circle-outline" size={48} color="rgba(255,255,255,0.3)" />
-                        </View>
 
                         {/* Layer 1: VideoView bound to the hoisted player.
                             Mounts only when this card is active; source is
@@ -405,24 +403,20 @@ function PostCardComponent({
                           />
                         )}
 
-                        {/* Layer 2: Opaque cover — sits on TOP of VideoView.
-                            Shown whenever the player hasn't started playing
-                            this post's content yet, guaranteeing the old
-                            video's frame is never visible.
-                            - Not active: shows thumbnail (or dark bg) as the
-                              card's static preview.
-                            - Active but not ready: covers VideoView while
-                              replaceAsync is in flight. */}
-                        {(!isActive || !isVideoReady) && (
-                          thumbnailUri ? (
-                            <Image
-                              source={{ uri: thumbnailUri }}
-                              style={StyleSheet.absoluteFill}
-                              contentFit="cover"
-                            />
-                          ) : (
-                            <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
-                          )
+                        {/* Layer 2: Cover while video isn't playing.
+                            - Has thumbnail → show it as static preview.
+                            - No thumbnail + active + not ready → opaque dark cover
+                              to block the previous video's frame bleeding through
+                              while replaceAsync is in flight. */}
+                        {thumbnailUri && (!isActive || !isVideoReady) && (
+                          <Image
+                            source={{ uri: thumbnailUri }}
+                            style={StyleSheet.absoluteFill}
+                            contentFit="cover"
+                          />
+                        )}
+                        {!thumbnailUri && isActive && !isVideoReady && (
+                          <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
                         )}
 
                         {/* Layer 3: Play button overlay — visible when not

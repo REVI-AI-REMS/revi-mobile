@@ -73,7 +73,10 @@ export function useAuthorProfiles(authorIds: string[]): AuthorProfileMap {
     retry: 1,
   });
 
-  // Stable empty map reference — avoids unnecessary re-renders when data is undefined
   const emptyMapRef = useRef<AuthorProfileMap>(new Map());
-  return data ?? emptyMapRef.current;
+  // Keep a ref to the latest resolved map so renderItem callbacks can read
+  // it without stale-closure crashes when data transitions through undefined.
+  const latestRef = useRef<AuthorProfileMap>(emptyMapRef.current);
+  if (data instanceof Map) latestRef.current = data;
+  return latestRef.current;
 }
