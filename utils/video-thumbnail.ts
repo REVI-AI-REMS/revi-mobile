@@ -41,7 +41,7 @@ export async function generateVideoThumbnail(
   try {
     const { uri } = await VideoThumbnails.getThumbnailAsync(videoUrl, {
       time: 0,
-      quality: 0.7,
+      quality: 0.5, // lower quality = faster decode, still looks fine at feed size
     });
     return uri;
   } catch {
@@ -55,7 +55,7 @@ export async function generateVideoThumbnail(
       if (!segmentUrl) return null;
       const { uri } = await VideoThumbnails.getThumbnailAsync(segmentUrl, {
         time: 0,
-        quality: 0.7,
+        quality: 0.5,
       });
       return uri;
     } catch {

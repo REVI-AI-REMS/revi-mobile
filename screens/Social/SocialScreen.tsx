@@ -15,7 +15,8 @@ import {
     useBookmarks,
     useRemoveBookmarkMutation,
 } from "@/hooks/queries/use-bookmarks";
-import { useGeospatialFeed, useMainFeed } from "@/hooks/queries/use-feed";
+import { feedKeys, useGeospatialFeed, useMainFeed } from "@/hooks/queries/use-feed";
+import { useQueryClient } from "@tanstack/react-query";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
 import { useFeedVideoPlayer } from "@/hooks/use-feed-video-player";
 import { useAuthorProfiles } from "@/hooks/queries/use-author-profiles";
@@ -93,6 +94,15 @@ export default function SocialsScreen() {
   const setActiveVideoId = useVideoStore((s) => s.setActiveVideoId);
   const setVisiblePostIds = useVideoStore((s) => s.setVisiblePostIds);
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // Invalidate the main feed every time this tab comes into focus so posts
+  // from other accounts appear without needing a manual pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: feedKeys.all });
+    }, [queryClient]),
+  );
 
   // Mirrors the last value passed to setActiveVideoId so we can restore it
   // when the screen comes back into focus.
@@ -313,24 +323,27 @@ export default function SocialsScreen() {
     if (!videoPosts.length) return;
 
     let cancelled = false;
-    const CONCURRENCY = 3; // 3 parallel — fast without hammering the device
+    // Generate a thumbnail and save it to the store.
+    const gen = async (post: (typeof videoPosts)[0]) => {
+      if (cancelled || thumbnailsRef.current[post.id]) return;
+      const uri = await generateVideoThumbnail(post.media_url);
+      if (uri && !cancelled) {
+        setThumbnail(post.id, uri);
+        thumbnailsRef.current = { ...thumbnailsRef.current, [post.id]: uri };
+      }
+    };
 
     const run = async () => {
-      for (let i = 0; i < videoPosts.length; i += CONCURRENCY) {
+      // First 5 posts are likely on screen — fire them all at once.
+      const priority = videoPosts.slice(0, 5);
+      const rest = videoPosts.slice(5);
+      await Promise.allSettled(priority.map(gen));
+
+      // Remaining posts: batches of 5 so the device isn't overwhelmed.
+      const CONCURRENCY = 5;
+      for (let i = 0; i < rest.length; i += CONCURRENCY) {
         if (cancelled) break;
-        await Promise.allSettled(
-          videoPosts.slice(i, i + CONCURRENCY).map(async (post) => {
-            if (cancelled || thumbnailsRef.current[post.id]) return;
-            const uri = await generateVideoThumbnail(post.media_url);
-            if (uri && !cancelled) {
-              setThumbnail(post.id, uri);
-              thumbnailsRef.current = {
-                ...thumbnailsRef.current,
-                [post.id]: uri,
-              };
-            }
-          }),
-        );
+        await Promise.allSettled(rest.slice(i, i + CONCURRENCY).map(gen));
       }
     };
 

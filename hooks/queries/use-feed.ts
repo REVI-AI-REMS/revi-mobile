@@ -70,7 +70,7 @@ export function useMainFeed(params: MainFeedParams) {
       }
       return allPages.reduce((acc, page) => acc + page.length, 0);
     },
-    staleTime: 1000 * 30, // 30s — content refreshes faster on re-focus
+    staleTime: 1000 * 60, // 1 min — serve cache instantly, background refetch via useFocusEffect
     enabled: Boolean(params.latitude && params.longitude),
     retry: 2,
     retryDelay: 2000, // flat 2s - recover quickly from cold starts
