@@ -17,6 +17,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    ActivityIndicator,
 } from "react-native";
 import Animated, {
     useAnimatedStyle,
@@ -137,7 +138,6 @@ export interface PostCardProps {
   onAuthorPress?: (authorId: string) => void;
   isFollowing: boolean;
   isBookmarked?: boolean;
-  likePending: boolean;
   currentUserId: string;
   /** Full name resolved by the parent (first + last from author profile). */
   authorName?: string | null;
@@ -162,7 +162,6 @@ function PostCardComponent({
   onAuthorPress,
   isFollowing,
   isBookmarked = false,
-  likePending,
   currentUserId,
   videoPlayer,
   isMuted = true,
@@ -270,13 +269,11 @@ function PostCardComponent({
   }));
 
   const handleLikeTap = () => {
-    if (!likePending) {
-      heartScale.value = withSequence(
-        withSpring(1.35, { damping: 4 }),
-        withSpring(1, { damping: 6 }),
-      );
-      onLike(post.id, liked);
-    }
+    heartScale.value = withSequence(
+      withSpring(1.35, { damping: 4 }),
+      withSpring(1, { damping: 6 }),
+    );
+    onLike(post.id, liked);
   };
 
   // Native share sheet. We use the app's deep-link scheme as the url so
@@ -316,6 +313,7 @@ function PostCardComponent({
                 source={{ uri: post.author_avatar }}
                 style={styles.userAvatarImage}
                 contentFit="cover"
+                recyclingKey={post.author_avatar}
               />
             ) : (
               <View style={styles.userAvatar}>
@@ -403,20 +401,19 @@ function PostCardComponent({
                           />
                         )}
 
-                        {/* Layer 2: Cover while video isn't playing.
-                            - Has thumbnail → show it as static preview.
-                            - No thumbnail + active + not ready → opaque dark cover
-                              to block the previous video's frame bleeding through
-                              while replaceAsync is in flight. */}
+                        {/* Layer 2: Cover while video isn't playing. */}
                         {thumbnailUri && (!isActive || !isVideoReady) && (
                           <Image
                             source={{ uri: thumbnailUri }}
                             style={StyleSheet.absoluteFill}
                             contentFit="cover"
+                            recyclingKey={post.id}
                           />
                         )}
-                        {!thumbnailUri && isActive && !isVideoReady && (
-                          <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
+                        {!thumbnailUri && !isVideoReady && isActive && (
+                          <View style={[StyleSheet.absoluteFill, styles.loadingVideoCover]}>
+                            <ActivityIndicator size="large" color="#FFFFFF" />
+                          </View>
                         )}
 
                         {/* Layer 3: Play button overlay — visible when not
@@ -446,7 +443,7 @@ function PostCardComponent({
                         source={{ uri: url ?? undefined }}
                         style={styles.postImage}
                         contentFit="cover"
-                        transition={200}
+                        recyclingKey={post.id}
                       />
                     )}
                   </Animated.View>
@@ -530,7 +527,6 @@ function PostCardComponent({
             <TouchableOpacity
               style={styles.actionButton}
               onPress={handleLikeTap}
-              disabled={likePending}
               activeOpacity={0.7}
             >
               <Ionicons
@@ -731,7 +727,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.bgTertiary,
+    backgroundColor: "#2C2C2E",
   },
   userAvatarInitial: {
     fontSize: 11,
@@ -786,6 +782,7 @@ const styles = StyleSheet.create({
   postImage: {
     width: "100%",
     height: "100%",
+    backgroundColor: "#2C2C2E",
   },
   videoPlaceholder: {
     width: "100%",
@@ -820,6 +817,11 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
     color: colors.textPrimary,
     opacity: 0.9,
+  },
+  loadingVideoCover: {
+    backgroundColor: "#2C2C2E",
+    alignItems: "center",
+    justifyContent: "center",
   },
   playBadge: {
     position: "absolute",

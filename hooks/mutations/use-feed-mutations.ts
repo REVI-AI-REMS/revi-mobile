@@ -36,21 +36,26 @@ export function useLikePostMutation() {
       });
 
       // Optimistically toggle in all matching feed caches
-      queryClient.setQueriesData<PostRead[]>(
+      queryClient.setQueriesData<any>(
         { queryKey: feedKeys.all },
-        (old) => {
-          if (!Array.isArray(old)) return old;
-          return old.map((post) =>
-            post.id === postId
-              ? {
-                  ...post,
-                  is_liked: !isLiked,
-                  like_count: isLiked
-                    ? post.like_count - 1
-                    : post.like_count + 1,
-                }
-              : post,
-          );
+        (data: any) => {
+          if (!data?.pages) return data;
+          return {
+            ...data,
+            pages: data.pages.map((page: PostRead[]) =>
+              page.map((post) =>
+                post.id === postId
+                  ? {
+                      ...post,
+                      is_liked: !isLiked,
+                      like_count: isLiked
+                        ? post.like_count - 1
+                        : post.like_count + 1,
+                    }
+                  : post,
+              ),
+            ),
+          };
         },
       );
 
@@ -125,15 +130,20 @@ export function useAddCommentMutation() {
       );
 
       // Optimistically bump comment_count in every feed cache
-      queryClient.setQueriesData<PostRead[]>(
+      queryClient.setQueriesData<any>(
         { queryKey: feedKeys.all },
-        (old) => {
-          if (!Array.isArray(old)) return old;
-          return old.map((post) =>
-            post.id === post_id
-              ? { ...post, comment_count: post.comment_count + 1 }
-              : post,
-          );
+        (data: any) => {
+          if (!data?.pages) return data;
+          return {
+            ...data,
+            pages: data.pages.map((page: PostRead[]) =>
+              page.map((post) =>
+                post.id === post_id
+                  ? { ...post, comment_count: post.comment_count + 1 }
+                  : post,
+              ),
+            ),
+          };
         },
       );
 

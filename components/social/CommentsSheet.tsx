@@ -12,7 +12,7 @@ import type { CommentRead } from "@/scripts/services/social/types";
 import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,9 +26,40 @@ import {
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
+  withRepeat,
+  withTiming,
   withSpring,
 } from "react-native-reanimated";
 import { formatRelativeTime } from "./PostCard";
+
+function CommentSkeleton() {
+  const opacity = useSharedValue(1);
+
+  useEffect(() => {
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(0.4, { duration: 800 }),
+        withTiming(1, { duration: 800 })
+      ),
+      -1,
+      false
+    );
+  }, [opacity]);
+
+  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <View style={styles.commentRow}>
+      <Animated.View style={[styles.avatar, { width: 36, height: 36, borderRadius: 18, backgroundColor: "#2C2C2E" }, animStyle]} />
+      <View style={styles.commentBody}>
+        <Animated.View style={[{ width: 120, height: 14, borderRadius: 4, backgroundColor: "#2C2C2E", marginBottom: 6 }, animStyle]} />
+        <Animated.View style={[{ width: "90%", height: 12, borderRadius: 4, backgroundColor: "#2C2C2E", marginBottom: 4 }, animStyle]} />
+        <Animated.View style={[{ width: "60%", height: 12, borderRadius: 4, backgroundColor: "#2C2C2E" }, animStyle]} />
+      </View>
+    </View>
+  );
+}
 
 interface CommentsSheetProps {
   postId: string | null;
@@ -422,8 +453,10 @@ export function CommentsSheet({
 
       {/* Body */}
       {isLoading ? (
-        <View style={styles.stateBox}>
-          <ActivityIndicator color="#FFFFFF" />
+        <View style={styles.skeletonContainer}>
+          {[1, 2, 3].map((key) => (
+            <CommentSkeleton key={key} />
+          ))}
         </View>
       ) : topLevelCount === 0 ? (
         <View style={styles.stateBox}>
@@ -580,6 +613,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: Fonts.regular,
     color: "#6B6B70",
+  },
+  skeletonContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
 
   // List

@@ -9,7 +9,7 @@ export function useFeedVideoPlayer(
   const player = useVideoPlayer(null, (p) => {
     p.loop = true;
     p.muted = true;
-    p.timeUpdateEventInterval = 1;
+    p.timeUpdateEventInterval = 250;
   });
 
   const lastIdRef = useRef<string | null>(null);

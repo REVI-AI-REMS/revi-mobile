@@ -539,7 +539,6 @@ export default function SocialsScreen() {
           onAuthorPress={handleAuthorPress}
           isFollowing={followingIds.has(item.author_id)}
           isBookmarked={bookmarkedIds.has(item.id)}
-          likePending={likePending}
           currentUserId={currentUserId || ""}
           videoPlayer={videoPlayer}
           isMuted={isMuted}
@@ -558,7 +557,6 @@ export default function SocialsScreen() {
       handleAuthorPress,
       followingIds,
       bookmarkedIds,
-      likePending,
       currentUserId,
       videoPlayer,
       isMuted,
@@ -668,6 +666,15 @@ export default function SocialsScreen() {
         contentContainerStyle={
           posts.length === 0 ? styles.emptyContainer : styles.feedContent
         }
+        extraData={{
+          followingIds,
+          bookmarkedIds,
+          likePending,
+          currentUserId,
+          isMuted,
+          videoPlayer,
+          authorProfiles,
+        }}
         // Pre-render ~2 cards ahead of the viewport. 250 (the old value)
         // was under half a card, so fast scrolls outpaced the warm-up and
         // landed on blank cells. FlashList 2.x auto-measures item sizes,
