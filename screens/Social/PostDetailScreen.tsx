@@ -14,7 +14,7 @@ import {
 } from "@/hooks/queries/use-bookmarks";
 import { usePost } from "@/hooks/queries/use-feed";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
-import { useFeedVideoPlayer } from "@/hooks/use-feed-video-player";
+import { useVideoPlayer } from "expo-video";
 import { PostRead } from "@/scripts/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { useAuthStore } from "@/stores/auth.store";
@@ -109,25 +109,29 @@ export default function PostDetailScreen() {
   const handleMore = useCallback((p: PostRead) => setOptionsPost(p), []);
   const handleVideoPress = useCallback((p: PostRead) => setReelsPost(p), []);
 
-  // ─── Hoisted video player for the single post ──────────────────────────
-  // Detail screen only shows one post, so activeVideoId is either the
-  // post's id (if it's a video) or null. Marking the post active in the
-  // shared store also keeps the Social feed's video paused while the user
-  // is in detail view.
   const setActiveVideoId = useVideoStore((s) => s.setActiveVideoId);
   const postIsVideo =
     !!post &&
     (post.media_type === "video" ||
       post.media_type === "video_upload" ||
       !!post.media_url?.includes(".m3u8"));
-  useEffect(() => {
-    if (post && postIsVideo) setActiveVideoId(post.id);
-    return () => setActiveVideoId(null);
-  }, [post, postIsVideo, setActiveVideoId]);
-  const videoPlayer = useFeedVideoPlayer(
-    postIsVideo && post ? post.id : null,
-    postIsVideo && post ? post.media_url : null,
+
+  const videoPlayer = useVideoPlayer(
+    postIsVideo && post?.media_url ? { uri: post.media_url } : null,
+    (p) => { p.loop = true; p.muted = true; },
   );
+
+  useEffect(() => {
+    if (post && postIsVideo) {
+      videoPlayer.play();
+      setActiveVideoId(post.id);
+    }
+    return () => {
+      videoPlayer.pause();
+      setActiveVideoId(null);
+    };
+  }, [post?.id, postIsVideo, videoPlayer, setActiveVideoId]);
+
   const [isMuted, setIsMuted] = useState(true);
   useEffect(() => {
     videoPlayer.muted = isMuted;
@@ -187,7 +191,6 @@ export default function PostDetailScreen() {
             currentUserId={currentUserId || ""}
             isFollowing={isFollowing}
             isBookmarked={isBookmarked}
-            likePending={likePending}
             onLike={handleLike}
             onFollow={handleFollow}
             onBookmark={handleBookmark}

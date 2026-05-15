@@ -18,7 +18,8 @@ import {
 import { feedKeys, useGeospatialFeed, useMainFeed } from "@/hooks/queries/use-feed";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
-import { useFeedVideoPlayer } from "@/hooks/use-feed-video-player";
+import { useFeedVideoPool } from "@/hooks/use-feed-video-pool";
+import { VideoView } from "expo-video";
 import { useAuthorProfiles } from "@/hooks/queries/use-author-profiles";
 import type { MainFeedParams, PostRead } from "@/scripts/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
@@ -224,7 +225,12 @@ export default function SocialsScreen() {
 
   const viewabilityConfigCallbackPairs = useRef([
     {
-      viewabilityConfig: { itemVisiblePercentThreshold: 60 },
+      // minimumViewTime: 200 stops the callback from firing for items the
+      // user is rapidly scrolling past. Without it, every video crossing
+      // 60% visibility kicked off a native replaceAsync — a heavy main-
+      // thread call that stalls the scroll for a frame or two as each
+      // video enters the viewport.
+      viewabilityConfig: { itemVisiblePercentThreshold: 60, minimumViewTime: 200 },
       onViewableItemsChanged: (
         info: Parameters<typeof onViewableItemsChanged>[0],
       ) => onViewableItemsChangedRef.current(info),
@@ -279,28 +285,16 @@ export default function SocialsScreen() {
   );
   const authorProfiles = useAuthorProfiles(authorIds);
 
-  // ─── Hoisted video player ──────────────────────────────────────────────────
-  // One player drives the whole feed. The currently-active post's media_url
-  // is loaded into it; every other card just shows a thumbnail. That keeps
-  // exactly one native decoder alive no matter how many video cards are on
-  // screen — which is what Instagram/TikTok do and the reason the earlier
-  // flinching stopped when we moved to an active-only pattern.
+  // ─── Two-player video pool ─────────────────────────────────────────────────
+  // currentPlayer plays the active video; preloadPlayer silently buffers the
+  // next video so it starts instantly when the user scrolls to it.
   const activeVideoId = useVideoStore((s) => s.activeVideoId);
-  const activePost = useMemo(
-    () => (activeVideoId ? posts.find((p) => p.id === activeVideoId) : null),
-    [activeVideoId, posts],
-  );
-  const videoPlayer = useFeedVideoPlayer(
-    activeVideoId,
-    activePost?.media_url ?? null,
-  );
-
-  // Global mute — matches Instagram behaviour (tapping mute on one video
-  // persists across scrolls instead of resetting per card).
   const [isMuted, setIsMuted] = useState(true);
-  useEffect(() => {
-    videoPlayer.muted = isMuted;
-  }, [videoPlayer, isMuted]);
+  const { currentPlayer: videoPlayer, preloadPlayer } = useFeedVideoPool(
+    posts,
+    activeVideoId,
+    isMuted,
+  );
   const handleToggleMute = useCallback(() => setIsMuted((m) => !m), []);
 
   // ─── Pre-generate thumbnails ───────────────────────────────────────────────
@@ -521,6 +515,11 @@ export default function SocialsScreen() {
     [addBookmark, removeBookmark],
   );
 
+  const feedExtraData = useMemo(
+    () => ({ followingIds, bookmarkedIds, likePending, currentUserId, isMuted, authorProfiles, videoPlayer }),
+    [followingIds, bookmarkedIds, likePending, currentUserId, isMuted, authorProfiles, videoPlayer],
+  );
+
   const renderPost = useCallback(
     ({ item }: { item: PostRead }) => {
       const profile = authorProfiles.get(item.author_id);
@@ -643,6 +642,15 @@ export default function SocialsScreen() {
         ))}
       </View>
 
+      {/* Hidden preload surface — keeps the next player's AVPlayer attached
+          so it buffers before the user scrolls to it. */}
+      <VideoView
+        player={preloadPlayer}
+        style={styles.preloadSurface}
+        nativeControls={false}
+        allowsPictureInPicture={false}
+      />
+
       {/* Feed */}
       {/*
         FlashList recycles mounted cells instead of unmounting/remounting.
@@ -666,15 +674,7 @@ export default function SocialsScreen() {
         contentContainerStyle={
           posts.length === 0 ? styles.emptyContainer : styles.feedContent
         }
-        extraData={{
-          followingIds,
-          bookmarkedIds,
-          likePending,
-          currentUserId,
-          isMuted,
-          videoPlayer,
-          authorProfiles,
-        }}
+        extraData={feedExtraData}
         // Pre-render ~2 cards ahead of the viewport. 250 (the old value)
         // was under half a card, so fast scrolls outpaced the warm-up and
         // landed on blank cells. FlashList 2.x auto-measures item sizes,
@@ -793,5 +793,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: Fonts.semiBold,
     color: "#FFFFFF",
+  },
+  preloadSurface: {
+    width: 1,
+    height: 1,
+    opacity: 0,
+    position: "absolute",
   },
 });

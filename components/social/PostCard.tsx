@@ -193,7 +193,10 @@ function PostCardComponent({
   const thumbnailUri = useVideoStore((s) => s.thumbnails[post.id] ?? null);
   const setThumbnail = useVideoStore((s) => s.setThumbnail);
   const isActive = useVideoStore((s) => s.activeVideoId === post.id);
-  const isVideoReady = useVideoStore((s) => s.readyVideoId === post.id);
+  // firstFrameReady is set by VideoView.onFirstFrameRender — fires when the
+  // first decoded frame is actually painted, which is more accurate than
+  // waiting for replaceAsync to resolve.
+  const [firstFrameReady, setFirstFrameReady] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   // ─── Cell recycle reset ────────────────────────────────────────────────────
@@ -202,6 +205,10 @@ function PostCardComponent({
   // onto the new one. React's sanctioned "derive state from props during
   // render" pattern — the setState calls trigger one synchronous re-render
   // before children mount with stale values.
+  // Thumbnail fade: animate opacity to 0 when video is playing, snap back instantly on recycle.
+  const coverOpacity = useSharedValue(1);
+  const coverStyle = useAnimatedStyle(() => ({ opacity: coverOpacity.value }));
+
   const [lastPostId, setLastPostId] = useState(post.id);
   if (lastPostId !== post.id) {
     setLastPostId(post.id);
@@ -209,8 +216,8 @@ function PostCardComponent({
     setFullscreenIndex(null);
     setShowLikes(false);
     setThumbnailFailed(false);
-    // isMuted is global (driven by parent) — not reset here.
-    // Video playback state lives on the hoisted player; nothing to clear.
+    setFirstFrameReady(false);
+    coverOpacity.value = 1;
   }
 
   const openFullscreen = (idx: number) => {
@@ -261,6 +268,55 @@ function PostCardComponent({
     setThumbnail,
   ]);
 
+
+  // Reset firstFrameReady when this card scrolls out of view so the
+  // thumbnail shows again if the user scrolls back (VideoView remounts).
+  useEffect(() => {
+    if (!isActive) {
+      setFirstFrameReady(false);
+      coverOpacity.value = 1;
+    }
+  }, [isActive, coverOpacity]);
+
+  // Robust playback / fade trigger.
+  // Three independent signals — any one will reveal the video:
+  //   1. `videoPlayer.playing` is already true on mount (preloaded + play()
+  //      already happened before this PostCard became active).
+  //   2. `playingChange` fires later (pool called play() after source loaded).
+  //   3. `statusChange` to `readyToPlay` fires — this is the recovery path
+  //      when the pool's play() was called BEFORE the source finished
+  //      loading (fast scroll past an in-flight preload). The call was lost
+  //      natively; we kick it again here.
+  useEffect(() => {
+    if (!videoPlayer || !isActive) return;
+
+    if (videoPlayer.playing) {
+      setFirstFrameReady(true);
+    }
+
+    const playingSub = videoPlayer.addListener("playingChange", ({ isPlaying }) => {
+      if (isPlaying) setFirstFrameReady(true);
+    });
+
+    const statusSub = videoPlayer.addListener("statusChange", ({ status }) => {
+      if (status === "readyToPlay") {
+        if (!videoPlayer.playing) videoPlayer.play();
+        setFirstFrameReady(true);
+      }
+    });
+
+    return () => {
+      playingSub?.remove?.();
+      statusSub?.remove?.();
+    };
+  }, [videoPlayer, isActive]);
+
+  // Fade the thumbnail cover out once firstFrameReady is true.
+  useEffect(() => {
+    if (isActive && firstFrameReady) {
+      coverOpacity.value = withTiming(0, { duration: 200 });
+    }
+  }, [isActive, firstFrameReady, coverOpacity]);
 
   // Heart pulse animation on like
   const heartScale = useSharedValue(1);
@@ -398,34 +454,28 @@ function PostCardComponent({
                             nativeControls={false}
                             fullscreenOptions={{ enable: false }}
                             allowsPictureInPicture={false}
+                            onFirstFrameRender={() => setFirstFrameReady(true)}
                           />
                         )}
 
-                        {/* Layer 2: Cover while video isn't playing. */}
-                        {thumbnailUri && (!isActive || !isVideoReady) && (
-                          <Image
-                            source={{ uri: thumbnailUri }}
-                            style={StyleSheet.absoluteFill}
-                            contentFit="cover"
-                            recyclingKey={post.id}
-                          />
-                        )}
-                        {!thumbnailUri && !isVideoReady && isActive && (
+                        {/* Layer 2: Thumbnail cover — fades out when video is ready. */}
+                        {thumbnailUri ? (
+                          <Animated.View
+                            style={[StyleSheet.absoluteFill, coverStyle]}
+                            pointerEvents="none"
+                          >
+                            <Image
+                              source={{ uri: thumbnailUri }}
+                              style={StyleSheet.absoluteFill}
+                              contentFit="cover"
+                              recyclingKey={post.id}
+                            />
+                          </Animated.View>
+                        ) : isActive && !firstFrameReady ? (
                           <View style={[StyleSheet.absoluteFill, styles.loadingVideoCover]}>
                             <ActivityIndicator size="large" color="#FFFFFF" />
                           </View>
-                        )}
-
-                        {/* Layer 3: Play button overlay — visible when not
-                            actively playing (thumbnail mode). Tells users this
-                            is a tappable video. Fades out once VideoView active. */}
-                        {!canRenderVideo && (
-                          <View style={styles.playOverlay}>
-                            <View style={styles.playOverlayCircle}>
-                              <Ionicons name="play" size={26} color="#FFF" />
-                            </View>
-                          </View>
-                        )}
+                        ) : null}
                       </>
                     ) : isProcessing ? (
                       <View style={styles.videoPlaceholder}>
