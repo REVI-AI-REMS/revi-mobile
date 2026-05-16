@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
     ActivityIndicator,
+    Clipboard,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -116,7 +117,14 @@ export function PostOptionsSheet({
                 <Text style={optionStyles.optionText}>Report post</Text>
               </TouchableOpacity>
               <View style={optionStyles.divider} />
-              <TouchableOpacity style={optionStyles.option}>
+              <TouchableOpacity
+                style={optionStyles.option}
+                onPress={async () => {
+                  const link = `reviaimobile://post/${post?.id}`;
+                  Clipboard.setString(link);
+                  handleClose();
+                }}
+              >
                 <Ionicons name="link-outline" size={22} color="#FFFFFF" />
                 <Text style={optionStyles.optionText}>Copy link</Text>
               </TouchableOpacity>
@@ -126,7 +134,13 @@ export function PostOptionsSheet({
                 <Text style={optionStyles.optionText}>Share</Text>
               </TouchableOpacity>
               <View style={optionStyles.divider} />
-              <TouchableOpacity style={optionStyles.option}>
+              <TouchableOpacity
+                style={optionStyles.option}
+                onPress={() => {
+                  // TODO: POST /api/v1/posts/{id}/not-interested once backend supports it
+                  handleClose();
+                }}
+              >
                 <Ionicons name="eye-off-outline" size={22} color="#FFFFFF" />
                 <Text style={optionStyles.optionText}>Not interested</Text>
               </TouchableOpacity>

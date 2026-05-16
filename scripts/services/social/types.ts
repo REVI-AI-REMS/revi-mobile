@@ -24,6 +24,8 @@ export interface PostRead {
   is_sponsored?: boolean;
   campaign_id?: string | null; // present when is_sponsored=true
   is_liked?: boolean; // client-side, set after like mutations
+  // Pre-generated thumbnail — uploaded by mobile at post time (before HLS transcoding)
+  thumbnail_url?: string | null;
   // Hydrated client-side by useAuthorProfiles — not returned by the API
   author_username?: string | null;
   author_avatar?: string | null;
@@ -37,6 +39,9 @@ export interface PostCreate {
   latitude: number;
   longitude: number;
   is_sponsored?: boolean;
+  // Frame extracted from the local video file BEFORE uploading.
+  // Eliminates all client-side HLS thumbnail generation in the feed.
+  thumbnail_url?: string | null;
 }
 
 export interface GeospatialFeedParams {

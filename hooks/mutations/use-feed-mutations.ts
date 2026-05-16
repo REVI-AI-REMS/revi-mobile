@@ -338,7 +338,10 @@ export function useBatchLogViewsMutation() {
 
 export function useFollowMutation() {
   const queryClient = useQueryClient();
-  const currentUserId = useAuthStore.getState().user?.id ?? "";
+  // Read reactively via selector — stays correct after re-login / token refresh.
+  // getState() inside callbacks is still used for the optimistic update so we
+  // don't capture a stale closure in the mutation callbacks themselves.
+  const currentUserId = useAuthStore((s) => s.user?.id ?? "");
 
   return useMutation<void, Error, { userId: string; isFollowing: boolean }>({
     mutationFn: async ({ userId, isFollowing }) => {
@@ -350,25 +353,24 @@ export function useFollowMutation() {
     },
 
     onMutate: async ({ userId, isFollowing }) => {
-      if (!currentUserId) return;
+      // Read fresh from store inside callback so we always use the latest id
+      const uid = useAuthStore.getState().user?.id ?? "";
+      if (!uid) return;
 
-      const queryKey = relationshipKeys.following(currentUserId);
+      const queryKey = relationshipKeys.following(uid);
       await queryClient.cancelQueries({ queryKey });
 
       const previousFollowing =
         queryClient.getQueryData<FollowRead[]>(queryKey);
 
-      // Optimistically add or remove from the following list
       queryClient.setQueryData<FollowRead[]>(queryKey, (old = []) => {
         if (isFollowing) {
-          // Unfollow — remove from list
           return old.filter((f) => f.following_id !== userId);
         }
-        // Follow — append to list
         return [
           ...old,
           {
-            follower_id: currentUserId,
+            follower_id: uid,
             following_id: userId,
             created_at: new Date().toISOString(),
           },
@@ -380,22 +382,23 @@ export function useFollowMutation() {
 
     onError: (_err, _vars, context) => {
       const ctx = context as { previousFollowing?: FollowRead[] } | undefined;
-      if (ctx?.previousFollowing !== undefined && currentUserId) {
+      const uid = useAuthStore.getState().user?.id ?? "";
+      if (ctx?.previousFollowing !== undefined && uid) {
         queryClient.setQueryData(
-          relationshipKeys.following(currentUserId),
+          relationshipKeys.following(uid),
           ctx.previousFollowing,
         );
       }
     },
 
     onSettled: () => {
-      if (!currentUserId) return;
-      // Re-sync both the following list and the counts badge
+      const uid = useAuthStore.getState().user?.id ?? "";
+      if (!uid) return;
       queryClient.invalidateQueries({
-        queryKey: relationshipKeys.following(currentUserId),
+        queryKey: relationshipKeys.following(uid),
       });
       queryClient.invalidateQueries({
-        queryKey: relationshipKeys.stats(currentUserId),
+        queryKey: relationshipKeys.stats(uid),
       });
     },
   });

@@ -9,6 +9,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Image } from "@/components/ExpoImage";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
+import * as VideoThumbnails from "expo-video-thumbnails";
 import { useQueryClient } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -416,11 +417,37 @@ export default function NewPostScreen() {
 
       const blobUrls = sasResults.map((r) => r.blob_url);
       uploadStore.setProgress(70);
+
       // Use requires_transcoding from the SAS response as the source of truth
-      const requiresTranscoding = sasResults.some(
-        (r) => r.requires_transcoding,
-      );
+      const requiresTranscoding = sasResults.some((r) => r.requires_transcoding);
       const isCarousel = !requiresTranscoding && blobUrls.length > 1;
+
+      // ─── Video thumbnail — extract from local file BEFORE it leaves the device ———─
+      // We have the raw file:// URI right here, so getThumbnailAsync runs in
+      // ~100ms with zero network cost. This completely replaces the slow
+      // client-side HLS-parsing fallback that used to happen in the feed.
+      let thumbnailBlobUrl: string | null = null;
+      if (requiresTranscoding) {
+        try {
+          const videoLocalUri = uploadUris[0]; // already file:// at this point
+          const { uri: thumbLocalUri } = await VideoThumbnails.getThumbnailAsync(
+            videoLocalUri,
+            { time: 0, quality: 0.7 },
+          );
+
+          // Get a SAS URL for the thumbnail image (uses social-hls public container)
+          const thumbSas = await mediaService.getUploadUrl(
+            `post-${ts}-thumb.jpg`,
+            "image/jpeg",
+          );
+          await uploadToAzure(thumbLocalUri, thumbSas.upload_url, "image/jpeg");
+          thumbnailBlobUrl = thumbSas.blob_url;
+          console.log("[new-post] Thumbnail uploaded:", thumbnailBlobUrl);
+        } catch (thumbErr) {
+          // Non-fatal — feed falls back to HLS-based generation if this fails
+          console.warn("[new-post] Thumbnail extraction failed (non-fatal):", thumbErr);
+        }
+      }
 
       // Per API spec:
       // video_upload → media_url = raw blob URL, media_urls = null
@@ -440,9 +467,7 @@ export default function NewPostScreen() {
         mediaUrls = null;
       }
 
-      // Step 4: Create post — use mutateAsync so the result is awaited even
-      // after router.back() unmounts this screen (mutate callbacks are
-      // suppressed on unmount, but awaiting a Promise is not).
+      // Step 4: Create post
       uploadStore.setStatus("creating");
       uploadStore.setProgress(80);
       await createPostAsync({
@@ -452,6 +477,9 @@ export default function NewPostScreen() {
         media_type: mediaType,
         latitude: DEV_COORDS.latitude,
         longitude: DEV_COORDS.longitude,
+        // If we extracted a thumbnail above, include it so the feed renders
+        // it immediately — no HLS parsing needed on any device.
+        thumbnail_url: thumbnailBlobUrl ?? undefined,
       });
 
       // Bust feed cache so the new post appears immediately on the social screen.

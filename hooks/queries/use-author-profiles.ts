@@ -68,8 +68,8 @@ export function useAuthorProfiles(authorIds: string[]): AuthorProfileMap {
     queryKey: ["author-profiles", uniqueIds],
     queryFn: () => fetchAuthorProfiles(uniqueIds),
     enabled: uniqueIds.length > 0,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 1000 * 60 * 15, // 15 min — profiles change rarely; avoids re-fetching on every page load
+    gcTime: 1000 * 60 * 30,   // 30 min — keep in memory across the whole session
     retry: 1,
   });
 

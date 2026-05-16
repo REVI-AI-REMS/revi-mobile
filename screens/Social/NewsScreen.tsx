@@ -90,6 +90,14 @@ const SavedCard = memo(function SavedCard({
 
   useEffect(() => {
     if (!isVideo || thumbnailUri || thumbFailed) return;
+
+    // Fast path: backend supplied a thumbnail at upload time.
+    if (post.thumbnail_url) {
+      setThumbnail(post.id, post.thumbnail_url);
+      return;
+    }
+
+    // Slow path: HLS-based extraction for older posts.
     let cancelled = false;
     generateVideoThumbnail(post.media_url).then((uri) => {
       if (cancelled) return;
@@ -105,10 +113,12 @@ const SavedCard = memo(function SavedCard({
     thumbFailed,
     post.id,
     post.media_url,
+    post.thumbnail_url,
     setThumbnail,
   ]);
 
-  const imageSource = isVideo ? thumbnailUri : post.media_url;
+  // Prefer Zustand store (populated by Social/Explore), then backend URL, then null.
+  const imageSource = isVideo ? (thumbnailUri ?? post.thumbnail_url ?? null) : post.media_url;
 
   return (
     <Pressable style={styles.card} onPress={onPress}>

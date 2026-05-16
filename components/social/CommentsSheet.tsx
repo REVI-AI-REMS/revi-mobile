@@ -11,12 +11,15 @@ import { useComments } from "@/hooks/queries/use-feed";
 import type { CommentRead } from "@/scripts/services/social/types";
 import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -281,6 +284,9 @@ export function CommentsSheet({
   const handleSubmit = useCallback(() => {
     const trimmed = text.trim();
     if (!trimmed || !postId) return;
+    // Success haptic fires immediately on tap, before the network round-trip,
+    // so the interaction feels instant regardless of connection speed.
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     sendScale.value = withSpring(0.88, { damping: 10 }, () => {
       sendScale.value = withSpring(1, { damping: 8 });
     });
@@ -420,6 +426,7 @@ export function CommentsSheet({
     },
     [
       currentUserId,
+      currentUser,
       handleReply,
       handleDelete,
       likeComment,
@@ -482,7 +489,7 @@ export function CommentsSheet({
         />
       )}
 
-      {/* Reply banner — thin white stripe, neutral background */}
+      {/* Reply banner */}
       {replyTo && (
         <View style={styles.replyBanner}>
           <View style={styles.replyAccent} />
@@ -500,62 +507,68 @@ export function CommentsSheet({
         </View>
       )}
 
-      <View style={styles.inputRow}>
-        <Avatar
-          authorId={currentUserId}
-          username={currentUser?.username}
-          avatarUrl={currentUser?.avatar}
-          size={30}
-        />
-        <View style={[styles.inputWrap, isFocused && styles.inputWrapFocused]}>
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            placeholder={
-              replyTo ? `Reply to ${replyTo.author}…` : "Add a comment…"
-            }
-            placeholderTextColor="#6B6B70"
-            value={text}
-            onChangeText={setText}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            multiline
-            maxLength={MAX_LEN}
-            editable={!submitting}
+      {/* KeyboardAvoidingView so the input stays above the keyboard on iOS */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={20}
+      >
+        <View style={styles.inputRow}>
+          <Avatar
+            authorId={currentUserId}
+            username={currentUser?.username}
+            avatarUrl={currentUser?.avatar}
+            size={30}
           />
-          {text.length >= MAX_LEN - 50 && (
-            <Text
+          <View style={[styles.inputWrap, isFocused && styles.inputWrapFocused]}>
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              placeholder={
+                replyTo ? `Reply to ${replyTo.author}…` : "Add a comment…"
+              }
+              placeholderTextColor="#6B6B70"
+              value={text}
+              onChangeText={setText}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              multiline
+              maxLength={MAX_LEN}
+              editable={!submitting}
+            />
+            {text.length >= MAX_LEN - 50 && (
+              <Text
+                style={[
+                  styles.counter,
+                  text.length >= MAX_LEN - 20 && styles.counterWarn,
+                ]}
+              >
+                {text.length}/{MAX_LEN}
+              </Text>
+            )}
+          </View>
+          <Animated.View style={sendAnimStyle}>
+            <TouchableOpacity
+              onPress={handleSubmit}
+              disabled={!sendEnabled}
+              activeOpacity={0.7}
               style={[
-                styles.counter,
-                text.length >= MAX_LEN - 20 && styles.counterWarn,
+                styles.sendButton,
+                sendEnabled ? styles.sendButtonActive : styles.sendButtonIdle,
               ]}
             >
-              {text.length}/{MAX_LEN}
-            </Text>
-          )}
+              {submitting ? (
+                <ActivityIndicator size="small" color="#0F0F10" />
+              ) : (
+                <Ionicons
+                  name="arrow-up"
+                  size={18}
+                  color={sendEnabled ? "#0F0F10" : "#555"}
+                />
+              )}
+            </TouchableOpacity>
+          </Animated.View>
         </View>
-        <Animated.View style={sendAnimStyle}>
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={!sendEnabled}
-            activeOpacity={0.7}
-            style={[
-              styles.sendButton,
-              sendEnabled ? styles.sendButtonActive : styles.sendButtonIdle,
-            ]}
-          >
-            {submitting ? (
-              <ActivityIndicator size="small" color="#0F0F10" />
-            ) : (
-              <Ionicons
-                name="arrow-up"
-                size={18}
-                color={sendEnabled ? "#0F0F10" : "#555"}
-              />
-            )}
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
+      </KeyboardAvoidingView>
     </OverlayModal>
   );
 }

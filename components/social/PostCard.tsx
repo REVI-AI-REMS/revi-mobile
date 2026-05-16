@@ -6,6 +6,7 @@ import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "@/components/ExpoImage";
 import { VideoView, type VideoPlayer } from "expo-video";
+import * as Haptics from "expo-haptics";
 import { memo, useEffect, useRef, useState } from "react";
 import {
     Dimensions,
@@ -17,7 +18,6 @@ import {
     Text,
     TouchableOpacity,
     View,
-    ActivityIndicator,
 } from "react-native";
 import Animated, {
     useAnimatedStyle,
@@ -186,6 +186,7 @@ function PostCardComponent({
   const [imageIndex, setImageIndex] = useState(0);
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [showLikes, setShowLikes] = useState(false);
+  const [captionExpanded, setCaptionExpanded] = useState(false);
   const liked = post.is_liked ?? false;
   const carouselRef = useRef<ScrollView>(null);
   const isClosingRef = useRef(false);
@@ -197,11 +198,6 @@ function PostCardComponent({
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   // ─── Cell recycle reset ────────────────────────────────────────────────────
-  // FlashList reuses the same component instance across posts. Without this,
-  // local state (carousel index, modal state) leaks from the previous post
-  // onto the new one. React's sanctioned "derive state from props during
-  // render" pattern — the setState calls trigger one synchronous re-render
-  // before children mount with stale values.
   const [lastPostId, setLastPostId] = useState(post.id);
   if (lastPostId !== post.id) {
     setLastPostId(post.id);
@@ -209,6 +205,7 @@ function PostCardComponent({
     setFullscreenIndex(null);
     setShowLikes(false);
     setThumbnailFailed(false);
+    setCaptionExpanded(false);
     // isMuted is global (driven by parent) — not reset here.
     // Video playback state lives on the hoisted player; nothing to clear.
   }
@@ -232,13 +229,19 @@ function PostCardComponent({
     carouselRef.current?.scrollTo({ x: 0, animated: false });
   }, [post.id]);
 
-  // Fallback thumbnail generation — runs if the parent-level pre-generator
-  // hasn't cached one for this post yet. Uses an HLS-aware utility that
-  // parses the .m3u8 manifest → extracts the first .ts segment → decodes
-  // a frame.
+  // Fallback thumbnail generation — runs if SocialScreen's pre-generator
+  // hasn't cached one yet for this post.
   useEffect(() => {
     if (!isVideo || isProcessing || thumbnailUri || thumbnailFailed) return;
 
+    // Fast path: backend returned a thumbnail uploaded at post time.
+    // Store it directly — no HLS parsing, no network call.
+    if (post.thumbnail_url) {
+      setThumbnail(post.id, post.thumbnail_url);
+      return;
+    }
+
+    // Slow path: HLS-based extraction for older posts without thumbnail_url.
     let cancelled = false;
     generateVideoThumbnail(post.media_url).then((uri) => {
       if (cancelled) return;
@@ -258,6 +261,7 @@ function PostCardComponent({
     thumbnailFailed,
     post.id,
     post.media_url,
+    post.thumbnail_url,
     setThumbnail,
   ]);
 
@@ -269,6 +273,8 @@ function PostCardComponent({
   }));
 
   const handleLikeTap = () => {
+    // Light haptic so the interaction feels physical (matches Instagram/TikTok)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     heartScale.value = withSequence(
       withSpring(1.35, { damping: 4 }),
       withSpring(1, { damping: 6 }),
@@ -373,7 +379,10 @@ function PostCardComponent({
                 isVideo && !isProcessing && (i === 0 || url.includes(".m3u8"));
               // VideoView mounts only on the active card — one native
               // player drives the whole feed (see useFeedVideoPlayer).
-              const canRenderVideo = isVideoUrl && isActive && !!videoPlayer;
+              // isVideoReady gates the VideoView mount — prevents the previous
+              // post's last frame from showing while replaceAsync loads the new
+              // source. Thumbnail/spinner layers cover the gap until ready.
+              const canRenderVideo = isVideoUrl && isActive && !!videoPlayer && isVideoReady;
 
               return (
                 <View
@@ -411,15 +420,19 @@ function PostCardComponent({
                           />
                         )}
                         {!thumbnailUri && !isVideoReady && isActive && (
-                          <View style={[StyleSheet.absoluteFill, styles.loadingVideoCover]}>
-                            <ActivityIndicator size="large" color="#FFFFFF" />
-                          </View>
+                          // Shimmer (SkeletonBlock) instead of a plain dark cover
+                          // while the video source loads — visually consistent with
+                          // the feed skeleton and far less jarring than an empty black box.
+                          <SkeletonBlock
+                            style={StyleSheet.absoluteFill as object}
+                          />
                         )}
 
-                        {/* Layer 3: Play button overlay — visible when not
-                            actively playing (thumbnail mode). Tells users this
-                            is a tappable video. Fades out once VideoView active. */}
-                        {!canRenderVideo && (
+                        {/* Layer 3: Play button overlay — visible only when the
+                            card is in thumbnail mode (not the active, loading
+                            card). While the active card is loading we rely on
+                            the thumbnail / spinner layers instead. */}
+                        {!isActive && !canRenderVideo && (
                           <View style={styles.playOverlay}>
                             <View style={styles.playOverlayCircle}>
                               <Ionicons name="play" size={26} color="#FFF" />
@@ -443,7 +456,7 @@ function PostCardComponent({
                         source={{ uri: url ?? undefined }}
                         style={styles.postImage}
                         contentFit="cover"
-                        recyclingKey={post.id}
+                        recyclingKey={`${post.id}-${i}`}
                       />
                     )}
                   </Animated.View>
@@ -619,9 +632,21 @@ function PostCardComponent({
         {/* Caption */}
         {post.caption ? (
           <View style={styles.postDescription}>
-            <Text style={styles.description} numberOfLines={3}>
+            <Text
+              style={styles.description}
+              numberOfLines={captionExpanded ? undefined : 3}
+              onPress={() => setCaptionExpanded((v) => !v)}
+            >
               {post.caption}
             </Text>
+            {!captionExpanded && (post.caption?.length ?? 0) > 120 && (
+              <Text
+                style={styles.seeMore}
+                onPress={() => setCaptionExpanded(true)}
+              >
+                more
+              </Text>
+            )}
           </View>
         ) : null}
       </View>
@@ -950,6 +975,12 @@ const styles = StyleSheet.create({
   description: {
     ...typography.bodyMd,
     color: colors.textSecondary,
+  },
+  seeMore: {
+    ...typography.bodySm,
+    color: colors.textTertiary,
+    marginTop: 2,
+    fontFamily: Fonts.semiBold,
   },
   paginationDots: {
     flexDirection: "row",

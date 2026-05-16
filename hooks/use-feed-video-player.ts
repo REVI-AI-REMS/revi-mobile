@@ -39,7 +39,10 @@ export function useFeedVideoPlayer(
     (async () => {
       try {
         await player.replaceAsync({ uri: url });
-      } catch {
+      } catch (e) {
+        // Log so we can diagnose bad URLs / codec issues in dev. Don't crash
+        // the feed — the thumbnail cover stays visible (isVideoReady stays false).
+        console.warn("[FeedVideoPlayer] replaceAsync failed:", e);
         return;
       }
       if (cancelled) return;

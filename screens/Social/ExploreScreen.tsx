@@ -351,14 +351,14 @@ export default function ExploreScreen() {
   const thumbnails = useVideoStore((s) => s.thumbnails);
 
   // Only show posts that have something to display. Video posts without a
-  // generated thumbnail are hidden — they look like broken blank tiles.
+  // generated thumbnail OR a backend thumbnail_url are hidden to avoid broken tiles.
   const gridPosts = React.useMemo(() => {
     return feedPosts.filter((p) => {
       const isVideo =
         p.media_type === "video" ||
         p.media_type === "video_upload" ||
         p.media_url?.includes(".m3u8");
-      if (isVideo) return Boolean(thumbnails[p.id]);
+      if (isVideo) return Boolean(thumbnails[p.id] ?? p.thumbnail_url);
       return Boolean(p.media_url || p.media_urls?.[0]);
     });
   }, [feedPosts, thumbnails]);
@@ -394,6 +394,15 @@ export default function ExploreScreen() {
         await Promise.allSettled(
           videoPosts.slice(i, i + CONCURRENCY).map(async (post) => {
             if (cancelled || thumbnailsRef.current[post.id]) return;
+
+            // Fast path: backend supplied a thumbnail at upload time.
+            if (post.thumbnail_url) {
+              setThumbnail(post.id, post.thumbnail_url);
+              thumbnailsRef.current = { ...thumbnailsRef.current, [post.id]: post.thumbnail_url };
+              return;
+            }
+
+            // Slow path: HLS-based extraction for older posts.
             const uri = await generateVideoThumbnail(post.media_url);
             if (uri && !cancelled) {
               setThumbnail(post.id, uri);

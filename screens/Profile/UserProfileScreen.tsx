@@ -6,6 +6,7 @@ import { useUserFollowing, useUserProfile } from "@/hooks/queries/use-relationsh
 import { useUserPosts } from "@/hooks/queries/use-feed";
 import { useUserStats } from "@/hooks";
 import type { PostRead } from "@/scripts/services/social/types";
+import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "@/components/ExpoImage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -64,11 +65,19 @@ const GridThumbnail = React.memo(function GridThumbnail({
     post.media_type === "video_upload" ||
     post.media_url?.includes(".m3u8");
 
+  // Pull from the shared video store first (populated by Social/Explore);
+  // fall back to post.thumbnail_url which the backend now supplies.
+  const storedThumb = useVideoStore((s) => s.thumbnails[post.id] ?? null);
+  const videoThumb = storedThumb ?? post.thumbnail_url ?? null;
+
+  // The image to display: thumbnail for videos, media_url for images.
+  const imageSource = isVideo ? videoThumb : (post.media_url || null);
+
   return (
     <Pressable onPress={onPress} style={styles.gridCell}>
-      {!isVideo && post.media_url ? (
+      {imageSource ? (
         <Image
-          source={{ uri: post.media_url }}
+          source={{ uri: imageSource }}
           style={styles.gridImage}
           contentFit="cover"
           cachePolicy="memory-disk"
@@ -76,6 +85,7 @@ const GridThumbnail = React.memo(function GridThumbnail({
           transition={0}
         />
       ) : (
+        // Only shown for video posts that genuinely have no thumbnail yet
         <View style={styles.gridVideoPlaceholder}>
           <Ionicons
             name="play-circle-outline"

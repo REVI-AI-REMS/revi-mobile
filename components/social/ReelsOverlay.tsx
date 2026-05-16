@@ -58,8 +58,10 @@ export const ReelItem = memo(function ReelItem({
   currentUserId: _currentUserId,
   onComment,
   isInitialPost = false,
-}: ReelItemProps) {
+  scrollLocked = false,
+}: ReelItemProps & { scrollLocked?: boolean }) {
   const [muted, setMuted] = useState(false);
+  const [progress, setProgress] = useState(0);
   // chromeReady: show buttons/info instantly for initial post, wait for video otherwise
   const [chromeReady, setChromeReady] = useState(isInitialPost);
   const [videoReady, setVideoReady] = useState(isInitialPost);
@@ -98,15 +100,25 @@ export const ReelItem = memo(function ReelItem({
     player.muted = muted;
   }, [player, muted]);
 
-  // Play when active, pause + rewind when this reel scrolls out.
+  // Play when active and not scroll-locked (comments open), pause + rewind when
+  // this reel scrolls out or the comments sheet opens.
   useEffect(() => {
-    if (isActive) {
+    if (isActive && !scrollLocked) {
       player.play();
     } else {
       player.pause();
-      player.currentTime = 0;
+      if (!isActive) player.currentTime = 0;
     }
-  }, [isActive, player]);
+  }, [isActive, scrollLocked, player]);
+
+  // Track playback progress for the progress bar.
+  useEffect(() => {
+    const sub = player.addListener("timeUpdate", ({ currentTime }) => {
+      const dur = player.duration;
+      if (dur && dur > 0) setProgress(currentTime / dur);
+    });
+    return () => { sub?.remove?.(); };
+  }, [player]);
 
   // Fade chrome in once the first frame is ready (unless we're the
   // initial tapped post, in which case chrome shows immediately).
@@ -168,6 +180,11 @@ export const ReelItem = memo(function ReelItem({
           contentFit="cover"
         />
       )}
+
+      {/* Thin progress bar at the top — TikTok-style loop indicator */}
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${Math.min(progress, 1) * 100}%` }]} />      
+      </View>
 
       <TouchableOpacity
         activeOpacity={1}
@@ -317,13 +334,18 @@ export function ReelsOverlay({
     ({ item, index }: { item: PostRead; index: number }) => (
       <ReelItem
         post={item}
-        isActive={index === activeIndex && !commentsPostId}
+        isActive={index === activeIndex}
+        scrollLocked={!!commentsPostId}
         currentUserId={currentUserId}
         onComment={setCommentsPostId}
         isInitialPost={item.id === initialPost.id}
       />
     ),
-    [activeIndex, commentsPostId, currentUserId, initialPost.id],
+    // commentsPostId is NOT in this dep array — instead it's passed as a
+    // stable boolean (scrollLocked) so opening/closing comments doesn't
+    // re-render all visible ReelItems and restart their players.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeIndex, currentUserId, initialPost.id],
   );
 
   return (
@@ -357,7 +379,7 @@ export function ReelsOverlay({
         scrollEnabled={!commentsPostId}
         initialNumToRender={2}
         maxToRenderPerBatch={3}
-        windowSize={5}
+        windowSize={3}
         removeClippedSubviews={Platform.OS === "android"}
         decelerationRate="fast"
         snapToInterval={screenHeight}
@@ -467,5 +489,20 @@ export const styles = StyleSheet.create({
     textShadowColor: "rgba(0,0,0,0.8)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+  },
+  // Progress bar — thin strip at the very top of each reel (TikTok style)
+  progressTrack: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    zIndex: 10,
+  },
+  progressFill: {
+    height: 2,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    borderRadius: 1,
   },
 });

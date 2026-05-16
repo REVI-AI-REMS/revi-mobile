@@ -96,11 +96,19 @@ export default function SocialsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // Invalidate the main feed every time this tab comes into focus so posts
-  // from other accounts appear without needing a manual pull-to-refresh.
+  // Invalidate only the active feed queries on focus — NOT feedKeys.all, which
+  // would also bust comment lists, post details, and author profile caches that
+  // don't need refreshing on every tab visit.
   useFocusEffect(
     useCallback(() => {
-      queryClient.invalidateQueries({ queryKey: feedKeys.all });
+      queryClient.invalidateQueries({ queryKey: feedKeys.mainFeed(DEV_LOCATION) });
+      queryClient.invalidateQueries({
+        queryKey: feedKeys.geospatialFeed(
+          DEV_LOCATION.latitude,
+          DEV_LOCATION.longitude,
+          5,
+        ),
+      });
     }, [queryClient]),
   );
 
@@ -202,7 +210,10 @@ export default function SocialsScreen() {
       if (didVisibilityChange) {
         setVisiblePostIds(Array.from(visibleIdsRef.current));
       }
-      lastActiveVideoIdRef.current = firstVideoId;
+      // Only update the resume-ref when a video is actually visible.
+      // Without this guard, scrolling through image-only areas nulls the ref
+      // and playback won't resume when the screen comes back into focus.
+      if (firstVideoId) lastActiveVideoIdRef.current = firstVideoId;
       setActiveVideoId(firstVideoId);
 
       if (viewedIdsRef.current.size >= 50) {
@@ -249,6 +260,7 @@ export default function SocialsScreen() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isRefetching,
   } = activeTab === "neighborhoods" ? geoFeedQuery : mainFeedQuery;
 
   // Trust the server's ranking order — page 1, then page 2 appended. We used
@@ -278,6 +290,12 @@ export default function SocialsScreen() {
     [posts],
   );
   const authorProfiles = useAuthorProfiles(authorIds);
+  // Stable ref so renderPost reads the latest profiles on every render call
+  // without adding the volatile Map to useCallback deps (which would force
+  // FlashList to re-render all visible cells on every profile fetch).
+  const authorProfilesRef = useRef(authorProfiles);
+  authorProfilesRef.current = authorProfiles;
+
 
   // ─── Hoisted video player ──────────────────────────────────────────────────
   // One player drives the whole feed. The currently-active post's media_url
@@ -323,9 +341,19 @@ export default function SocialsScreen() {
     if (!videoPosts.length) return;
 
     let cancelled = false;
-    // Generate a thumbnail and save it to the store.
     const gen = async (post: (typeof videoPosts)[0]) => {
       if (cancelled || thumbnailsRef.current[post.id]) return;
+
+      // Fast path: post already has a thumbnail uploaded at creation time.
+      // Store it directly — zero network cost, no HLS parsing.
+      if (post.thumbnail_url) {
+        setThumbnail(post.id, post.thumbnail_url);
+        thumbnailsRef.current = { ...thumbnailsRef.current, [post.id]: post.thumbnail_url };
+        return;
+      }
+
+      // Slow path: generate from the HLS stream (needed for older posts
+      // created before thumbnail_url was added, or if upload failed).
       const uri = await generateVideoThumbnail(post.media_url);
       if (uri && !cancelled) {
         setThumbnail(post.id, uri);
@@ -352,6 +380,13 @@ export default function SocialsScreen() {
       cancelled = true;
     };
   }, [posts, setThumbnail]);
+
+  // Stable ref so the transcoding poll always reads the freshest posts
+  // without capturing a stale closure, and without adding `posts` to the
+  // effect's deps (which caused the polling timer to restart on every refetch).
+  const postsRef = useRef(posts);
+  postsRef.current = posts;
+
 
   // Video posts from the already-loaded feed — passed straight to ReelsOverlay
   // so it NEVER makes a separate API call. Zero delay.
@@ -380,7 +415,6 @@ export default function SocialsScreen() {
 
     // Animate progress from 90% → 98% gradually
     const progressInterval = setInterval(() => {
-      // In mobile we just use the store
       const current = useUploadStore.getState().progress;
       if (current < 98) setUploadProgress(current + 0.15);
     }, 1000);
@@ -389,16 +423,19 @@ export default function SocialsScreen() {
       refreshCount++;
       try {
         await refetch();
-        // Check if there are NO more "video_upload" posts (they become "video" or "image" once done)
-        // or if they have a .m3u8 media_url.
+        // Read via ref so we always see the freshly-refetched posts, not the
+        // stale closure snapshot. Previously this was reading `posts` which
+        // was captured at effect-creation time, so the check always evaluated
+        // against the pre-refetch array and never detected the transition.
         setTimeout(() => {
-          const stillProcessing = posts.some(
+          const currentPosts = postsRef.current;
+          const stillProcessing = currentPosts.some(
             (p) =>
               p.media_type === "video_upload" &&
               !p.media_url?.includes(".m3u8"),
           );
 
-          if (!stillProcessing && posts.length > 0) {
+          if (!stillProcessing && currentPosts.length > 0) {
             clearInterval(progressInterval);
             clearInterval(refreshTimer);
             setUploadProgress(100);
@@ -416,7 +453,7 @@ export default function SocialsScreen() {
             setUploadStatus("done");
           }
         }, 500);
-      } catch (err) {
+      } catch {
         // Refresh failed silently
       }
     };
@@ -428,7 +465,10 @@ export default function SocialsScreen() {
       clearInterval(progressInterval);
       clearInterval(refreshTimer);
     };
-  }, [uploadStatus, refetch, posts, setUploadProgress, setUploadStatus]);
+    // `posts` intentionally omitted — reads via postsRef so the polling timer
+    // is not restarted every time a refetch updates the posts array.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadStatus, refetch, setUploadProgress, setUploadStatus]);
   const { mutate: likePost, isPending: likePending } = useLikePostMutation();
   const { mutate: followUser } = useFollowMutation();
 
@@ -523,7 +563,11 @@ export default function SocialsScreen() {
 
   const renderPost = useCallback(
     ({ item }: { item: PostRead }) => {
-      const profile = authorProfiles.get(item.author_id);
+      // Read via ref so that loading new profiles doesn't invalidate this
+      // callback and force FlashList to re-render every visible card at once.
+      // Individual cells still re-render when `extraData` changes (e.g. when
+      // the profile Map updates), keeping names accurate without a mass teardown.
+      const profile = authorProfilesRef.current.get(item.author_id);
       const authorName = profile
         ? [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.username
         : null;
@@ -561,7 +605,7 @@ export default function SocialsScreen() {
       videoPlayer,
       isMuted,
       handleToggleMute,
-      authorProfiles,
+      // authorProfiles intentionally omitted — read via authorProfilesRef above.
     ],
   );
 
@@ -629,7 +673,17 @@ export default function SocialsScreen() {
           <TouchableOpacity
             key={key}
             style={[styles.tab, activeTab === key && styles.activeTab]}
-            onPress={() => setActiveTab(key)}
+            onPress={() => {
+              if (key === activeTab) {
+                // Tap the active tab again → scroll to top (Instagram behaviour)
+                listRef.current?.scrollToOffset({ offset: 0, animated: true });
+              } else {
+                setActiveTab(key);
+                // Jump to top instantly when switching tabs so the new feed
+                // always starts at position 0, not mid-scroll from the old tab.
+                listRef.current?.scrollToOffset({ offset: 0, animated: false });
+              }
+            }}
           >
             <Text
               style={[
@@ -659,7 +713,7 @@ export default function SocialsScreen() {
         getItemType={getPostType}
         viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs}
         onRefresh={refetch}
-        refreshing={isLoading && posts.length > 0}
+        refreshing={isRefetching && posts.length > 0}
         ListEmptyComponent={ListEmptyComponent}
         ListFooterComponent={isFetchingNextPage ? <PostCardSkeleton /> : null}
         showsVerticalScrollIndicator={false}
@@ -673,6 +727,8 @@ export default function SocialsScreen() {
           currentUserId,
           isMuted,
           videoPlayer,
+          // authorProfiles included so FlashList re-renders individual visible
+          // cells when names load, without invalidating the renderPost callback.
           authorProfiles,
         }}
         // Pre-render ~2 cards ahead of the viewport. 250 (the old value)
