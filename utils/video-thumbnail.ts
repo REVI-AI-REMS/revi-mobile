@@ -44,21 +44,26 @@ export async function generateVideoThumbnail(
       quality: 0.5, // lower quality = faster decode, still looks fine at feed size
     });
     return uri;
-  } catch {
-    // Fall through to HLS parsing
+  } catch (err) {
+    console.warn(`[ThumbGen] Direct extraction failed for ${videoUrl.slice(0, 50)}...`, err);
   }
 
   // HLS: parse manifest → get first .ts segment → thumbnail from that
   if (videoUrl.includes(".m3u8")) {
     try {
       const segmentUrl = await getFirstSegmentUrl(videoUrl);
-      if (!segmentUrl) return null;
+      if (!segmentUrl) {
+        console.warn(`[ThumbGen] getFirstSegmentUrl returned null for ${videoUrl.slice(0, 50)}...`);
+        return null;
+      }
+      
       const { uri } = await VideoThumbnails.getThumbnailAsync(segmentUrl, {
         time: 0,
         quality: 0.5,
       });
       return uri;
-    } catch {
+    } catch (err) {
+      console.warn(`[ThumbGen] HLS segment extraction failed for ${videoUrl.slice(0, 50)}...`, err);
       return null;
     }
   }

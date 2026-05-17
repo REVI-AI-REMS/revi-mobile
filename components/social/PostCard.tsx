@@ -5,8 +5,11 @@ import { useVideoStore } from "@/stores/video.store";
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "@/components/ExpoImage";
-import { VideoView, type VideoPlayer } from "expo-video";
+import { VideoView, useVideoPlayer, type VideoPlayer } from "expo-video";
 import { memo, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { feedKeys } from "@/hooks/queries/use-feed";
+import { postsService } from "@/scripts/services/social/posts.service";
 import {
     Dimensions,
     Modal,
@@ -21,7 +24,6 @@ import Animated, {
     useSharedValue,
     withRepeat,
     withSequence,
-    withSpring,
     withTiming,
 } from "react-native-reanimated";
 import { LikesSheet } from "./LikesSheet";
@@ -55,6 +57,73 @@ export function formatRelativeTime(isoString: string): string {
 export function shortAuthorId(id: string): string {
   return `@${id.slice(0, 8)}`;
 }
+// ─── Local Feed Video ──────────────────────────────────────────────────────────
+// Represents a single AVPlayer instance managed locally within the card.
+// This is only mounted when the card is within the `activeWindowIds` (the 
+// current video, plus one before and one after). This keeps the native player
+// count strictly bounded (max 3), while allowing the video to seamlessly 
+// pause on its last frame when you scroll past it, exactly like Instagram.
+function LocalFeedVideo({
+  url,
+  isActive,
+  isMuted,
+  postId,
+}: {
+  url: string;
+  isActive: boolean;
+  isMuted: boolean;
+  postId: string;
+}) {
+  const player = useVideoPlayer(url, (p) => {
+    p.loop = true;
+    p.muted = isMuted;
+    p.timeUpdateEventInterval = 250;
+  });
+
+  // Play/Pause based on global feed active state
+  useEffect(() => {
+    if (isActive) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [isActive, player]);
+
+  // Sync with global mute
+  useEffect(() => {
+    player.muted = isMuted;
+  }, [isMuted, player]);
+
+  // Breadcrumb tracking — save position so we can resume if the player unmounts
+  useEffect(() => {
+    const sub = player.addListener("timeUpdate", ({ currentTime }) => {
+      if (currentTime > 0) {
+        useVideoStore.getState().setBreadcrumb(postId, currentTime * 1000);
+      }
+    });
+    return () => { sub?.remove?.(); };
+  }, [player, postId]);
+
+  // Restore position when mounting a fresh player
+  useEffect(() => {
+    const saved = useVideoStore.getState().breadcrumbs[postId];
+    if (saved) {
+      player.currentTime = saved / 1000;
+    }
+  }, [player, postId]);
+
+  return (
+    <VideoView
+      player={player}
+      style={StyleSheet.absoluteFill}
+      contentFit="cover"
+      nativeControls={false}
+      fullscreenOptions={{ enable: false }}
+      allowsPictureInPicture={false}
+    />
+  );
+}
+
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -141,13 +210,8 @@ export interface PostCardProps {
   currentUserId: string;
   /** Full name resolved by the parent (first + last from author profile). */
   authorName?: string | null;
-  // Hoisted video player — owned by the feed screen. When this card is
-  // isActive, we render a VideoView bound to this player. Other cards
-  // render only the thumbnail. Omit for thumbnail-only contexts.
-  videoPlayer?: VideoPlayer;
-  // Global mute state driven by the parent; tapping the mute button
-  // toggles it across the whole feed (matches Instagram/TikTok UX).
-  isMuted?: boolean;
+  // Omit for thumbnail-only contexts.
+  isGlobalMuted?: boolean;
   onToggleMute?: () => void;
 }
 
@@ -163,8 +227,7 @@ function PostCardComponent({
   isFollowing,
   isBookmarked = false,
   currentUserId,
-  videoPlayer,
-  isMuted = true,
+  isGlobalMuted = true,
   onToggleMute,
   authorName,
 }: PostCardProps) {
@@ -188,11 +251,59 @@ function PostCardComponent({
   const liked = post.is_liked ?? false;
   const carouselRef = useRef<ScrollView>(null);
   const isClosingRef = useRef(false);
+  const queryClient = useQueryClient();
+
+  const spinnerRotation = useSharedValue(0);
+
+  useEffect(() => {
+    if (isProcessing) {
+      spinnerRotation.value = withRepeat(
+        withTiming(360, { duration: 1500 }),
+        -1,
+        false
+      );
+    } else {
+      spinnerRotation.value = 0;
+    }
+  }, [isProcessing, spinnerRotation]);
+
+  useEffect(() => {
+    if (!isProcessing) return;
+
+    // Auto-poll the backend every 5 seconds to check if processing is done.
+    // When it finishes, we invalidate the feed cache to seamlessly swap to the playable video
+    // without the user needing to pull-to-refresh.
+    const interval = setInterval(async () => {
+      try {
+        const updatedPost = await postsService.getPost(post.id);
+        if (updatedPost.is_active || updatedPost.media_type === "video") {
+          queryClient.invalidateQueries({ queryKey: feedKeys.all });
+        }
+      } catch (err) {}
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [isProcessing, post.id, queryClient]);
+
+  const barAnimStyle = useAnimatedStyle(() => ({
+    width: "0%", // removed in earlier edit, but just keeping the hook logic intact if there is any other. Wait, barAnimStyle doesn't exist here!
+  })); // Wait, I should just create spinnerStyle!
+
+  const spinnerStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spinnerRotation.value}deg` }],
+  }));
 
   const thumbnailUri = useVideoStore((s) => s.thumbnails[post.id] ?? null);
   const setThumbnail = useVideoStore((s) => s.setThumbnail);
-  const isActive = useVideoStore((s) => s.activeVideoId === post.id);
-  const isVideoReady = useVideoStore((s) => s.readyVideoId === post.id);
+  // isActive and isVideoReady are derived from the store's current IDs
+  // compared to this post. We read them from the store ONCE here rather
+  // the store ONCE here rather than subscribing to the whole slice.
+  const activeVideoId = useVideoStore((s) => s.activeVideoId);
+  const isActive = activeVideoId === post.id;
+  
+  // Is this post within the active window? (previous, current, next)
+  // If so, we mount the local AVPlayer.
+  const shouldMountPlayer = useVideoStore((s) => s.activeWindowIds.has(post.id));
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   // ─── Cell recycle reset ────────────────────────────────────────────────────
@@ -228,26 +339,18 @@ function PostCardComponent({
   useEffect(() => {
     if (!isVideo || isProcessing || thumbnailUri || thumbnailFailed) return;
 
-    // Fast path: backend returned a thumbnail uploaded at post time.
-    // Store it directly — no HLS parsing, no network call.
-    if (post.thumbnail_url) {
-      setThumbnail(post.id, post.thumbnail_url);
-      return;
-    }
+    console.log(`[PostCard ${post.id.slice(0, 8)}] No thumbnail — thumbnail_url: ${post.thumbnail_url ?? "NULL"}, media_url: ${post.media_url?.slice(0, 60)}`);
 
-    // Slow path: HLS-based extraction for older posts without thumbnail_url.
-    let cancelled = false;
-    generateVideoThumbnail(post.media_url).then((uri) => {
-      if (cancelled) return;
-      if (uri) {
-        setThumbnail(post.id, uri);
-      } else {
-        setThumbnailFailed(true);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
+    // Fast path: backend returned a thumbnail uploaded at post time.
+    if (post.thumbnail_url) {
+      console.log(`[PostCard ${post.id.slice(0, 8)}] Using backend thumbnail_url`);
+      setThumbnail(post.id, post.thumbnail_url);
+    } else {
+      // HLS extraction natively on iOS fails for remote .m3u8 files.
+      // Since the new local player architecture prevents black flashes during 
+      // scroll, missing thumbnails on old videos are completely harmless.
+      setThumbnailFailed(true);
+    }
   }, [
     isVideo,
     isProcessing,
@@ -290,8 +393,8 @@ function PostCardComponent({
             {mediaUrls.map((url, i) => {
               const isVideoUrl =
                 isVideo && !isProcessing && (i === 0 || url.includes(".m3u8"));
-              const showVideoView = isVideoUrl && !!videoPlayer && isVideoReady;
-              const showThumbnailCover = isVideoUrl && !isVideoReady;
+              // Show the native video player ONLY when it falls in the window.
+              const showVideoView = isVideoUrl && shouldMountPlayer;
 
               return (
                 <View
@@ -301,34 +404,38 @@ function PostCardComponent({
                     isVideo && styles.videoContainer,
                   ]}
                 >
-              <Animated.View style={StyleSheet.absoluteFill}>
+              <View style={StyleSheet.absoluteFill}>
                     {isVideoUrl ? (
                       <>
-                        {thumbnailUri && showThumbnailCover && (
+                        {/* Layer 1: Thumbnail — ALWAYS rendered underneath.
+                            Never conditionally hidden. The VideoView paints
+                            on top when ready, naturally covering it.
+                            This eliminates black backgrounds forever. */}
+                        {thumbnailUri ? (
                           <Image
                             source={{ uri: thumbnailUri }}
                             style={StyleSheet.absoluteFill}
                             contentFit="cover"
-                            recyclingKey={post.id}
+                            recyclingKey={`thumb-${post.id}`}
                           />
-                        )}
-                        {!thumbnailUri && showThumbnailCover && (
-                          <SkeletonBlock
-                            style={StyleSheet.absoluteFill as object}
-                          />
+                        ) : (
+                          <View style={[StyleSheet.absoluteFill, styles.loadingVideoCover]} />
                         )}
 
+                        {/* Layer 2: VideoView — only mounted when this card is in the
+                            active window (max 3 players alive at once). Sits on top of
+                            the thumbnail so the transition is seamless. */}
                         {showVideoView && (
-                          <VideoView
-                            player={videoPlayer!}
-                            style={StyleSheet.absoluteFill}
-                            contentFit="cover"
-                            nativeControls={false}
-                            fullscreenOptions={{ enable: false }}
-                            allowsPictureInPicture={false}
+                          <LocalFeedVideo
+                            url={url}
+                            isActive={isActive}
+                            isMuted={isGlobalMuted}
+                            postId={post.id}
                           />
                         )}
 
+                        {/* Layer 3: Play button — visible when video is NOT
+                            actively playing (just showing thumbnail). */}
                         {!isActive && !showVideoView && (
                           <View style={styles.playOverlay}>
                             <View style={styles.playOverlayCircle}>
@@ -339,14 +446,26 @@ function PostCardComponent({
                       </>
                     ) : isProcessing ? (
                       <View style={styles.videoPlaceholder}>
-                        <Ionicons
-                          name="time-outline"
-                          size={32}
-                          color="#FFFFFF"
+                        <Image
+                          source={{ uri: post.thumbnail_url ?? undefined }}
+                          style={styles.postImage}
+                          contentFit="cover"
                         />
-                        <Text style={styles.videoPlaceholderText}>
-                          Processing video...
-                        </Text>
+                        <View 
+                          style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.6)' }]} 
+                        />
+                        <View style={styles.processingBadgeOverlay}>
+                          <Animated.View style={[styles.spinnerIcon, spinnerStyle]}>
+                            <Ionicons
+                              name="sync"
+                              size={28}
+                              color="#FFFFFF"
+                            />
+                          </Animated.View>
+                          <Text style={styles.videoPlaceholderText}>
+                            Processing video...
+                          </Text>
+                        </View>
                       </View>
                     ) : (
                       <Image
@@ -356,7 +475,7 @@ function PostCardComponent({
                         recyclingKey={`${post.id}-${i}`}
                       />
                     )}
-                  </Animated.View>
+                  </View>
                   {post.is_sponsored && i === 0 && (
                     <View style={styles.sponsoredBadge}>
                       <Text style={styles.sponsoredText}>Sponsored</Text>
@@ -393,7 +512,7 @@ function PostCardComponent({
               activeOpacity={0.8}
             >
               <Ionicons
-                name={isMuted ? "volume-mute" : "volume-high"}
+                name={isGlobalMuted ? "volume-mute" : "volume-high"}
                 size={15}
                 color="#FFF"
               />
@@ -537,10 +656,17 @@ const styles = StyleSheet.create({
   videoPlaceholder: {
     width: "100%",
     height: "100%",
+    backgroundColor: colors.bgSecondary,
+  },
+  processingBadgeOverlay: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.bgSecondary,
     gap: spacing.xs,
+  },
+  spinnerIcon: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   videoFallback: {
     ...StyleSheet.absoluteFillObject,

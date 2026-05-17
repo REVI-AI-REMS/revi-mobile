@@ -18,7 +18,7 @@ import {
 import { feedKeys, useGeospatialFeed, useMainFeed } from "@/hooks/queries/use-feed";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
-import { useVideoPlayerPool } from "@/hooks/use-video-player-pool";
+import { useVideoPlayer } from "expo-video";
 import { useAuthorProfiles } from "@/hooks/queries/use-author-profiles";
 import type { MainFeedParams, PostRead } from "@/scripts/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
@@ -218,17 +218,16 @@ export default function SocialsScreen() {
       }
       // Keep the last-active video ID unless a new video scrolled into view.
       // Setting null here would tear down the VideoView and show a dark flash
-      // when the user scrolls through image posts between two video posts.
+      // when the user scrolls through image posts between two video posts,
+      // or during the 50/50 split 'dead zone' where no video is 60% visible.
       if (firstVideoId) {
         lastActiveVideoIdRef.current = firstVideoId;
         setActiveVideoId(firstVideoId);
-      } else if (!viewableItems.length) {
-        // Nothing on screen at all (fast fling) — pause.
-        setActiveVideoId(null);
       }
-      // If there are viewable items but none are videos, we keep the current
-      // active ID. The player will be paused by the viewability system but
-      // the VideoView stays mounted showing the last frame.
+      // If there are viewable items but none are videos (or we're in the dead zone), 
+      // we keep the current active ID. The player will naturally pause because 
+      // PostCard calculates `isActive = activeVideoId === post.id`, but the 
+      // VideoView stays mounted showing its exact last frame perfectly.
 
       if (viewedIdsRef.current.size >= 50) {
         batchLogViews(Array.from(viewedIdsRef.current));
@@ -311,46 +310,60 @@ export default function SocialsScreen() {
   authorProfilesRef.current = authorProfiles;
 
 
-  // ─── Video player pool ─────────────────────────────────────────────────────
-  // Two native players: one plays the current video, the other pre-buffers
-  // the next video in the feed. When the user scrolls to the next video,
-  // the pre-buffered player activates instantly (< 50ms vs 300-800ms).
+  // ─── Video player (single) ──────────────────────────────────────────────────
+  // One native player for the whole feed. Thumbnail always shows underneath
+  // so there's never a black frame. When a video scrolls into view, we swap
+  // the source; the thumbnail covers the gap until the video is ready.
   const activeVideoId = useVideoStore((s) => s.activeVideoId);
-  const { activePlayer: videoPlayer, activateVideo, preloadNext } = useVideoPlayerPool();
-
-  // Drive the pool from activeVideoId changes.
   const activePost = useMemo(
     () => (activeVideoId ? posts.find((p) => p.id === activeVideoId) : null),
     [activeVideoId, posts],
   );
-  useEffect(() => {
-    activateVideo(activeVideoId, activePost?.media_url ?? null);
-  }, [activeVideoId, activePost?.media_url, activateVideo]);
 
-  // Pre-buffer the next video post after the current one.
+  // Global mute state — matches Instagram behaviour (tapping one unmuted them all).
+  const [isMuted, setIsMuted] = useState(true);
+  const handleToggleMute = useCallback(() => setIsMuted((m) => !m), []);
+
+  // ─── Player Windowing System ───────────────────────────────────────────────
+  // We compute a sliding window of AVPlayers (Previous, Current, Next).
+  // This allows the old video to perfectly pause on its exact last frame when 
+  // you scroll, without flashing black (which happens if a single player swaps sources).
   useEffect(() => {
-    if (!activeVideoId) return;
+    if (!activeVideoId) {
+      useVideoStore.getState().setActiveWindowIds([]);
+      return;
+    }
+
     const idx = posts.findIndex((p) => p.id === activeVideoId);
     if (idx === -1) return;
-    // Find the next video post in the feed (may not be the immediately next post).
-    for (let i = idx + 1; i < posts.length; i++) {
+
+    const windowIds: string[] = [];
+    
+    // Previous video
+    for (let i = idx - 1; i >= 0; i--) {
       const p = posts[i];
-      if (
-        (p.media_type === "video" || p.media_url?.includes(".m3u8")) &&
-        p.media_url
-      ) {
-        preloadNext(p.id, p.media_url);
+      if (p.media_type === "video" || p.media_type === "video_upload" || p.media_url?.includes(".m3u8")) {
+        windowIds.push(p.id);
         break;
       }
     }
-  }, [activeVideoId, posts, preloadNext]);
+    
+    // Current video
+    windowIds.push(posts[idx].id);
+    
+    // Next video
+    for (let i = idx + 1; i < posts.length; i++) {
+      const p = posts[i];
+      if (p.media_type === "video" || p.media_type === "video_upload" || p.media_url?.includes(".m3u8")) {
+        windowIds.push(p.id);
+        break;
+      }
+    }
 
-  // Global mute — matches Instagram behaviour.
-  const [isMuted, setIsMuted] = useState(true);
-  useEffect(() => {
-    videoPlayer.muted = isMuted;
-  }, [videoPlayer, isMuted]);
-  const handleToggleMute = useCallback(() => setIsMuted((m) => !m), []);
+    useVideoStore.getState().setActiveWindowIds(windowIds);
+  }, [activeVideoId, posts]);
+
+
 
   // ─── Pre-generate thumbnails ───────────────────────────────────────────────
   // Start as soon as feed data arrives — NOT when the user scrolls to a post.
@@ -369,6 +382,16 @@ export default function SocialsScreen() {
         (p.media_type === "video" || p.media_url?.includes(".m3u8")) &&
         !thumbnailsRef.current[p.id],
     );
+
+    // ── Diagnostic: log thumbnail_url status for all video posts ──
+    const allVideoPosts = posts.filter(
+      (p) => p.media_type === "video" || p.media_url?.includes(".m3u8"),
+    );
+    console.log("[Feed] Video posts thumbnail status:");
+    allVideoPosts.forEach((p) => {
+      console.log(`  [${p.id.slice(0, 8)}] thumbnail_url: ${p.thumbnail_url ?? "NULL"} | cached: ${!!thumbnailsRef.current[p.id]}`);
+    });
+
     if (!videoPosts.length) return;
 
     let cancelled = false;
@@ -627,8 +650,7 @@ export default function SocialsScreen() {
           isFollowing={followingIds.has(item.author_id)}
           isBookmarked={bookmarkedIds.has(item.id)}
           currentUserId={currentUserId || ""}
-          videoPlayer={videoPlayer}
-          isMuted={isMuted}
+          isGlobalMuted={isMuted}
           onToggleMute={handleToggleMute}
           authorName={authorName}
         />
@@ -645,7 +667,6 @@ export default function SocialsScreen() {
       followingIds,
       bookmarkedIds,
       currentUserId,
-      videoPlayer,
       isMuted,
       handleToggleMute,
       // authorProfiles intentionally omitted — read via authorProfilesRef above.
@@ -769,7 +790,6 @@ export default function SocialsScreen() {
           likePending,
           currentUserId,
           isMuted,
-          videoPlayer,
           // authorProfiles included so FlashList re-renders individual visible
           // cells when names load, without invalidating the renderPost callback.
           authorProfiles,
@@ -778,7 +798,7 @@ export default function SocialsScreen() {
         // was under half a card, so fast scrolls outpaced the warm-up and
         // landed on blank cells. FlashList 2.x auto-measures item sizes,
         // so no estimatedItemSize is needed.
-        drawDistance={1200}
+        drawDistance={500}
         // Kick off the next page when the user is ~1.5 screens from the
         // end — the 10-post batch has time to arrive before they hit it.
         onEndReachedThreshold={1.5}

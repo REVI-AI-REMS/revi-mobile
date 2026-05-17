@@ -432,7 +432,7 @@ export default function NewPostScreen() {
           const videoLocalUri = uploadUris[0]; // already file:// at this point
           const { uri: thumbLocalUri } = await VideoThumbnails.getThumbnailAsync(
             videoLocalUri,
-            { time: 0, quality: 0.7 },
+            { time: 1000, quality: 0.7 },
           );
 
           // Get a SAS URL for the thumbnail image (uses social-hls public container)

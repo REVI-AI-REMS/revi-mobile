@@ -10,12 +10,14 @@ interface VideoState {
   readyVideoId: string | null;
   visiblePostIds: Set<string>;
   preloadVideoIds: Set<string>;
+  activeWindowIds: Set<string>;
   setBreadcrumb: (postId: string, time: number) => void;
   setThumbnail: (postId: string, uri: string) => void;
   setActiveVideoId: (id: string | null) => void;
   setReadyVideoId: (id: string | null) => void;
   setVisiblePostIds: (ids: string[]) => void;
   setPreloadVideoIds: (ids: string[]) => void;
+  setActiveWindowIds: (ids: string[]) => void;
   clearBreadcrumbs: () => void;
 }
 
@@ -26,6 +28,7 @@ export const useVideoStore = create<VideoState>((set) => ({
   readyVideoId: null,
   visiblePostIds: new Set(),
   preloadVideoIds: new Set(),
+  activeWindowIds: new Set(),
 
   setBreadcrumb: (postId, time) =>
     set((state) => ({
@@ -38,19 +41,14 @@ export const useVideoStore = create<VideoState>((set) => ({
       return { thumbnails: { ...state.thumbnails, [postId]: uri } };
     }),
 
-  // Only reset readyVideoId when switching to a DIFFERENT video.
-  // If the same video is re-activated (e.g. scrolled back into view, or
-  // tab-return), the player still has that source loaded — clearing ready
-  // would cause a dark flash while replaceAsync re-buffers the same URL.
+  // Don't reset readyVideoId when switching active videos.
+  // The old video's VideoView stays mounted showing its last frame (like
+  // Instagram's pause-in-place). readyVideoId only changes when the
+  // player finishes loading the NEW video's source (via setReadyVideoId).
   setActiveVideoId: (id) =>
     set((state) => {
       if (state.activeVideoId === id) return state;
-      // Different video or null → reset ready so PostCard shows thumbnail
-      // until the new source finishes loading.
-      const readyVideoId = id !== null && id === state.readyVideoId
-        ? state.readyVideoId  // keep it — same source is still loaded
-        : null;               // clear it — new source needs replaceAsync
-      return { activeVideoId: id, readyVideoId };
+      return { activeVideoId: id };
     }),
 
   setReadyVideoId: (id) =>
@@ -82,6 +80,19 @@ export const useVideoStore = create<VideoState>((set) => ({
         if (same) return state;
       }
       return { preloadVideoIds: next };
+    }),
+
+  setActiveWindowIds: (ids) =>
+    set((state) => {
+      const next = new Set(ids);
+      if (state.activeWindowIds.size === next.size) {
+        let same = true;
+        for (const id of next) {
+          if (!state.activeWindowIds.has(id)) { same = false; break; }
+        }
+        if (same) return state;
+      }
+      return { activeWindowIds: next };
     }),
 
   clearBreadcrumbs: () =>
