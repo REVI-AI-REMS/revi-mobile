@@ -38,13 +38,20 @@ export const useVideoStore = create<VideoState>((set) => ({
       return { thumbnails: { ...state.thumbnails, [postId]: uri } };
     }),
 
-  // Resetting readyVideoId here is the key: it happens atomically with the
-  // activeVideoId change, so PostCard sees readyVideoId=null on the very
-  // first render where isActive becomes true — no stale "ready" state leaks.
+  // Only reset readyVideoId when switching to a DIFFERENT video.
+  // If the same video is re-activated (e.g. scrolled back into view, or
+  // tab-return), the player still has that source loaded — clearing ready
+  // would cause a dark flash while replaceAsync re-buffers the same URL.
   setActiveVideoId: (id) =>
-    set((state) =>
-      state.activeVideoId === id ? state : { activeVideoId: id, readyVideoId: null },
-    ),
+    set((state) => {
+      if (state.activeVideoId === id) return state;
+      // Different video or null → reset ready so PostCard shows thumbnail
+      // until the new source finishes loading.
+      const readyVideoId = id !== null && id === state.readyVideoId
+        ? state.readyVideoId  // keep it — same source is still loaded
+        : null;               // clear it — new source needs replaceAsync
+      return { activeVideoId: id, readyVideoId };
+    }),
 
   setReadyVideoId: (id) =>
     set((state) =>

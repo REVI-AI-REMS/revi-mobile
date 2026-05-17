@@ -3,6 +3,7 @@ import HomeIcon from "@/assets/svgs/HOME 1.svg";
 import HomeSearch from "@/assets/svgs/SEARCH 1.svg";
 import ProfileIcon from "@/assets/svgs/aProfile 1.svg";
 import HomeBookmark from "@/assets/svgs/sSAVED 1.svg";
+import { socialTabPressEmitter } from "@/utils/social-tab-emitter";
 import { Tabs } from "expo-router";
 import type { SvgProps } from "react-native-svg";
 import { memo } from "react";
@@ -69,6 +70,14 @@ export default function TabLayout() {
             title,
             tabBarIcon: ({ focused }) => <TabIcon Icon={Icon} focused={focused} />,
           }}
+          listeners={name === "social" ? {
+            tabPress: (e) => {
+              // Emit a global event that SocialScreen listens for.
+              // This fires when the user taps the Home icon while already
+              // on the social tab — scrolls the feed to the top.
+              socialTabPressEmitter.emit();
+            },
+          } : undefined}
         />
       ))}
 

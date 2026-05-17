@@ -6,14 +6,11 @@ import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "@/components/ExpoImage";
 import { VideoView, type VideoPlayer } from "expo-video";
-import * as Haptics from "expo-haptics";
 import { memo, useEffect, useRef, useState } from "react";
 import {
     Dimensions,
     Modal,
-    Platform,
     ScrollView,
-    Share,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -28,6 +25,9 @@ import Animated, {
     withTiming,
 } from "react-native-reanimated";
 import { LikesSheet } from "./LikesSheet";
+import { PostHeader } from "./post/PostHeader";
+import { PostActions } from "./post/PostActions";
+import { PostCaption } from "./post/PostCaption";
 
 const { width, height: screenHeight } = Dimensions.get("window");
 const fsWidth = width;
@@ -89,7 +89,7 @@ export function PostCardSkeleton() {
   return (
     <View style={styles.postCard}>
       {/* Header */}
-      <View style={[styles.postHeader, { marginBottom: 12 }]}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, height: 44, marginBottom: 12 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           <SkeletonBlock style={{ width: 40, height: 40, borderRadius: 20 }} />
           <View style={{ gap: 6 }}>
@@ -185,8 +185,6 @@ function PostCardComponent({
 
   const [imageIndex, setImageIndex] = useState(0);
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
-  const [showLikes, setShowLikes] = useState(false);
-  const [captionExpanded, setCaptionExpanded] = useState(false);
   const liked = post.is_liked ?? false;
   const carouselRef = useRef<ScrollView>(null);
   const isClosingRef = useRef(false);
@@ -203,11 +201,7 @@ function PostCardComponent({
     setLastPostId(post.id);
     setImageIndex(0);
     setFullscreenIndex(null);
-    setShowLikes(false);
     setThumbnailFailed(false);
-    setCaptionExpanded(false);
-    // isMuted is global (driven by parent) — not reset here.
-    // Video playback state lives on the hoisted player; nothing to clear.
   }
 
   const openFullscreen = (idx: number) => {
@@ -266,100 +260,19 @@ function PostCardComponent({
   ]);
 
 
-  // Heart pulse animation on like
-  const heartScale = useSharedValue(1);
-  const heartAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: heartScale.value }],
-  }));
-
-  const handleLikeTap = () => {
-    // Light haptic so the interaction feels physical (matches Instagram/TikTok)
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    heartScale.value = withSequence(
-      withSpring(1.35, { damping: 4 }),
-      withSpring(1, { damping: 6 }),
-    );
-    onLike(post.id, liked);
-  };
-
-  // Native share sheet. We use the app's deep-link scheme as the url so
-  // apps that preview URLs (Messages, Mail) have something to render, and
-  // include the caption + author as the message body. Swap the scheme to
-  // a real web URL once we have `https://revi.ai/post/{id}` in place.
-  const handleShare = async () => {
-    try {
-      const lines: string[] = [];
-      if (post.caption) lines.push(`"${post.caption}"`);
-      lines.push(`— ${shortAuthorId(post.author_id)} on Revi AI`);
-      const message = lines.join("\n\n");
-      const url = `reviaimobile://post/${post.id}`;
-      await Share.share(
-        Platform.OS === "ios"
-          ? { url, message }
-          : { message: `${message}\n${url}` },
-        { dialogTitle: "Share this post" },
-      );
-    } catch {
-      // User cancelled, or share sheet unavailable on this device — silent.
-    }
-  };
-
   return (
     <>
       <View style={styles.postCard}>
-        <View style={styles.postHeader}>
-          <TouchableOpacity
-            style={styles.postUser}
-            activeOpacity={0.7}
-            onPress={() => onAuthorPress?.(post.author_id)}
-          >
-            {/* Avatar — shows profile image if available, otherwise initials circle */}
-            {post.author_avatar ? (
-              <Image
-                source={{ uri: post.author_avatar }}
-                style={styles.userAvatarImage}
-                contentFit="cover"
-                recyclingKey={post.author_avatar}
-              />
-            ) : (
-              <View style={styles.userAvatar}>
-                <Text style={styles.userAvatarInitial}>
-                  {(post.author_username ?? post.author_id).charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>
-                {authorName ?? post.author_username ?? shortAuthorId(post.author_id)}
-              </Text>
-              <Text style={styles.postTime}>
-                {formatRelativeTime(post.created_at)}
-              </Text>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.postHeaderActions}>
-            {!isOwnPost && (
-              <TouchableOpacity
-                style={[
-                  styles.followButton,
-                  isFollowing && styles.followingButton,
-                ]}
-                onPress={() => onFollow(post.author_id, isFollowing)}
-              >
-                <Text style={styles.followButtonText}>
-                  {isFollowing ? "Following" : "Follow"}
-                </Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={styles.moreButton}
-              onPress={() => onMore(post)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* ── Header (memo'd — re-renders only on follow/author change) ── */}
+        <PostHeader
+          post={post}
+          isOwnPost={isOwnPost}
+          isFollowing={isFollowing}
+          authorName={authorName}
+          onFollow={onFollow}
+          onMore={onMore}
+          onAuthorPress={onAuthorPress}
+        />
 
         {/* Media */}
         <View>
@@ -377,12 +290,8 @@ function PostCardComponent({
             {mediaUrls.map((url, i) => {
               const isVideoUrl =
                 isVideo && !isProcessing && (i === 0 || url.includes(".m3u8"));
-              // VideoView mounts only on the active card — one native
-              // player drives the whole feed (see useFeedVideoPlayer).
-              // isVideoReady gates the VideoView mount — prevents the previous
-              // post's last frame from showing while replaceAsync loads the new
-              // source. Thumbnail/spinner layers cover the gap until ready.
-              const canRenderVideo = isVideoUrl && isActive && !!videoPlayer && isVideoReady;
+              const showVideoView = isVideoUrl && !!videoPlayer && isVideoReady;
+              const showThumbnailCover = isVideoUrl && !isVideoReady;
 
               return (
                 <View
@@ -395,11 +304,21 @@ function PostCardComponent({
               <Animated.View style={StyleSheet.absoluteFill}>
                     {isVideoUrl ? (
                       <>
+                        {thumbnailUri && showThumbnailCover && (
+                          <Image
+                            source={{ uri: thumbnailUri }}
+                            style={StyleSheet.absoluteFill}
+                            contentFit="cover"
+                            recyclingKey={post.id}
+                          />
+                        )}
+                        {!thumbnailUri && showThumbnailCover && (
+                          <SkeletonBlock
+                            style={StyleSheet.absoluteFill as object}
+                          />
+                        )}
 
-                        {/* Layer 1: VideoView bound to the hoisted player.
-                            Mounts only when this card is active; source is
-                            swapped by the parent via player.replaceAsync(). */}
-                        {canRenderVideo && (
+                        {showVideoView && (
                           <VideoView
                             player={videoPlayer!}
                             style={StyleSheet.absoluteFill}
@@ -410,29 +329,7 @@ function PostCardComponent({
                           />
                         )}
 
-                        {/* Layer 2: Cover while video isn't playing. */}
-                        {thumbnailUri && (!isActive || !isVideoReady) && (
-                          <Image
-                            source={{ uri: thumbnailUri }}
-                            style={StyleSheet.absoluteFill}
-                            contentFit="cover"
-                            recyclingKey={post.id}
-                          />
-                        )}
-                        {!thumbnailUri && !isVideoReady && isActive && (
-                          // Shimmer (SkeletonBlock) instead of a plain dark cover
-                          // while the video source loads — visually consistent with
-                          // the feed skeleton and far less jarring than an empty black box.
-                          <SkeletonBlock
-                            style={StyleSheet.absoluteFill as object}
-                          />
-                        )}
-
-                        {/* Layer 3: Play button overlay — visible only when the
-                            card is in thumbnail mode (not the active, loading
-                            card). While the active card is loading we rely on
-                            the thumbnail / spinner layers instead. */}
-                        {!isActive && !canRenderVideo && (
+                        {!isActive && !showVideoView && (
                           <View style={styles.playOverlay}>
                             <View style={styles.playOverlayCircle}>
                               <Ionicons name="play" size={26} color="#FFF" />
@@ -470,7 +367,7 @@ function PostCardComponent({
             })}
           </ScrollView>
 
-          {/* Counter badge — absolute over the carousel */}
+          {/* Counter badge */}
           {mediaUrls.length > 1 && (
             <View style={styles.imageCounter}>
               <Text style={styles.imageCounterText}>
@@ -479,7 +376,7 @@ function PostCardComponent({
             </View>
           )}
 
-          {/* Tap anywhere on a ready video → open reels */}
+          {/* Tap video → open reels */}
           {isVideo && !isProcessing && (
             <TouchableOpacity
               style={StyleSheet.absoluteFillObject}
@@ -488,7 +385,7 @@ function PostCardComponent({
             />
           )}
 
-          {/* Bottom-right control: mute toggle for video, expand for images */}
+          {/* Mute / expand button */}
           {isVideo && !isProcessing ? (
             <TouchableOpacity
               style={styles.muteButton}
@@ -511,7 +408,7 @@ function PostCardComponent({
             </TouchableOpacity>
           ) : null}
 
-          {/* Processing overlay — centre, only while transcoding */}
+          {/* Processing overlay */}
           {isProcessing && (
             <View style={styles.videoOverlay}>
               <View style={styles.processingBadge}>
@@ -534,121 +431,28 @@ function PostCardComponent({
           </View>
         )}
 
-        {/* Actions */}
-        <View style={styles.postActions}>
-          <Animated.View style={heartAnimStyle}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleLikeTap}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={liked ? "heart" : "heart-outline"}
-                size={24}
-                color={liked ? "#FF3B30" : "#FFFFFF"}
-              />
-              <Text style={[styles.actionText, liked && styles.likedText]}>
-                {formatCount(post.like_count)}
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
+        {/* ── Actions (memo'd — re-renders only on like/bookmark change) ── */}
+        <PostActions
+          postId={post.id}
+          authorId={post.author_id}
+          caption={post.caption}
+          likeCount={post.like_count}
+          commentCount={post.comment_count}
+          viewCount={post.view_count}
+          isLiked={liked}
+          isBookmarked={isBookmarked}
+          onLike={onLike}
+          onComment={onComment}
+          onBookmark={onBookmark}
+        />
 
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => onComment(post.id)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chatbubble-outline" size={22} color="#FFFFFF" />
-            <Text style={styles.actionText}>
-              {formatCount(post.comment_count)}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleShare}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-redo-outline" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionButton}>
-            <Ionicons name="eye-outline" size={24} color="#FFFFFF" />
-            <Text style={styles.actionText}>
-              {formatCount(post.view_count)}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.bookmarkButton}
-            onPress={() => onBookmark?.(post.id, isBookmarked)}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={isBookmarked ? "bookmark" : "bookmark-outline"}
-              size={22}
-              color={isBookmarked ? "#007AFF" : "#FFFFFF"}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Liked by */}
-        {(post.like_count > 0 || liked) &&
-          (() => {
-            const count = Math.max(post.like_count, liked ? 1 : 0);
-            const others = liked ? count - 1 : count;
-            return (
-              <View style={styles.likedByRow}>
-                <Text style={styles.likedByText}>
-                  {"Liked by "}
-                  {liked ? (
-                    <>
-                      <Text style={styles.likedByBold}>you</Text>
-                      {others > 0 && (
-                        <>
-                          {" and "}
-                          <Text
-                            style={[styles.likedByBold, styles.likedByTappable]}
-                            onPress={() => setShowLikes(true)}
-                          >
-                            {formatCount(others)} others
-                          </Text>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <Text
-                      style={[styles.likedByBold, styles.likedByTappable]}
-                      onPress={() => setShowLikes(true)}
-                    >
-                      {formatCount(others)} others
-                    </Text>
-                  )}
-                </Text>
-              </View>
-            );
-          })()}
-
-        {/* Caption */}
-        {post.caption ? (
-          <View style={styles.postDescription}>
-            <Text
-              style={styles.description}
-              numberOfLines={captionExpanded ? undefined : 3}
-              onPress={() => setCaptionExpanded((v) => !v)}
-            >
-              {post.caption}
-            </Text>
-            {!captionExpanded && (post.caption?.length ?? 0) > 120 && (
-              <Text
-                style={styles.seeMore}
-                onPress={() => setCaptionExpanded(true)}
-              >
-                more
-              </Text>
-            )}
-          </View>
-        ) : null}
+        {/* ── Caption + Liked By (memo'd — re-renders only on like count) ── */}
+        <PostCaption
+          postId={post.id}
+          caption={post.caption}
+          likeCount={post.like_count}
+          isLiked={liked}
+        />
       </View>
 
       {/* Fullscreen image viewer */}
@@ -660,7 +464,6 @@ function PostCardComponent({
         onRequestClose={closeFullscreen}
       >
         <View style={styles.fsOverlay}>
-          {/* Close */}
           <TouchableOpacity
             style={styles.fsClose}
             onPress={closeFullscreen}
@@ -669,7 +472,6 @@ function PostCardComponent({
             <Ionicons name="close" size={26} color="#FFF" />
           </TouchableOpacity>
 
-          {/* Counter */}
           {mediaUrls.length > 1 && fullscreenIndex !== null && (
             <View style={styles.fsCounter}>
               <Text style={styles.fsCounterText}>
@@ -678,7 +480,6 @@ function PostCardComponent({
             </View>
           )}
 
-          {/* Scrollable images */}
           <ScrollView
             horizontal
             pagingEnabled
@@ -707,14 +508,6 @@ function PostCardComponent({
           </ScrollView>
         </View>
       </Modal>
-
-      {showLikes && (
-        <LikesSheet
-          postId={post.id}
-          likeCount={Math.max(post.like_count, liked ? 1 : 0)}
-          onClose={() => setShowLikes(false)}
-        />
-      )}
     </>
   );
 }
@@ -727,74 +520,6 @@ const styles = StyleSheet.create({
     // here (not on the feed container) so every card — including ones that
     // mount later via pagination — gets the same spacing.
     paddingTop: 16,
-  },
-  postHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    height: 44,
-  },
-  postUser: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  userAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.bgTertiary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userAvatarImage: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#2C2C2E",
-  },
-  userAvatarInitial: {
-    fontSize: 11,
-    fontFamily: "System",
-    fontWeight: "600",
-    color: colors.textSecondary,
-  },
-  userInfo: {
-    gap: spacing.xs,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  userName: {
-    ...typography.labelMd,
-    color: colors.textPrimary,
-  },
-  postTime: {
-    ...typography.caption,
-    color: colors.textTertiary,
-  },
-  postHeaderActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  followButton: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
-    backgroundColor: colors.bgTertiary,
-    borderRadius: radius.lg,
-  },
-  followingButton: {
-    backgroundColor: colors.bgSecondary,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  followButtonText: {
-    ...typography.labelSm,
-    color: colors.textPrimary,
-  },
-  moreButton: {
-    padding: spacing.xxs,
   },
   imageContainer: {
     width: width,
@@ -946,42 +671,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semiBold,
     color: "#FFF",
   },
-  postActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    height: 44,
-    gap: spacing.md,
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xxs,
-  },
-  actionText: {
-    ...typography.labelSm,
-    color: colors.textSecondary,
-  },
-  likedText: {
-    color: colors.error,
-  },
-  bookmarkButton: {
-    marginLeft: "auto",
-  },
-  postDescription: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.xxs,
-  },
-  description: {
-    ...typography.bodyMd,
-    color: colors.textSecondary,
-  },
-  seeMore: {
-    ...typography.bodySm,
-    color: colors.textTertiary,
-    marginTop: 2,
-    fontFamily: Fonts.semiBold,
-  },
   paginationDots: {
     flexDirection: "row",
     justifyContent: "center",
@@ -1000,22 +689,6 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: colors.textPrimary,
-  },
-  likedByRow: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.xs,
-  },
-  likedByText: {
-    ...typography.bodySm,
-    color: colors.textSecondary,
-  },
-  likedByBold: {
-    fontFamily: Fonts.semiBold,
-    color: colors.textPrimary,
-  },
-  likedByTappable: {
-    textDecorationLine: "underline",
-    opacity: 0.9,
   },
   // ─── Fullscreen image viewer ───────────────────────────────────────────────
   fsOverlay: {

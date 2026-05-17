@@ -15,24 +15,27 @@ export function useFeedVideoPlayer(
   const lastIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // No active video — just pause. DON'T clear the source so the last
+    // frame stays visible in the VideoView (matches Instagram behaviour).
     if (!activeVideoId || !activeVideoUrl) {
       player.pause();
       return;
     }
 
+    // Same video re-activated (scrolled back into view, or tab-return).
+    // The player already has this source loaded — just resume playback.
     if (lastIdRef.current === activeVideoId) {
-      // Resume: same source already loaded (e.g. returning from another screen).
       useVideoStore.getState().setReadyVideoId(activeVideoId);
       player.play();
       return;
     }
 
+    // Different video — need to load a new source.
     const postId = activeVideoId;
     const url = activeVideoUrl;
     lastIdRef.current = postId;
 
-    // Stop current video immediately — cuts audio and prevents the old
-    // frame from being visible while replaceAsync loads the new source.
+    // Stop current audio immediately while loading the new source.
     player.pause();
 
     let cancelled = false;
@@ -40,15 +43,14 @@ export function useFeedVideoPlayer(
       try {
         await player.replaceAsync({ uri: url });
       } catch (e) {
-        // Log so we can diagnose bad URLs / codec issues in dev. Don't crash
-        // the feed — the thumbnail cover stays visible (isVideoReady stays false).
         console.warn("[FeedVideoPlayer] replaceAsync failed:", e);
         return;
       }
       if (cancelled) return;
-      // Source is ready — signal PostCard to drop its cover, then play.
+      // Source loaded — signal PostCard to drop its thumbnail cover.
       useVideoStore.getState().setReadyVideoId(postId);
       player.play();
+      // Restore breadcrumb position if the user saw this video earlier.
       const saved = useVideoStore.getState().breadcrumbs[postId];
       if (saved) {
         player.currentTime = saved / 1000;

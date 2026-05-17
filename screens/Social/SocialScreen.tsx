@@ -18,7 +18,7 @@ import {
 import { feedKeys, useGeospatialFeed, useMainFeed } from "@/hooks/queries/use-feed";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserFollowing } from "@/hooks/queries/use-relationships";
-import { useFeedVideoPlayer } from "@/hooks/use-feed-video-player";
+import { useVideoPlayerPool } from "@/hooks/use-video-player-pool";
 import { useAuthorProfiles } from "@/hooks/queries/use-author-profiles";
 import type { MainFeedParams, PostRead } from "@/scripts/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
@@ -27,10 +27,11 @@ import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 
 import { generateVideoThumbnail } from "@/utils/video-thumbnail";
+import { socialTabPressEmitter } from "@/utils/social-tab-emitter";
 import { FlashList, type FlashListRef, type ViewToken } from "@shopify/flash-list";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { InteractionManager, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 // ─── Dev / Default Location ───────────────────────────────────────────────────
 // TODO: replace with expo-location getCurrentPositionAsync() when ready
@@ -96,11 +97,16 @@ export default function SocialsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // Invalidate only the active feed queries on focus — NOT feedKeys.all, which
-  // would also bust comment lists, post details, and author profile caches that
-  // don't need refreshing on every tab visit.
+  // Invalidate only the active feed queries on focus — NOT feedKeys.all.
+  // Skip the very first mount so the cached data renders instantly without
+  // a network round-trip that freezes the UI.
+  const hasMountedRef = useRef(false);
   useFocusEffect(
     useCallback(() => {
+      if (!hasMountedRef.current) {
+        hasMountedRef.current = true;
+        return; // first mount — let react-query serve from cache
+      }
       queryClient.invalidateQueries({ queryKey: feedKeys.mainFeed(DEV_LOCATION) });
       queryClient.invalidateQueries({
         queryKey: feedKeys.geospatialFeed(
@@ -210,11 +216,19 @@ export default function SocialsScreen() {
       if (didVisibilityChange) {
         setVisiblePostIds(Array.from(visibleIdsRef.current));
       }
-      // Only update the resume-ref when a video is actually visible.
-      // Without this guard, scrolling through image-only areas nulls the ref
-      // and playback won't resume when the screen comes back into focus.
-      if (firstVideoId) lastActiveVideoIdRef.current = firstVideoId;
-      setActiveVideoId(firstVideoId);
+      // Keep the last-active video ID unless a new video scrolled into view.
+      // Setting null here would tear down the VideoView and show a dark flash
+      // when the user scrolls through image posts between two video posts.
+      if (firstVideoId) {
+        lastActiveVideoIdRef.current = firstVideoId;
+        setActiveVideoId(firstVideoId);
+      } else if (!viewableItems.length) {
+        // Nothing on screen at all (fast fling) — pause.
+        setActiveVideoId(null);
+      }
+      // If there are viewable items but none are videos, we keep the current
+      // active ID. The player will be paused by the viewability system but
+      // the VideoView stays mounted showing the last frame.
 
       if (viewedIdsRef.current.size >= 50) {
         batchLogViews(Array.from(viewedIdsRef.current));
@@ -297,24 +311,41 @@ export default function SocialsScreen() {
   authorProfilesRef.current = authorProfiles;
 
 
-  // ─── Hoisted video player ──────────────────────────────────────────────────
-  // One player drives the whole feed. The currently-active post's media_url
-  // is loaded into it; every other card just shows a thumbnail. That keeps
-  // exactly one native decoder alive no matter how many video cards are on
-  // screen — which is what Instagram/TikTok do and the reason the earlier
-  // flinching stopped when we moved to an active-only pattern.
+  // ─── Video player pool ─────────────────────────────────────────────────────
+  // Two native players: one plays the current video, the other pre-buffers
+  // the next video in the feed. When the user scrolls to the next video,
+  // the pre-buffered player activates instantly (< 50ms vs 300-800ms).
   const activeVideoId = useVideoStore((s) => s.activeVideoId);
+  const { activePlayer: videoPlayer, activateVideo, preloadNext } = useVideoPlayerPool();
+
+  // Drive the pool from activeVideoId changes.
   const activePost = useMemo(
     () => (activeVideoId ? posts.find((p) => p.id === activeVideoId) : null),
     [activeVideoId, posts],
   );
-  const videoPlayer = useFeedVideoPlayer(
-    activeVideoId,
-    activePost?.media_url ?? null,
-  );
+  useEffect(() => {
+    activateVideo(activeVideoId, activePost?.media_url ?? null);
+  }, [activeVideoId, activePost?.media_url, activateVideo]);
 
-  // Global mute — matches Instagram behaviour (tapping mute on one video
-  // persists across scrolls instead of resetting per card).
+  // Pre-buffer the next video post after the current one.
+  useEffect(() => {
+    if (!activeVideoId) return;
+    const idx = posts.findIndex((p) => p.id === activeVideoId);
+    if (idx === -1) return;
+    // Find the next video post in the feed (may not be the immediately next post).
+    for (let i = idx + 1; i < posts.length; i++) {
+      const p = posts[i];
+      if (
+        (p.media_type === "video" || p.media_url?.includes(".m3u8")) &&
+        p.media_url
+      ) {
+        preloadNext(p.id, p.media_url);
+        break;
+      }
+    }
+  }, [activeVideoId, posts, preloadNext]);
+
+  // Global mute — matches Instagram behaviour.
   const [isMuted, setIsMuted] = useState(true);
   useEffect(() => {
     videoPlayer.muted = isMuted;
@@ -345,15 +376,13 @@ export default function SocialsScreen() {
       if (cancelled || thumbnailsRef.current[post.id]) return;
 
       // Fast path: post already has a thumbnail uploaded at creation time.
-      // Store it directly — zero network cost, no HLS parsing.
       if (post.thumbnail_url) {
         setThumbnail(post.id, post.thumbnail_url);
         thumbnailsRef.current = { ...thumbnailsRef.current, [post.id]: post.thumbnail_url };
         return;
       }
 
-      // Slow path: generate from the HLS stream (needed for older posts
-      // created before thumbnail_url was added, or if upload failed).
+      // Slow path: generate from the HLS stream.
       const uri = await generateVideoThumbnail(post.media_url);
       if (uri && !cancelled) {
         setThumbnail(post.id, uri);
@@ -361,23 +390,28 @@ export default function SocialsScreen() {
       }
     };
 
-    const run = async () => {
-      // First 5 posts are likely on screen — fire them all at once.
-      const priority = videoPosts.slice(0, 5);
-      const rest = videoPosts.slice(5);
-      await Promise.allSettled(priority.map(gen));
+    // Defer heavy thumbnail work until AFTER the initial render + layout has
+    // painted. Without this, the JS thread is blocked for 2-3s generating
+    // thumbnails while the user stares at a frozen skeleton.
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (cancelled) return;
+      const run = async () => {
+        const priority = videoPosts.slice(0, 3);
+        const rest = videoPosts.slice(3);
+        await Promise.allSettled(priority.map(gen));
 
-      // Remaining posts: batches of 5 so the device isn't overwhelmed.
-      const CONCURRENCY = 5;
-      for (let i = 0; i < rest.length; i += CONCURRENCY) {
-        if (cancelled) break;
-        await Promise.allSettled(rest.slice(i, i + CONCURRENCY).map(gen));
-      }
-    };
+        const CONCURRENCY = 3;
+        for (let i = 0; i < rest.length; i += CONCURRENCY) {
+          if (cancelled) break;
+          await Promise.allSettled(rest.slice(i, i + CONCURRENCY).map(gen));
+        }
+      };
+      run();
+    });
 
-    run();
     return () => {
       cancelled = true;
+      task.cancel();
     };
   }, [posts, setThumbnail]);
 
@@ -499,6 +533,15 @@ export default function SocialsScreen() {
   // ─── Comments sheet ────────────────────────────────────────────────────────
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const listRef = useRef<FlashListRef<PostRead>>(null);
+
+  // ─── Home tab press → scroll to top ─────────────────────────────────────
+  // The tab bar emits socialTabPressEmitter when the Home icon is tapped
+  // while already on this screen. Scroll the feed to the top.
+  useEffect(() => {
+    return socialTabPressEmitter.subscribe(() => {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    });
+  }, []);
 
   // ─── Post options sheet ───────────────────────────────────────────────────
   const [optionsPost, setOptionsPost] = useState<PostRead | null>(null);
