@@ -53,10 +53,13 @@ export default function OverlayModal({
   const insets = useSafeAreaInsets();
   const maxHeight = resolveMaxHeight(height);
 
-  // For non-scrollable sheets (e.g. CommentsSheet with a FlatList), the sheet
-  // has a fixed pixel height. When the keyboard opens, KAV adds paddingBottom
-  // but the fixed-height sheet overflows behind the keyboard. Fix: shrink the
-  // sheet height by the keyboard height so it always fits above the keyboard.
+  // For non-scrollable sheets (e.g. CommentsSheet with a FlatList), the
+  // sheet has a fixed pixel height. The inner KeyboardAvoidingView adds
+  // paddingBottom equal to the keyboard height to push the input above the
+  // keyboard — but inside a fixed-height sheet that just squeezes the list
+  // area to almost nothing. Fix: when the keyboard is up, GROW the sheet
+  // to fill all vertical space above the keyboard so the list keeps its
+  // room and the input still sits flush against the keyboard.
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   useEffect(() => {
     if (scrollable) return;
@@ -74,9 +77,16 @@ export default function OverlayModal({
     };
   }, [scrollable]);
 
-  const sheetHeight = scrollable
-    ? maxHeight
-    : Math.max(300, maxHeight - keyboardHeight);
+  const sheetHeight = (() => {
+    if (scrollable) return maxHeight;
+    if (keyboardHeight > 0) {
+      // All available vertical space above the keyboard, leaving a small
+      // top margin so the sheet doesn't crash into the status bar.
+      const aboveKeyboard = WINDOW_HEIGHT - keyboardHeight - (insets.top + 20);
+      return Math.max(maxHeight, aboveKeyboard);
+    }
+    return maxHeight;
+  })();
 
   const content = (
     <View
