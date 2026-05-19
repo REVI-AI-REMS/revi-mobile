@@ -743,10 +743,20 @@ export default function SocialsScreen() {
                 // Tap the active tab again → scroll to top (Instagram behaviour)
                 listRef.current?.scrollToOffset({ offset: 0, animated: true });
               } else {
-                setActiveTab(key);
-                // Jump to top instantly when switching tabs so the new feed
-                // always starts at position 0, not mid-scroll from the old tab.
-                listRef.current?.scrollToOffset({ offset: 0, animated: false });
+                // Instantly unmount current videos to prevent hardware decoder
+                // crashes and memory spikes when the FlashList data swaps.
+                setActiveVideoId(null);
+                lastActiveVideoIdRef.current = null;
+                setVisiblePostIds([]);
+
+                // Defer the actual data swap by 1 frame (50ms) so the native UI 
+                // has time to cleanly destroy the AVPlayer instances.
+                setTimeout(() => {
+                  setActiveTab(key);
+                  // Jump to top instantly when switching tabs so the new feed
+                  // always starts at position 0, not mid-scroll from the old tab.
+                  listRef.current?.scrollToOffset({ offset: 0, animated: false });
+                }, 50);
               }
             }}
           >

@@ -65,6 +65,7 @@ export const ReelItem = memo(function ReelItem({
   // chromeReady: show buttons/info instantly for initial post, wait for video otherwise
   const [chromeReady, setChromeReady] = useState(isInitialPost);
   const [videoReady, setVideoReady] = useState(isInitialPost);
+  const [isFastForwarding, setIsFastForwarding] = useState(false);
   const thumbnailUri = useVideoStore((s) => s.thumbnails[post.id] ?? null);
   const insets = useSafeAreaInsets();
 
@@ -143,6 +144,17 @@ export const ReelItem = memo(function ReelItem({
     }
   };
 
+  const [isPlaying, setIsPlaying] = useState(player.playing);
+
+  useEffect(() => {
+    const sub = player.addListener("playingChange", ({ isPlaying: currentlyPlaying }) => {
+      setIsPlaying(currentlyPlaying);
+    });
+    return () => {
+      sub?.remove?.();
+    };
+  }, [player]);
+
   // Native share sheet. Same format as PostCard's share so links from
   // reels and feed look identical.
   const handleShare = async () => {
@@ -190,6 +202,14 @@ export const ReelItem = memo(function ReelItem({
         activeOpacity={1}
         style={StyleSheet.absoluteFill}
         onPress={togglePlay}
+        onLongPress={() => {
+          player.playbackRate = 2.0;
+          setIsFastForwarding(true);
+        }}
+        onPressOut={() => {
+          player.playbackRate = 1.0;
+          setIsFastForwarding(false);
+        }}
       >
         <VideoView
           player={player}
@@ -199,6 +219,18 @@ export const ReelItem = memo(function ReelItem({
           fullscreenOptions={{ enable: false }}
           allowsPictureInPicture={false}
         />
+        {/* Pause Icon Overlay */}
+        {!isPlaying && videoReady && (
+          <View style={styles.centerIconContainer}>
+            <Ionicons name="play" size={80} color="rgba(255,255,255,0.7)" />
+          </View>
+        )}
+        {/* Fast Forward Pill */}
+        {isFastForwarding && (
+          <View style={[styles.ffPill, { top: insets.top + 20 }]}>
+            <Text style={styles.ffText}>2x Speed &gt;&gt;</Text>
+          </View>
+        )}
       </TouchableOpacity>
 
       {/* Chrome — instant for initial post, waits for first frame for others */}
@@ -474,21 +506,40 @@ export const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   authorName: {
-    fontSize: 15,
-    fontFamily: Fonts.semiBold,
     color: "#FFF",
-    textShadowColor: "rgba(0,0,0,0.8)",
+    fontFamily: Fonts.semiBold,
+    fontSize: 16,
+    textShadowColor: "rgba(0,0,0,0.5)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 3,
   },
   caption: {
-    fontSize: 14,
-    fontFamily: Fonts.regular,
     color: "#FFF",
-    lineHeight: 20,
-    textShadowColor: "rgba(0,0,0,0.8)",
+    fontFamily: Fonts.medium,
+    fontSize: 14,
+    textShadowColor: "rgba(0,0,0,0.5)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 3,
+  },
+  centerIconContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    pointerEvents: "none",
+  },
+  ffPill: {
+    position: "absolute",
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    pointerEvents: "none",
+  },
+  ffText: {
+    color: "#FFF",
+    fontFamily: Fonts.bold,
+    fontSize: 14,
   },
   // Progress bar — thin strip at the very top of each reel (TikTok style)
   progressTrack: {
