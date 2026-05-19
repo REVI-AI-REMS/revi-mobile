@@ -285,7 +285,10 @@ export default function NewPostScreen() {
       const { manipulateAsync, SaveFormat } =
         await import("expo-image-manipulator");
       const uploadUris = await Promise.all(
-        resolvedUris.map(async (uri, i) => {
+        resolvedUris.map(async (rawUri, i) => {
+          // Strip any URL fragments (e.g. #YnBsaXN0) added by iOS ImagePicker.
+          // Native modules often crash or fail to identify file extensions if fragments are left intact.
+          const uri = rawUri.split('#')[0];
           const lowerUri = uri.toLowerCase();
 
           // Skip videos entirely
@@ -429,7 +432,17 @@ export default function NewPostScreen() {
       let thumbnailBlobUrl: string | null = null;
       if (requiresTranscoding) {
         try {
-          const videoLocalUri = uploadUris[0]; // already file:// at this point
+          let videoLocalUri = uploadUris[0]; // already file:// at this point
+
+          // If compression failed (e.g. on Expo Go without native modules) and we fell back
+          // to the raw iOS Photo Library path, VideoThumbnails will crash with a sandbox
+          // permission error. We MUST copy it to the app's cache directory first.
+          if (videoLocalUri.includes("/var/mobile/Media/")) {
+            const tempVideoPath = `${FileSystem.cacheDirectory}temp_thumb_${Date.now()}.mp4`;
+            await FileSystem.copyAsync({ from: videoLocalUri, to: tempVideoPath });
+            videoLocalUri = tempVideoPath;
+          }
+
           const { uri: thumbLocalUri } = await VideoThumbnails.getThumbnailAsync(
             videoLocalUri,
             { time: 1000, quality: 0.7 },
@@ -442,10 +455,9 @@ export default function NewPostScreen() {
           );
           await uploadToAzure(thumbLocalUri, thumbSas.upload_url, "image/jpeg");
           thumbnailBlobUrl = thumbSas.blob_url;
-          console.log("[new-post] Thumbnail uploaded:", thumbnailBlobUrl);
         } catch (thumbErr) {
           // Non-fatal — feed falls back to HLS-based generation if this fails
-          console.warn("[new-post] Thumbnail extraction failed (non-fatal):", thumbErr);
+          console.error("[new-post] Thumbnail extraction failed (non-fatal):", thumbErr);
         }
       }
 
@@ -470,17 +482,18 @@ export default function NewPostScreen() {
       // Step 4: Create post
       uploadStore.setStatus("creating");
       uploadStore.setProgress(80);
-      await createPostAsync({
+      
+      const payload = {
         caption: caption.trim() || null,
         media_url: blobUrls[0],
         media_urls: mediaUrls,
         media_type: mediaType,
         latitude: DEV_COORDS.latitude,
         longitude: DEV_COORDS.longitude,
-        // If we extracted a thumbnail above, include it so the feed renders
-        // it immediately — no HLS parsing needed on any device.
         thumbnail_url: thumbnailBlobUrl ?? undefined,
-      });
+      };
+
+      await createPostAsync(payload);
 
       // Bust feed cache so the new post appears immediately on the social screen.
       queryClient.invalidateQueries({ queryKey: feedKeys.all });
