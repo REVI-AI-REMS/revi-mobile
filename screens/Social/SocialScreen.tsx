@@ -26,7 +26,7 @@ import { useVideoStore } from "@/stores/video.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 
-import { generateVideoThumbnail } from "@/utils/video-thumbnail";
+
 import { socialTabPressEmitter } from "@/utils/social-tab-emitter";
 import { FlashList, type FlashListRef, type ViewToken } from "@shopify/flash-list";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -223,11 +223,13 @@ export default function SocialsScreen() {
       if (firstVideoId) {
         lastActiveVideoIdRef.current = firstVideoId;
         setActiveVideoId(firstVideoId);
+      } else if (viewableItems.length > 0) {
+        // If there are viewable items but none are videos (i.e. an Image post),
+        // we must explicitly nullify the active ID so the previous video pauses.
+        setActiveVideoId(null);
       }
-      // If there are viewable items but none are videos (or we're in the dead zone), 
-      // we keep the current active ID. The player will naturally pause because 
-      // PostCard calculates `isActive = activeVideoId === post.id`, but the 
-      // VideoView stays mounted showing its exact last frame perfectly.
+      // If viewableItems is empty, we are in a 'dead zone' mid-scroll. 
+      // Do nothing, letting the video continue seamlessly until the next item comes into view.
 
       if (viewedIdsRef.current.size >= 50) {
         batchLogViews(Array.from(viewedIdsRef.current));
@@ -330,7 +332,8 @@ export default function SocialsScreen() {
   // you scroll, without flashing black (which happens if a single player swaps sources).
   useEffect(() => {
     if (!activeVideoId) {
-      useVideoStore.getState().setActiveWindowIds([]);
+      // Do not clear the window when activeVideoId is null (e.g. when viewing an image).
+      // This keeps the nearest players mounted so they don't black-flash when scrolled back into view.
       return;
     }
 
@@ -405,12 +408,10 @@ export default function SocialsScreen() {
         return;
       }
 
-      // Slow path: generate from the HLS stream.
-      const uri = await generateVideoThumbnail(post.media_url);
-      if (uri && !cancelled) {
-        setThumbnail(post.id, uri);
-        thumbnailsRef.current = { ...thumbnailsRef.current, [post.id]: uri };
-      }
+      // Slow path: HLS extraction natively on iOS fails for remote .m3u8 files.
+      // We no longer attempt to extract thumbnails for legacy posts without `thumbnail_url`.
+      // This prevents the JS thread and native bridge from being completely choked 
+      // by failed FFmpeg extractions during feed scroll.
     };
 
     // Defer heavy thumbnail work until AFTER the initial render + layout has
