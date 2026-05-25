@@ -86,9 +86,10 @@ export const postsService = {
    * Send up to 50 post IDs — call on scroll session end or 2s visibility.
    * Returns campaign_ids for sponsored posts (follow up with ads.logImpression).
    */
-  batchLogViews: async (postIds: string[]): Promise<void> => {
+  batchLogViews: async (postIds: string[]): Promise<any> => {
     const payload: BatchViewRequest = { post_ids: postIds };
-    await api.post("/api/v1/posts/views/batch", payload);
+    const { data } = await api.post("/api/v1/posts/views/batch", payload);
+    return data;
   },
 
   /**

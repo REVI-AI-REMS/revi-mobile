@@ -1,5 +1,6 @@
 import { feedKeys } from "@/hooks/queries/use-feed";
 import { relationshipKeys } from "@/hooks/queries/use-relationships";
+import { adsService } from "@/scripts/services/social/ads.service";
 import { interactionsService } from "@/scripts/services/social/interactions.service";
 import { postsService } from "@/scripts/services/social/posts.service";
 import { relationshipsService } from "@/scripts/services/social/relationships.service";
@@ -329,6 +330,17 @@ export function useReportPostMutation() {
 export function useBatchLogViewsMutation() {
   return useMutation({
     mutationFn: (postIds: string[]) => postsService.batchLogViews(postIds),
+    onSuccess: (data) => {
+      const campaignIds = data?.results
+        ?.filter((r: any) => r.is_sponsored && r.campaign_id)
+        ?.map((r: any) => r.campaign_id) || [];
+
+      if (campaignIds.length > 0) {
+        adsService.batchLogImpressions(campaignIds).catch((err) => {
+          console.warn("[Ads] Failed to batch log impressions:", err);
+        });
+      }
+    },
   });
 }
 

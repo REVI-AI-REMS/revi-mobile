@@ -10,6 +10,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { feedKeys } from "@/hooks/queries/use-feed";
 import { postsService } from "@/scripts/services/social/posts.service";
+import { adsService } from "@/scripts/services/social/ads.service";
 import {
     Dimensions,
     Modal,
@@ -213,6 +214,10 @@ export interface PostCardProps {
   // Omit for thumbnail-only contexts.
   isGlobalMuted?: boolean;
   onToggleMute?: () => void;
+  // Legacy / screen-specific props
+  likePending?: boolean;
+  videoPlayer?: any;
+  isMuted?: boolean;
 }
 
 function PostCardComponent({
@@ -468,12 +473,23 @@ function PostCardComponent({
                         </View>
                       </View>
                     ) : (
-                      <Image
-                        source={{ uri: url ?? undefined }}
-                        style={styles.postImage}
-                        contentFit="cover"
-                        recyclingKey={`${post.id}-${i}`}
-                      />
+                      <TouchableOpacity
+                        activeOpacity={0.95}
+                        onPress={() => {
+                          if (post.is_sponsored && post.campaign_id) {
+                            adsService.logClick(post.campaign_id).catch(() => {});
+                          }
+                          openFullscreen(i);
+                        }}
+                        style={StyleSheet.absoluteFill}
+                      >
+                        <Image
+                          source={{ uri: url ?? undefined }}
+                          style={styles.postImage}
+                          contentFit="cover"
+                          recyclingKey={`${post.id}-${i}`}
+                        />
+                      </TouchableOpacity>
                     )}
                   </View>
                   {post.is_sponsored && i === 0 && (
@@ -500,7 +516,12 @@ function PostCardComponent({
             <TouchableOpacity
               style={StyleSheet.absoluteFillObject}
               activeOpacity={0.9}
-              onPress={() => onVideoPress?.(post)}
+              onPress={() => {
+                if (post.is_sponsored && post.campaign_id) {
+                  adsService.logClick(post.campaign_id).catch(() => {});
+                }
+                onVideoPress?.(post);
+              }}
             />
           )}
 
