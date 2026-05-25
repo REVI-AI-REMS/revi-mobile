@@ -121,7 +121,10 @@ export default function PostDetailScreen() {
       post.media_type === "video_upload" ||
       !!post.media_url?.includes(".m3u8"));
   useEffect(() => {
-    if (post && postIsVideo) setActiveVideoId(post.id);
+    if (post && postIsVideo) {
+      setActiveVideoId(post.id);
+      useVideoStore.getState().setActiveWindowIds([post.id]);
+    }
     return () => setActiveVideoId(null);
   }, [post, postIsVideo, setActiveVideoId]);
   const videoPlayer = useFeedVideoPlayer(

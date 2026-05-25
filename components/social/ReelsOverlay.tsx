@@ -1,6 +1,7 @@
 import { Fonts } from "@/constants/theme";
 import { useLikePostMutation } from "@/hooks/mutations/use-feed-mutations";
 
+import { useIsFocused } from "@react-navigation/native";
 import type { PostRead } from "@/scripts/services/social/types";
 import { useVideoStore } from "@/stores/video.store";
 import { Ionicons } from "@expo/vector-icons";
@@ -101,16 +102,18 @@ export const ReelItem = memo(function ReelItem({
     player.muted = muted;
   }, [player, muted]);
 
-  // Play when active and not scroll-locked (comments open), pause + rewind when
-  // this reel scrolls out or the comments sheet opens.
+  const isScreenFocused = useIsFocused();
+
+  // Play when active and not scroll-locked (comments open) and screen is focused,
+  // pause + rewind when this reel scrolls out, comments sheet opens, or tab switches.
   useEffect(() => {
-    if (isActive && !scrollLocked) {
+    if (isActive && isScreenFocused && !scrollLocked) {
       player.play();
     } else {
       player.pause();
       if (!isActive) player.currentTime = 0;
     }
-  }, [isActive, scrollLocked, player]);
+  }, [isActive, isScreenFocused, scrollLocked, player]);
 
   // Track playback progress for the progress bar.
   useEffect(() => {

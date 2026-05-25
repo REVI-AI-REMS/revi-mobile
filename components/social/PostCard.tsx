@@ -9,6 +9,7 @@ import { VideoView, useVideoPlayer, type VideoPlayer } from "expo-video";
 import { memo, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { feedKeys } from "@/hooks/queries/use-feed";
+import { useIsFocused } from "@react-navigation/native";
 import { postsService } from "@/scripts/services/social/posts.service";
 import { adsService } from "@/scripts/services/social/ads.service";
 import {
@@ -81,14 +82,16 @@ function LocalFeedVideo({
     p.timeUpdateEventInterval = 250;
   });
 
-  // Play/Pause based on global feed active state
+  const isFocused = useIsFocused();
+
+  // Play/Pause based on global feed active state and focus state
   useEffect(() => {
-    if (isActive) {
+    if (isActive && isFocused) {
       player.play();
     } else {
       player.pause();
     }
-  }, [isActive, player]);
+  }, [isActive, isFocused, player]);
 
   // Sync with global mute
   useEffect(() => {
