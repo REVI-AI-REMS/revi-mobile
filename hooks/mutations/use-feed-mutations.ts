@@ -76,8 +76,9 @@ export function useLikePostMutation() {
         });
       }
     },
-    // No onSettled invalidation — the server doesn't return is_liked in feed
-    // responses so refetching would overwrite the optimistic toggle with undefined.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: feedKeys.all });
+    },
   });
 }
 

@@ -172,7 +172,11 @@ export default function SignUpScreen() {
         },
         {
           onSuccess: () => {
-            requestVerification(email);
+            // Backend's /auth/register already sends the verification email
+            // on account creation. Previously we also called
+            // requestVerification(email) here, producing a duplicate email.
+            // The "Resend code" button on the OTP step still uses
+            // requestVerification via handleResendCode.
             setDigits(["", "", "", "", "", ""]);
             setStep("code");
           },

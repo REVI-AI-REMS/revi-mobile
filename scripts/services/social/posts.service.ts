@@ -2,6 +2,7 @@ import { api } from "@/scripts/services/api";
 import type {
     BatchViewRequest,
     GeospatialFeedParams,
+    LikeRead,
     MainFeedParams,
     PostCreate,
     PostRead,
@@ -113,5 +114,16 @@ export const postsService = {
       params: { skip, limit },
     });
     return data;
+  },
+
+  /** GET /api/v1/posts/{post_id}/likes */
+  getPostLikes: async (postId: string): Promise<LikeRead[]> => {
+    const { data } = await api.get<any[]>(`/api/v1/posts/${postId}/likes`);
+    // Normalise field names — backend schema is undocumented ({} in OpenAPI spec)
+    return (data ?? []).map((item: any) => ({
+      post_id: item.post_id ?? postId,
+      user_id: item.user_id ?? item.liker_id ?? item.author_id ?? item.id ?? "",
+      created_at: item.created_at ?? "",
+    }));
   },
 };

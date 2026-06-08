@@ -21,7 +21,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // No longer hardcoded
@@ -120,6 +120,14 @@ export default function PostDetailScreen() {
     (post.media_type === "video" ||
       post.media_type === "video_upload" ||
       !!post.media_url?.includes(".m3u8"));
+  // Only treat as PLAYABLE if the post has actually finished transcoding —
+  // media_type === "video" OR the URL is an HLS manifest. Passing a still-
+  // transcoding "video_upload" URL to expo-video can crash the native
+  // AVPlayer (manifests as the app quitting to home with no JS error),
+  // which is the common cause of the "tap saved post → app dies" report.
+  const isPlayableVideo =
+    !!post &&
+    (post.media_type === "video" || !!post.media_url?.includes(".m3u8"));
   useEffect(() => {
     if (post && postIsVideo) {
       setActiveVideoId(post.id);
@@ -128,8 +136,8 @@ export default function PostDetailScreen() {
     return () => setActiveVideoId(null);
   }, [post, postIsVideo, setActiveVideoId]);
   const videoPlayer = useFeedVideoPlayer(
-    postIsVideo && post ? post.id : null,
-    postIsVideo && post ? post.media_url : null,
+    isPlayableVideo && post ? post.id : null,
+    isPlayableVideo && post ? post.media_url : null,
   );
   const [isMuted, setIsMuted] = useState(true);
   useEffect(() => {
@@ -139,8 +147,19 @@ export default function PostDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView edges={["bottom"]} style={styles.container}>
-        <Stack.Screen options={{ ...baseScreenOptions, headerShown: true }} />
+      <SafeAreaView edges={["top", "bottom"]} style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.customHeader}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+            style={styles.headerBackButton}
+          >
+            <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Post</Text>
+          <View style={styles.headerSpacer} />
+        </View>
         <PostCardSkeleton />
       </SafeAreaView>
     );
@@ -149,16 +168,10 @@ export default function PostDetailScreen() {
   if (error || !post) {
     return (
       <SafeAreaView
-        edges={["bottom"]}
+        edges={["top", "bottom"]}
         style={[styles.container, styles.centered]}
       >
-        <Stack.Screen
-          options={{
-            ...baseScreenOptions,
-            headerShown: true,
-            title: "Not found",
-          }}
-        />
+        <Stack.Screen options={{ headerShown: false }} />
         <Ionicons name="alert-circle-outline" size={48} color="#FF6B6B" />
         <Text style={styles.errorText}>Post not found or failed to load</Text>
         <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
@@ -176,10 +189,27 @@ export default function PostDetailScreen() {
 
   return (
     <>
-      <SafeAreaView edges={["bottom"]} style={styles.container}>
-        <Stack.Screen
-          options={{ ...baseScreenOptions, headerShown: showHeader }}
-        />
+      <SafeAreaView edges={["top", "bottom"]} style={styles.container}>
+        {/* Hide the native iOS header completely. On iOS 26+ the system
+            wraps headerLeft items in a Liquid Glass circular background
+            that doesn't match our flat design, and there's no clean way
+            to opt out per-item. Render a flat custom header below. */}
+        <Stack.Screen options={{ headerShown: false }} />
+
+        {showHeader && (
+          <View style={styles.customHeader}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              style={styles.headerBackButton}
+            >
+              <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Post</Text>
+            {/* Spacer to keep the title centered between back button and right edge */}
+            <View style={styles.headerSpacer} />
+          </View>
+        )}
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -258,5 +288,24 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: Fonts.semiBold,
     fontSize: 14,
+  },
+  customHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    height: 44,
+  },
+  headerBackButton: {
+    padding: 4,
+    marginLeft: -4,
+  },
+  headerTitle: {
+    color: "#FFFFFF",
+    fontFamily: Fonts.semiBold,
+    fontSize: 17,
+  },
+  headerSpacer: {
+    width: 30, // matches approximate width of the back button so title centers
   },
 });

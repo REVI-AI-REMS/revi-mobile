@@ -6,6 +6,7 @@ import type { MediaType } from "@/scripts/services/social/types";
 import { useUploadStore } from "@/stores/upload.store";
 import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Haptics from "expo-haptics";
 import { Image } from "@/components/ExpoImage";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
@@ -14,52 +15,53 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    KeyboardAvoidingView,
-    Linking,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import Animated, {
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
-// Hardcoded Lagos coords — replace with expo-location when ready
-const DEV_COORDS = { latitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LAT ?? "6.5244"), longitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LNG ?? "3.3792") };
+const DEV_COORDS = {
+  latitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LAT ?? "6.5244"),
+  longitude: parseFloat(process.env.EXPO_PUBLIC_DEFAULT_LNG ?? "3.3792"),
+};
 
 type Step = "pick" | "caption";
 
-// ─── URI resolver ────────────────────────────────────────────────────────────
-// On iOS, MediaLibrary returns ph:// URIs that fetch() cannot read directly.
-// Use MediaLibrary.getAssetInfoAsync to get the real file:// localUri.
 async function resolvePhUri(uri: string, assetId?: string): Promise<string> {
   if (!uri.startsWith("ph://")) return uri;
   try {
-    // getAssetInfoAsync accepts either an Asset object or an AssetId string
     const info = await MediaLibrary.getAssetInfoAsync(assetId ?? uri);
     if (info?.localUri) return info.localUri;
-  } catch {
-    // fall through
-  }
-  // Last-resort: export to cache via FileSystem
+  } catch {}
   const dest = (FileSystem.cacheDirectory ?? "") + `upload-${Date.now()}.jpg`;
   await FileSystem.copyAsync({ from: uri, to: dest });
   return dest;
 }
 
-// ─── Upload helper ────────────────────────────────────────────────────────────
-// PUT raw bytes directly to Azure SAS URL (no backend proxy).
-// localUri must already be a file:// or http:// URI — no ph:// here.
 async function uploadToAzure(
   localUri: string,
   sasUrl: string,
@@ -69,17 +71,88 @@ async function uploadToAzure(
   const blob = await fileRes.blob();
   const res = await fetch(sasUrl, {
     method: "PUT",
-    headers: {
-      "Content-Type": contentType,
-      "x-ms-blob-type": "BlockBlob",
-    },
+    headers: { "Content-Type": contentType, "x-ms-blob-type": "BlockBlob" },
     body: blob,
   });
-  if (!res.ok) {
+  if (!res.ok)
     throw new Error(`Azure upload failed: ${res.status} ${res.statusText}`);
-  }
 }
 
+// ─── Animated grid item ───────────────────────────────────────────────────────
+type GridItemProps = {
+  asset: MediaLibrary.Asset;
+  isSelected: boolean;
+  selectedIdx: number;
+  onPress: () => void;
+};
+
+function AnimatedGridItem({
+  asset,
+  isSelected,
+  selectedIdx,
+  onPress,
+}: GridItemProps) {
+  const scale = useSharedValue(1);
+  const badgeScale = useSharedValue(isSelected ? 1 : 0);
+  const circleOpacity = useSharedValue(isSelected ? 0 : 1);
+
+  useEffect(() => {
+    badgeScale.value = withSpring(isSelected ? 1 : 0, {
+      damping: 14,
+      stiffness: 220,
+    });
+    circleOpacity.value = withTiming(isSelected ? 0 : 1, { duration: 150 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSelected]);
+
+  const pressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const badgeStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: badgeScale.value }],
+    opacity: badgeScale.value,
+  }));
+
+  const circleStyle = useAnimatedStyle(() => ({
+    opacity: circleOpacity.value,
+  }));
+
+  const handlePress = () => {
+    scale.value = withSpring(0.88, { damping: 10, stiffness: 350 }, () => {
+      scale.value = withSpring(1, { damping: 14, stiffness: 180 });
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
+
+  return (
+    <TouchableOpacity style={styles.gridItem} onPress={handlePress} activeOpacity={1}>
+      <Animated.View style={[StyleSheet.absoluteFill, pressStyle]}>
+        <Image
+          source={{ uri: asset.uri }}
+          style={[styles.gridImage, isSelected && styles.gridImageSelected]}
+          contentFit="cover"
+        />
+        {asset.mediaType === "video" && (
+          <View style={styles.videoIndicator}>
+            <Text style={styles.videoDuration}>
+              {`${Math.floor(asset.duration / 60)}:${String(
+                Math.round(asset.duration % 60),
+              ).padStart(2, "0")}`}
+            </Text>
+          </View>
+        )}
+        <Animated.View style={[styles.selectionBadge, badgeStyle]}>
+          <Text style={styles.selectionBadgeText}>{selectedIdx + 1}</Text>
+        </Animated.View>
+        <Animated.View style={[styles.unselectedCircle, circleStyle]} />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 export default function NewPostScreen() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("pick");
@@ -88,23 +161,21 @@ export default function NewPostScreen() {
     "idle" | "uploading" | "creating"
   >("idle");
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const captionInputRef = useRef<TextInput>(null);
 
-  // ─── Media picker state ───────────────────────────────────────────────────
   const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
   const [assets, setAssets] = useState<MediaLibrary.Asset[]>([]);
-  const [activeTab, setActiveTab] = useState<"All" | "Photos" | "Videos">(
-    "All",
-  );
+  const [activeTab, setActiveTab] = useState<"All" | "Photos" | "Videos">("All");
 
-  // Multi-select: ordered list of selected image URIs (max 10)
   const [selectedUris, setSelectedUris] = useState<string[]>([]);
-  const [selectedAssets, setSelectedAssets] = useState<MediaLibrary.Asset[]>(
-    [],
-  );
+  const [selectedAssets, setSelectedAssets] = useState<MediaLibrary.Asset[]>([]);
   const [selectedVideoUris, setSelectedVideoUris] = useState<string[]>([]);
-  // Which image is shown large in the preview pane
   const [focusedUri, setFocusedUri] = useState<string | null>(null);
   const [focusedIsVideo, setFocusedIsVideo] = useState(false);
+
+  // Animation shared values
+  const stepAnim = useSharedValue(0); // 0 = pick, 1 = caption
+  const previewOpacity = useSharedValue(1);
 
   const previewPlayer = useVideoPlayer(
     focusedIsVideo && focusedUri ? focusedUri : null,
@@ -119,6 +190,52 @@ export default function NewPostScreen() {
   const queryClient = useQueryClient();
   const uploadStore = useUploadStore();
 
+  // ─── Animated styles ──────────────────────────────────────────────────────
+  const pickAnimStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(stepAnim.value, [0, 0.6], [1, 0], "clamp"),
+    transform: [{ translateX: stepAnim.value * -width * 0.2 }],
+  }));
+
+  const captionAnimStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(stepAnim.value, [0.4, 1], [0, 1], "clamp"),
+    transform: [{ translateX: (1 - stepAnim.value) * width * 0.25 }],
+  }));
+
+  const previewAnimStyle = useAnimatedStyle(() => ({
+    opacity: previewOpacity.value,
+  }));
+
+  const focusCaptionInput = useCallback(() => {
+    setTimeout(() => captionInputRef.current?.focus(), 100);
+  }, []);
+
+  const goToCaption = () => {
+    if (selectedUris.length === 0) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setStep("caption");
+    stepAnim.value = withSpring(1, { damping: 22, stiffness: 200 }, () => {
+      runOnJS(focusCaptionInput)();
+    });
+  };
+
+  const goToPick = () => {
+    if (isBusy) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setStep("pick");
+    stepAnim.value = withSpring(0, { damping: 22, stiffness: 200 });
+  };
+
+  // Animated preview swap — quick dip then spring back
+  const updateFocused = (uri: string, isVideo: boolean) => {
+    setFocusedUri(uri);
+    setFocusedIsVideo(isVideo);
+    previewOpacity.value = withSequence(
+      withTiming(0.3, { duration: 80 }),
+      withSpring(1, { damping: 14, stiffness: 200 }),
+    );
+  };
+
+  // ─── Permissions & assets ─────────────────────────────────────────────────
   useEffect(() => {
     async function getPermissions() {
       if (!permissionResponse) {
@@ -145,10 +262,7 @@ export default function NewPostScreen() {
         first: 100,
       });
       setAssets(loaded);
-      // No auto-selection — user picks manually.
     } catch (e) {
-      // Log to Metro so developers can diagnose. We don't show a modal
-      // because the Browse fallback covers this for the user.
       console.warn("[new-post] loadAssets failed", e);
     }
   }, [permissionResponse?.status, activeTab]);
@@ -167,6 +281,7 @@ export default function NewPostScreen() {
     return /\.(mp4|mov|m4v|avi|mkv)$/i.test(uri.toLowerCase());
   };
 
+  // ─── Camera / library ─────────────────────────────────────────────────────
   const handleCamera = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -181,7 +296,6 @@ export default function NewPostScreen() {
         );
         return;
       }
-      // On "Videos" tab open in video mode directly; otherwise photo mode.
       const isVideoTab = activeTab === "Videos";
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: isVideoTab ? ["videos"] : ["images", "videos"],
@@ -193,8 +307,6 @@ export default function NewPostScreen() {
         const uri = asset.uri;
         const isVideo = asset.type === "video";
 
-        // If video, clear previous selections and use only the video
-        // If image, add to existing selections
         if (isVideo) {
           setSelectedUris([uri]);
           setSelectedAssets([]);
@@ -208,8 +320,7 @@ export default function NewPostScreen() {
           }
           setSelectedVideoUris([]);
         }
-        setFocusedUri(uri);
-        setFocusedIsVideo(isVideo);
+        updateFocused(uri, isVideo);
       }
     } catch (e) {
       console.warn("[new-post] camera failed", e);
@@ -220,7 +331,6 @@ export default function NewPostScreen() {
     }
   };
 
-  // Fallback for Expo Go where MediaLibrary has limited access
   const handlePickFromLibrary = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images", "videos"],
@@ -234,16 +344,15 @@ export default function NewPostScreen() {
       if (videoAsset) {
         setSelectedUris([videoAsset.uri]);
         setSelectedVideoUris([videoAsset.uri]);
-        setFocusedUri(videoAsset.uri);
-        setFocusedIsVideo(true);
+        setSelectedAssets([]);
+        updateFocused(videoAsset.uri, true);
       } else {
         const uris = result.assets.map((a) => a.uri).slice(0, 10);
         setSelectedUris(uris);
         setSelectedVideoUris([]);
-        setFocusedUri(uris[0]);
-        setFocusedIsVideo(false);
+        setSelectedAssets([]);
+        updateFocused(uris[0], false);
       }
-      setSelectedAssets([]);
     }
   };
 
@@ -256,7 +365,6 @@ export default function NewPostScreen() {
       setUploadStatus("uploading");
       const ts = Date.now();
 
-      // Tell the global store so the social feed shows the progress card
       const hasVideo =
         selectedVideoUris.length > 0 ||
         selectedAssets.some((a) => a.mediaType === "video") ||
@@ -264,11 +372,8 @@ export default function NewPostScreen() {
       uploadStore.startUpload(selectedUris[0], hasVideo);
       uploadStore.setProgress(5);
 
-      // Navigate back immediately — user sees progress in the feed
       router.back();
 
-      // Step 1: Resolve any ph:// (iOS Photo Library) URIs to file:// URIs.
-      // MediaLibrary.getAssetInfoAsync gives us the real local path.
       let resolvedUris = await Promise.all(
         selectedUris.map((uri, i) => {
           const assetId = selectedAssets[i]?.id;
@@ -276,26 +381,17 @@ export default function NewPostScreen() {
         }),
       );
 
-      // HEIC / image conversion — runs for ALL images on iOS.
-      // iOS MediaLibrary resolves ph:// URIs to local paths that often
-      // lack an extension (e.g. /var/mobile/.../image.HEIC or just a
-      // temp path). We detect HEIC by extension OR by checking the
-      // original asset's extension. Any non-JPEG/PNG/WebP image is
-      // converted to JPEG for maximum compatibility with Azure + the feed.
       const { manipulateAsync, SaveFormat } =
         await import("expo-image-manipulator");
       const uploadUris = await Promise.all(
         resolvedUris.map(async (rawUri, i) => {
-          // Strip any URL fragments (e.g. #YnBsaXN0) added by iOS ImagePicker.
-          // Native modules often crash or fail to identify file extensions if fragments are left intact.
-          const uri = rawUri.split('#')[0];
+          const uri = rawUri.split("#")[0];
           const lowerUri = uri.toLowerCase();
 
-          // Skip videos entirely
           if (lowerUri.match(/\.(mp4|mov|m4v|avi|mkv)$/)) {
             try {
-              // Dynamically import to keep bundle fast
-              const { Video: VideoCompressor } = await import("react-native-compressor");
+              const { Video: VideoCompressor } =
+                await import("react-native-compressor");
               console.log("[new-post] Compressing video...", uri);
               const compressedUri = await VideoCompressor.compress(
                 uri,
@@ -307,14 +403,14 @@ export default function NewPostScreen() {
               console.log("[new-post] Video compressed:", compressedUri);
               return compressedUri;
             } catch (err) {
-              console.warn("[new-post] Video compression failed, using original:", err);
+              console.warn(
+                "[new-post] Video compression failed, using original:",
+                err,
+              );
               return uri;
             }
           }
 
-          // For images: check if we need to convert.
-          // HEIC by extension, OR any image without a safe extension
-          // (JPEG/PNG/WebP are safe to upload directly).
           const isSafeFormat = lowerUri.match(/\.(jpe?g|png|webp)$/);
           const originalAsset = selectedAssets[i];
           const assetFilename = originalAsset?.filename?.toLowerCase() ?? "";
@@ -328,18 +424,16 @@ export default function NewPostScreen() {
               console.log("[new-post] Converting image to JPEG:", uri);
               const result = await manipulateAsync(
                 uri,
-                // Cap at 2048px wide — keeps file sizes sensible without
-                // visible quality loss on phone screens.
                 [{ resize: { width: Math.min(2048, 1600) } }],
-                {
-                  compress: 0.92,
-                  format: SaveFormat.JPEG,
-                },
+                { compress: 0.92, format: SaveFormat.JPEG },
               );
               console.log("[new-post] Converted to JPEG:", result.uri);
               return result.uri;
             } catch (err) {
-              console.warn("[new-post] Image conversion failed, using original:", err);
+              console.warn(
+                "[new-post] Image conversion failed, using original:",
+                err,
+              );
               return uri;
             }
           }
@@ -348,54 +442,43 @@ export default function NewPostScreen() {
         }),
       );
 
-
-      // Determine content type and file extension for each file
       const fileInfos = uploadUris.map((uri, i) => {
         const asset = selectedAssets[i];
         const lowerUri = uri.toLowerCase();
-
-        // Detect video
         const isVideo =
           selectedVideoUris.includes(selectedUris[i]) ||
           asset?.mediaType === "video" ||
           !!lowerUri.match(/\.(mp4|mov|m4v|avi|mkv)$/);
 
-        if (isVideo) {
-          // iOS camera produces .mov, normalize to mp4 for Azure/backend
+        if (isVideo)
           return { contentType: "video/mp4", extension: "mp4", isVideo: true };
-        }
-
-        // Detect image MIME type from extension
-        if (lowerUri.match(/\.jpe?g$/)) {
+        if (lowerUri.match(/\.jpe?g$/))
           return {
             contentType: "image/jpeg",
             extension: "jpg",
             isVideo: false,
           };
-        }
-        if (lowerUri.match(/\.png$/)) {
-          return { contentType: "image/png", extension: "png", isVideo: false };
-        }
-        if (lowerUri.match(/\.heic$/)) {
+        if (lowerUri.match(/\.png$/))
+          return {
+            contentType: "image/png",
+            extension: "png",
+            isVideo: false,
+          };
+        if (lowerUri.match(/\.heic$/))
           return {
             contentType: "image/heic",
             extension: "heic",
             isVideo: false,
           };
-        }
-        if (lowerUri.match(/\.webp$/)) {
+        if (lowerUri.match(/\.webp$/))
           return {
             contentType: "image/webp",
             extension: "webp",
             isVideo: false,
           };
-        }
-
-        // Default: JPEG (most phone photos are JPEG)
         return { contentType: "image/jpeg", extension: "jpg", isVideo: false };
       });
 
-      // Step 2: Get SAS URLs for all media files in parallel
       const sasResults = await Promise.all(
         uploadUris.map((_, i) =>
           mediaService.getUploadUrl(
@@ -406,14 +489,9 @@ export default function NewPostScreen() {
       );
       uploadStore.setProgress(20);
 
-      // Step 3: Upload all media to Azure in parallel
       await Promise.all(
         uploadUris.map((uri, i) =>
-          uploadToAzure(
-            uri,
-            sasResults[i].upload_url,
-            fileInfos[i].contentType,
-          ),
+          uploadToAzure(uri, sasResults[i].upload_url, fileInfos[i].contentType),
         ),
       );
       uploadStore.setProgress(60);
@@ -421,34 +499,26 @@ export default function NewPostScreen() {
       const blobUrls = sasResults.map((r) => r.blob_url);
       uploadStore.setProgress(70);
 
-      // Use requires_transcoding from the SAS response as the source of truth
       const requiresTranscoding = sasResults.some((r) => r.requires_transcoding);
       const isCarousel = !requiresTranscoding && blobUrls.length > 1;
 
-      // ─── Video thumbnail — extract from local file BEFORE it leaves the device ———─
-      // We have the raw file:// URI right here, so getThumbnailAsync runs in
-      // ~100ms with zero network cost. This completely replaces the slow
-      // client-side HLS-parsing fallback that used to happen in the feed.
       let thumbnailBlobUrl: string | null = null;
       if (requiresTranscoding) {
         try {
-          let videoLocalUri = uploadUris[0]; // already file:// at this point
-
-          // If compression failed (e.g. on Expo Go without native modules) and we fell back
-          // to the raw iOS Photo Library path, VideoThumbnails will crash with a sandbox
-          // permission error. We MUST copy it to the app's cache directory first.
+          let videoLocalUri = uploadUris[0];
           if (videoLocalUri.includes("/var/mobile/Media/")) {
             const tempVideoPath = `${FileSystem.cacheDirectory}temp_thumb_${Date.now()}.mp4`;
-            await FileSystem.copyAsync({ from: videoLocalUri, to: tempVideoPath });
+            await FileSystem.copyAsync({
+              from: videoLocalUri,
+              to: tempVideoPath,
+            });
             videoLocalUri = tempVideoPath;
           }
-
-          const { uri: thumbLocalUri } = await VideoThumbnails.getThumbnailAsync(
-            videoLocalUri,
-            { time: 1000, quality: 0.7 },
-          );
-
-          // Get a SAS URL for the thumbnail image (uses social-hls public container)
+          const { uri: thumbLocalUri } =
+            await VideoThumbnails.getThumbnailAsync(videoLocalUri, {
+              time: 1000,
+              quality: 0.7,
+            });
           const thumbSas = await mediaService.getUploadUrl(
             `post-${ts}-thumb.jpg`,
             "image/jpeg",
@@ -456,21 +526,18 @@ export default function NewPostScreen() {
           await uploadToAzure(thumbLocalUri, thumbSas.upload_url, "image/jpeg");
           thumbnailBlobUrl = thumbSas.blob_url;
         } catch (thumbErr) {
-          // Non-fatal — feed falls back to HLS-based generation if this fails
-          console.error("[new-post] Thumbnail extraction failed (non-fatal):", thumbErr);
+          console.error(
+            "[new-post] Thumbnail extraction failed (non-fatal):",
+            thumbErr,
+          );
         }
       }
 
-      // Per API spec:
-      // video_upload → media_url = raw blob URL, media_urls = null
-      // carousel     → media_url = first image, media_urls = all blob URLs
-      // image        → media_url = blob URL, media_urls = null
       let mediaType: MediaType;
       let mediaUrls: string[] | null = null;
-
       if (requiresTranscoding) {
         mediaType = "video_upload";
-        mediaUrls = null; // API spec: null for video
+        mediaUrls = null;
       } else if (isCarousel) {
         mediaType = "carousel";
         mediaUrls = blobUrls;
@@ -479,10 +546,9 @@ export default function NewPostScreen() {
         mediaUrls = null;
       }
 
-      // Step 4: Create post
       uploadStore.setStatus("creating");
       uploadStore.setProgress(80);
-      
+
       const payload = {
         caption: caption.trim() || null,
         media_url: blobUrls[0],
@@ -494,13 +560,9 @@ export default function NewPostScreen() {
       };
 
       await createPostAsync(payload);
-
-      // Bust feed cache so the new post appears immediately on the social screen.
       queryClient.invalidateQueries({ queryKey: feedKeys.all });
 
       if (requiresTranscoding) {
-        // Video needs server-side HLS transcoding (~15-30s)
-        // Polling is now handled in SocialsScreen (app/(tabs)/social.tsx)
         uploadStore.setStatus("processing");
         uploadStore.setProgress(90);
       } else {
@@ -515,26 +577,40 @@ export default function NewPostScreen() {
 
   const isBusy = uploadStatus !== "idle";
   const selectionCount = selectedUris.length;
+  const permissionPermanentlyDenied =
+    permissionResponse?.status === "denied" &&
+    permissionResponse.canAskAgain === false;
+  const gridData: (string | MediaLibrary.Asset)[] = ["camera", ...assets];
 
-  // ─── Caption step ─────────────────────────────────────────────────────────
-  if (step === "caption") {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <StatusBar style="light" />
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+  return (
+    <SafeAreaView style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar style="light" />
+
+      {/* Shared header — content swaps between pick/caption */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={step === "pick" ? () => router.back() : goToPick}
+          style={styles.backButton}
         >
-          {/* Header */}
-          <View style={styles.header}>
+          <Ionicons name="chevron-back" size={24} color="#FFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>New Post</Text>
+        <View style={{ minWidth: 80, alignItems: "flex-end" }}>
+          {step === "pick" ? (
             <TouchableOpacity
-              onPress={() => { if (!isBusy) setStep("pick"); }}
-              style={styles.backButton}
+              style={[
+                styles.nextButton,
+                selectionCount === 0 && styles.nextButtonDisabled,
+              ]}
+              onPress={goToCaption}
+              disabled={selectionCount === 0}
             >
-              <Ionicons name="chevron-back" size={24} color="#FFF" />
+              <Text style={styles.nextButtonText}>
+                Next{selectionCount > 1 ? ` (${selectionCount})` : ""}
+              </Text>
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>New Post</Text>
+          ) : (
             <TouchableOpacity
               style={[styles.postButton, isBusy && styles.postButtonDisabled]}
               onPress={handlePost}
@@ -546,340 +622,325 @@ export default function NewPostScreen() {
                 <Text style={styles.postButtonText}>Post</Text>
               )}
             </TouchableOpacity>
-          </View>
+          )}
+        </View>
+      </View>
 
-          {/* Thumbnails + caption row */}
-          <View style={styles.captionRow}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.captionThumbsRow}
-              contentContainerStyle={{ paddingRight: 8 }}
-            >
-              {selectedUris.map((uri, i) => (
-                <View key={uri} style={styles.captionThumbWrapper}>
-                  <Image
-                    source={{ uri }}
-                    style={styles.captionThumb}
-                    contentFit="cover"
-                  />
+      {/* Slide container — both steps layered, animated in/out */}
+      <View style={{ flex: 1, overflow: "hidden" }}>
+        {/* ── Pick step ────────────────────────────────────────────────────── */}
+        <View
+          style={StyleSheet.absoluteFill}
+          pointerEvents={step === "pick" ? "auto" : "none"}
+        >
+          <Animated.View style={[StyleSheet.absoluteFill, pickAnimStyle]}>
+            {/* Preview pane */}
+            <Animated.View style={[styles.previewContainer, previewAnimStyle]}>
+              {focusedUri ? (
+                <>
+                  {focusedIsVideo ? (
+                    <VideoView
+                      player={previewPlayer}
+                      style={styles.previewImage}
+                      contentFit="cover"
+                      nativeControls={false}
+                    />
+                  ) : (
+                    <Image
+                      source={{ uri: focusedUri }}
+                      style={styles.previewImage}
+                      contentFit="cover"
+                    />
+                  )}
+                  {focusedIsVideo && (
+                    <View style={styles.videoPreviewBadge}>
+                      <Ionicons name="videocam" size={14} color="#FFF" />
+                      <Text style={styles.videoPreviewText}>Video</Text>
+                    </View>
+                  )}
                   {selectedUris.length > 1 && (
-                    <View style={styles.captionThumbBadge}>
-                      <Text style={styles.captionThumbBadgeText}>{i + 1}</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.previewStrip}
+                      contentContainerStyle={styles.previewStripContent}
+                    >
+                      {selectedUris.map((uri, i) => (
+                        <TouchableOpacity
+                          key={uri}
+                          onPress={() => updateFocused(uri, isVideoUri(uri))}
+                          style={styles.stripThumbWrapper}
+                        >
+                          <Image
+                            source={{ uri }}
+                            style={[
+                              styles.stripThumb,
+                              focusedUri === uri && styles.stripThumbActive,
+                            ]}
+                            contentFit="cover"
+                          />
+                          <View style={styles.stripBadge}>
+                            <Text style={styles.stripBadgeText}>{i + 1}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                </>
+              ) : (
+                <View style={styles.emptyPreview}>
+                  <Ionicons name="image-outline" size={48} color="#3A3A3C" />
+                  <Text style={styles.emptyPreviewText}>
+                    Tap photos to select
+                  </Text>
+                </View>
+              )}
+            </Animated.View>
+
+            {/* Filter tabs */}
+            <View style={styles.tabsContainer}>
+              {(["All", "Photos", "Videos"] as const).map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tab, activeTab === tab && styles.activeTab]}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setActiveTab(tab);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.tabText,
+                      activeTab === tab && styles.activeTabText,
+                    ]}
+                  >
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              {assets.length === 0 && (
+                <TouchableOpacity
+                  style={styles.libraryFallback}
+                  onPress={handlePickFromLibrary}
+                >
+                  <Ionicons name="folder-outline" size={16} color="#A855F7" />
+                  <Text style={styles.libraryFallbackText}>Browse</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {permissionPermanentlyDenied ? (
+              <View style={styles.permissionState}>
+                <Ionicons name="lock-closed-outline" size={40} color="#666" />
+                <Text style={styles.permissionTitle}>Photo access is off</Text>
+                <Text style={styles.permissionSubtitle}>
+                  Enable photo library access in Settings to pick media for your
+                  post.
+                </Text>
+                <TouchableOpacity
+                  style={styles.permissionBtn}
+                  onPress={() => Linking.openSettings()}
+                >
+                  <Text style={styles.permissionBtnText}>Open Settings</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.permissionBrowseBtn}
+                  onPress={handlePickFromLibrary}
+                >
+                  <Text style={styles.permissionBrowseText}>
+                    Or pick files via the system picker
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <FlatList
+                style={{ flex: 1 }}
+                data={gridData}
+                renderItem={({ item }) => {
+                  if (item === "camera") {
+                    return (
+                      <TouchableOpacity
+                        style={styles.gridItem}
+                        onPress={handleCamera}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.cameraItem}>
+                          <Ionicons
+                            name="camera-outline"
+                            size={30}
+                            color="#FFF"
+                          />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }
+                  const asset = item as MediaLibrary.Asset;
+                  const selectedIdx = selectedUris.indexOf(asset.uri);
+                  const isSelected = selectedIdx >= 0;
+                  return (
+                    <AnimatedGridItem
+                      asset={asset}
+                      isSelected={isSelected}
+                      selectedIdx={selectedIdx}
+                      onPress={() => {
+                        if (isSelected) {
+                          const newUris = selectedUris.filter(
+                            (u) => u !== asset.uri,
+                          );
+                          const newAssets = selectedAssets.filter(
+                            (a) => a.id !== asset.id,
+                          );
+                          const newVideoUris = selectedVideoUris.filter(
+                            (u) => u !== asset.uri,
+                          );
+                          setSelectedUris(newUris);
+                          setSelectedAssets(newAssets);
+                          setSelectedVideoUris(newVideoUris);
+                          if (focusedUri === asset.uri) {
+                            const lastUri =
+                              newUris.length > 0
+                                ? newUris[newUris.length - 1]
+                                : null;
+                            if (lastUri) {
+                              updateFocused(
+                                lastUri,
+                                newVideoUris.includes(lastUri) ||
+                                  /\.(mp4|mov|m4v|avi|mkv)$/i.test(
+                                    lastUri.toLowerCase(),
+                                  ),
+                              );
+                            } else {
+                              setFocusedUri(null);
+                              setFocusedIsVideo(false);
+                            }
+                          }
+                        } else {
+                          const isVideo = asset.mediaType === "video";
+                          if (isVideo) {
+                            setSelectedUris([asset.uri]);
+                            setSelectedAssets([asset]);
+                            setSelectedVideoUris([asset.uri]);
+                          } else {
+                            if (focusedIsVideo) {
+                              setSelectedUris([asset.uri]);
+                              setSelectedAssets([asset]);
+                              setSelectedVideoUris([]);
+                            } else {
+                              if (selectedUris.length >= 10) return;
+                              setSelectedUris((prev) => [...prev, asset.uri]);
+                              setSelectedAssets((prev) => [...prev, asset]);
+                              setSelectedVideoUris((prev) =>
+                                prev.filter((u) => u !== asset.uri),
+                              );
+                            }
+                          }
+                          updateFocused(asset.uri, isVideo);
+                        }
+                      }}
+                    />
+                  );
+                }}
+                keyExtractor={(item) =>
+                  typeof item === "string" ? item : item.id
+                }
+                numColumns={4}
+                showsVerticalScrollIndicator={false}
+              />
+            )}
+          </Animated.View>
+        </View>
+
+        {/* ── Caption step ─────────────────────────────────────────────────── */}
+        <View
+          style={StyleSheet.absoluteFill}
+          pointerEvents={step === "caption" ? "auto" : "none"}
+        >
+          <Animated.View style={[StyleSheet.absoluteFill, captionAnimStyle]}>
+            <KeyboardAvoidingView
+              style={{ flex: 1, backgroundColor: "#0F0F10" }}
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+            >
+              {/* Thumbnail + caption input side by side */}
+              <View style={styles.captionRow}>
+                <View>
+                  {selectedUris.length <= 1 ? (
+                    <Image
+                      source={{ uri: selectedUris[0] }}
+                      style={styles.captionThumb}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={styles.captionThumbGrid}>
+                      {selectedUris.slice(0, 4).map((uri) => (
+                        <Image
+                          key={uri}
+                          source={{ uri }}
+                          style={styles.captionThumbGridItem}
+                          contentFit="cover"
+                        />
+                      ))}
+                      {selectedUris.length > 4 && (
+                        <View style={[styles.captionThumbGridItem, styles.captionMoreOverlay]}>
+                          <Text style={styles.captionMoreText}>
+                            +{selectedUris.length - 4}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   )}
                 </View>
-              ))}
-            </ScrollView>
-            <TextInput
-              style={styles.captionInput}
-              placeholder="Write a caption..."
-              placeholderTextColor="#666"
-              multiline
-              maxLength={500}
-              value={caption}
-              onChangeText={setCaption}
-              editable={!isBusy}
-              autoFocus
-            />
-          </View>
-
-          {caption.length > 0 && (
-            <Text
-              style={[
-                styles.captionCounter,
-                caption.length >= 480 && styles.captionCounterWarn,
-              ]}
-            >
-              {caption.length}/500
-            </Text>
-          )}
-
-          {isBusy && (
-            <View style={styles.statusRow}>
-              <ActivityIndicator color="#A855F7" size="small" />
-              <Text style={styles.statusText}>
-                {uploadStatus === "uploading" ? "Uploading media..." : "Creating post..."}
-              </Text>
-            </View>
-          )}
-
-          {uploadError && (
-            <View style={styles.errorRow}>
-              <Ionicons name="alert-circle-outline" size={16} color="#FF6B6B" />
-              <Text style={styles.errorText}>{uploadError}</Text>
-            </View>
-          )}
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    );
-  }
-
-  // ─── Pick step ────────────────────────────────────────────────────────────
-
-  // If the user fully denied media access and can't be re-prompted, show a
-  // clear CTA that opens the OS settings app instead of a silent empty grid.
-  const permissionPermanentlyDenied =
-    permissionResponse?.status === "denied" &&
-    permissionResponse.canAskAgain === false;
-
-  const gridData: (string | MediaLibrary.Asset)[] = ["camera", ...assets];
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar style="light" />
-
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons name="chevron-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>New Post</Text>
-        <TouchableOpacity
-          style={[
-            styles.nextButton,
-            selectionCount === 0 && styles.nextButtonDisabled,
-          ]}
-          onPress={() => {
-            if (selectionCount > 0) setStep("caption");
-          }}
-          disabled={selectionCount === 0}
-        >
-          <Text style={styles.nextButtonText}>
-            Next{selectionCount > 1 ? ` (${selectionCount})` : ""}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Preview */}
-      <View style={styles.previewContainer}>
-        {focusedUri ? (
-          <>
-            {focusedIsVideo ? (
-              <VideoView
-                player={previewPlayer}
-                style={styles.previewImage}
-                contentFit="cover"
-                nativeControls={false}
-              />
-            ) : (
-              <Image
-                source={{ uri: focusedUri }}
-                style={styles.previewImage}
-                contentFit="cover"
-              />
-            )}
-            {focusedIsVideo && (
-              <View style={styles.videoPreviewBadge}>
-                <Ionicons name="videocam" size={14} color="#FFF" />
-                <Text style={styles.videoPreviewText}>Video</Text>
-              </View>
-            )}
-            {selectedUris.length > 1 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.previewStrip}
-                contentContainerStyle={styles.previewStripContent}
-              >
-                {selectedUris.map((uri, i) => (
-                  <TouchableOpacity
-                    key={uri}
-                    onPress={() => {
-                      setFocusedUri(uri);
-                      setFocusedIsVideo(isVideoUri(uri));
-                    }}
-                    style={styles.stripThumbWrapper}
-                  >
-                    <Image
-                      source={{ uri }}
-                      style={[
-                        styles.stripThumb,
-                        focusedUri === uri && styles.stripThumbActive,
-                      ]}
-                      contentFit="cover"
-                    />
-                    <View style={styles.stripBadge}>
-                      <Text style={styles.stripBadgeText}>{i + 1}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-          </>
-        ) : (
-          <View style={styles.emptyPreview}>
-            <Ionicons name="image-outline" size={48} color="#3A3A3C" />
-            <Text style={styles.emptyPreviewText}>Tap photos to select</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Tabs + library fallback */}
-      <View style={styles.tabsContainer}>
-        {["All", "Photos", "Videos"].map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.activeTab]}
-            onPress={() => setActiveTab(tab as "All" | "Photos" | "Videos")}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === tab && styles.activeTabText,
-              ]}
-            >
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
-        {/* Expo Go fallback — MediaLibrary has limited access in Expo Go */}
-        {assets.length === 0 && (
-          <TouchableOpacity
-            style={styles.libraryFallback}
-            onPress={handlePickFromLibrary}
-          >
-            <Ionicons name="folder-outline" size={16} color="#A855F7" />
-            <Text style={styles.libraryFallbackText}>Browse</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {permissionPermanentlyDenied ? (
-        <View style={styles.permissionState}>
-          <Ionicons name="lock-closed-outline" size={40} color="#666" />
-          <Text style={styles.permissionTitle}>Photo access is off</Text>
-          <Text style={styles.permissionSubtitle}>
-            Enable photo library access in Settings to pick media for your post.
-          </Text>
-          <TouchableOpacity
-            style={styles.permissionBtn}
-            onPress={() => Linking.openSettings()}
-          >
-            <Text style={styles.permissionBtnText}>Open Settings</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.permissionBrowseBtn}
-            onPress={handlePickFromLibrary}
-          >
-            <Text style={styles.permissionBrowseText}>
-              Or pick files via the system picker
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={gridData}
-          renderItem={({ item }) => {
-            if (item === "camera") {
-              return (
-                <TouchableOpacity
-                  style={styles.gridItem}
-                  onPress={handleCamera}
-                >
-                  <View style={styles.cameraItem}>
-                    <Ionicons name="camera-outline" size={30} color="#FFF" />
-                  </View>
-                </TouchableOpacity>
-              );
-            }
-            const asset = item as MediaLibrary.Asset;
-            const selectedIdx = selectedUris.indexOf(asset.uri);
-            const isSelected = selectedIdx >= 0;
-            return (
-              <TouchableOpacity
-                style={styles.gridItem}
-                onPress={() => {
-                  if (isSelected) {
-                    // Deselect
-                    const newUris = selectedUris.filter((u) => u !== asset.uri);
-                    const newAssets = selectedAssets.filter(
-                      (a) => a.id !== asset.id,
-                    );
-                    const newVideoUris = selectedVideoUris.filter(
-                      (u) => u !== asset.uri,
-                    );
-                    setSelectedUris(newUris);
-                    setSelectedAssets(newAssets);
-                    setSelectedVideoUris(newVideoUris);
-                    if (focusedUri === asset.uri) {
-                      const lastUri =
-                        newUris.length > 0 ? newUris[newUris.length - 1] : null;
-                      setFocusedUri(lastUri);
-                      setFocusedIsVideo(
-                        !!lastUri &&
-                          (newVideoUris.includes(lastUri) ||
-                            /\.(mp4|mov|m4v|avi|mkv)$/i.test(
-                              lastUri.toLowerCase(),
-                            )),
-                      );
-                    }
-                  } else {
-                    const isVideo = asset.mediaType === "video";
-                    if (isVideo) {
-                      // Video: clear all other selections, only allow one video
-                      setSelectedUris([asset.uri]);
-                      setSelectedAssets([asset]);
-                      setSelectedVideoUris([asset.uri]);
-                    } else {
-                      // Image: don't allow adding images when a video is selected
-                      if (focusedIsVideo) {
-                        setSelectedUris([asset.uri]);
-                        setSelectedAssets([asset]);
-                        setSelectedVideoUris([]);
-                      } else {
-                        if (selectedUris.length >= 10) return;
-                        setSelectedUris((prev) => [...prev, asset.uri]);
-                        setSelectedAssets((prev) => [...prev, asset]);
-                        setSelectedVideoUris((prev) =>
-                          prev.filter((u) => u !== asset.uri),
-                        );
-                      }
-                    }
-                    setFocusedUri(asset.uri);
-                    setFocusedIsVideo(isVideo);
-                  }
-                }}
-              >
-                <Image
-                  source={{ uri: asset.uri }}
-                  style={[
-                    styles.gridImage,
-                    isSelected && styles.gridImageSelected,
-                  ]}
-                  contentFit="cover"
+                <TextInput
+                  ref={captionInputRef}
+                  style={styles.captionInput}
+                  placeholder="Write a caption..."
+                  placeholderTextColor="#555"
+                  multiline
+                  maxLength={500}
+                  value={caption}
+                  onChangeText={setCaption}
+                  editable={!isBusy}
                 />
-                {asset.mediaType === "video" && (
-                  <View style={styles.videoIndicator}>
-                    <Text style={styles.videoDuration}>
-                      {`${Math.floor(asset.duration / 60)}:${String(Math.round(asset.duration % 60)).padStart(2, "0")}`}
-                    </Text>
-                  </View>
-                )}
-                {isSelected ? (
-                  <View style={styles.selectionBadge}>
-                    <Text style={styles.selectionBadgeText}>
-                      {selectedIdx + 1}
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={styles.unselectedCircle} />
-                )}
-              </TouchableOpacity>
-            );
-          }}
-          keyExtractor={(item) => (typeof item === "string" ? item : item.id)}
-          numColumns={4}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+              </View>
+
+              {caption.length > 0 && (
+                <Text
+                  style={[
+                    styles.captionCounter,
+                    caption.length >= 480 && styles.captionCounterWarn,
+                  ]}
+                >
+                  {caption.length}/500
+                </Text>
+              )}
+
+              {isBusy && (
+                <View style={styles.statusRow}>
+                  <ActivityIndicator color="#A855F7" size="small" />
+                  <Text style={styles.statusText}>
+                    {uploadStatus === "uploading"
+                      ? "Uploading media..."
+                      : "Creating post..."}
+                  </Text>
+                </View>
+              )}
+
+              {uploadError && (
+                <View style={styles.errorRow}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={16}
+                    color="#FF6B6B"
+                  />
+                  <Text style={styles.errorText}>{uploadError}</Text>
+                </View>
+              )}
+            </KeyboardAvoidingView>
+          </Animated.View>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
@@ -939,7 +1000,7 @@ const styles = StyleSheet.create({
   },
   // ─── Pick step ─────────────────────────────────────────────────────────────
   previewContainer: {
-    width: width,
+    width,
     height: width * 1.1,
     backgroundColor: "#1C1C1E",
     marginBottom: 4,
@@ -1027,9 +1088,8 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   gridImageSelected: {
-    opacity: 0.75,
+    opacity: 0.7,
   },
-  // ─── Selection badges ────────────────────────────────────────────────────────
   selectionBadge: {
     position: "absolute",
     top: 5,
@@ -1058,7 +1118,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.55)",
   },
-  // ─── Preview strip ──────────────────────────────────────────────────────
   previewStrip: {
     position: "absolute",
     bottom: 0,
@@ -1120,46 +1179,60 @@ const styles = StyleSheet.create({
   },
   // ─── Caption step ──────────────────────────────────────────────────────────
   captionRow: {
-    flexDirection: "column",
+    flexDirection: "row",
+    alignItems: "flex-start",
     padding: 16,
-    gap: 12,
+    gap: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#1C1C1E",
   },
-  captionThumbsRow: {
-    maxHeight: 88,
-  },
-  captionThumbWrapper: {
-    marginRight: 8,
-  },
   captionThumb: {
-    width: 72,
-    height: 72,
-    borderRadius: 8,
+    width: 110,
+    height: 110,
+    borderRadius: 10,
     backgroundColor: "#2C2C2E",
   },
-  captionThumbBadge: {
-    position: "absolute",
-    top: 4,
-    left: 4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#A855F7",
+  captionThumbGrid: {
+    width: 110,
+    height: 110,
+    borderRadius: 10,
+    overflow: "hidden",
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  captionThumbGridItem: {
+    width: 55,
+    height: 55,
+  },
+  captionMoreOverlay: {
+    backgroundColor: "rgba(0,0,0,0.65)",
     alignItems: "center",
     justifyContent: "center",
   },
-  captionThumbBadgeText: {
+  captionMoreText: {
     color: "#FFF",
-    fontSize: 10,
+    fontSize: 13,
     fontFamily: Fonts.bold,
   },
   captionInput: {
+    flex: 1,
     color: "#FFF",
     fontFamily: Fonts.regular,
     fontSize: 15,
-    minHeight: 80,
+    minHeight: 110,
     textAlignVertical: "top",
+    paddingTop: 0,
+  },
+  captionCounter: {
+    alignSelf: "flex-end",
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    color: "#666",
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+  },
+  captionCounterWarn: {
+    color: "#FFB020",
   },
   statusRow: {
     flexDirection: "row",
@@ -1189,19 +1262,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     flex: 1,
   },
-  // Caption character counter
-  captionCounter: {
-    alignSelf: "flex-end",
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    color: "#666",
-    fontFamily: Fonts.regular,
-    fontSize: 11,
-  },
-  captionCounterWarn: {
-    color: "#FFB020",
-  },
-  // Permission denied state on the pick step
+  // ─── Permission denied ─────────────────────────────────────────────────────
   permissionState: {
     flex: 1,
     alignItems: "center",

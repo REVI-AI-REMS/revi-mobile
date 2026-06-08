@@ -76,29 +76,66 @@ function LocalFeedVideo({
   isMuted: boolean;
   postId: string;
 }) {
-  const player = useVideoPlayer(url, (p) => {
+  // Initialize with null — avoids the synchronous URL-load path that triggers
+  // expo-video 3.0.x's threading bug (Field.key.getter SIGSEGV) where
+  // AVFoundation fires onLoadedPlayerItem on a GCD cooperative queue thread
+  // while the JS-side VideoPlayer record is being constructed or torn down.
+  // We load via replaceAsync instead, giving us a cancellation hook.
+  const player = useVideoPlayer(null, (p) => {
     p.loop = true;
     p.muted = isMuted;
     p.timeUpdateEventInterval = 250;
   });
 
   const isFocused = useIsFocused();
+  const isActiveRef = useRef(isActive);
+  const isFocusedRef = useRef(isFocused);
+  isActiveRef.current = isActive;
+  isFocusedRef.current = isFocused;
 
-  // Play/Pause based on global feed active state and focus state
+  // Controlled load via replaceAsync. Using null-init + replaceAsync instead
+  // of useVideoPlayer(url) avoids the synchronous AVPlayerItem setup path that
+  // triggers expo-video 3.0.x's onLoadedPlayerItem threading bug.
   useEffect(() => {
-    if (isActive && isFocused) {
-      player.play();
-    } else {
-      player.pause();
-    }
+    let cancelled = false;
+    (async () => {
+      try {
+        await player.replaceAsync({ uri: url });
+        if (cancelled) return;
+        const saved = useVideoStore.getState().breadcrumbs[postId];
+        if (saved) player.currentTime = saved / 1000;
+        if (isActiveRef.current && isFocusedRef.current) player.play();
+      } catch (e) {
+        if (!cancelled) console.warn("[LocalFeedVideo] load failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      // useVideoPlayer manages the native lifecycle — do NOT call player
+      // methods here after unmount; the native shared object may already be
+      // released, causing "unable to find native shared object" errors.
+    };
+  }, [url, player, postId]);
+
+  // Play/Pause driven by active + focus changes after initial load.
+  // Guards catch the "native shared object released" error from expo-video
+  // 3.0.x if this effect fires during the unmount window.
+  useEffect(() => {
+    try {
+      if (isActive && isFocused) {
+        player.play();
+      } else {
+        player.pause();
+      }
+    } catch {}
   }, [isActive, isFocused, player]);
 
-  // Sync with global mute
+  // Sync mute state.
   useEffect(() => {
-    player.muted = isMuted;
+    try { player.muted = isMuted; } catch {}
   }, [isMuted, player]);
 
-  // Breadcrumb tracking — save position so we can resume if the player unmounts
+  // Breadcrumb tracking.
   useEffect(() => {
     const sub = player.addListener("timeUpdate", ({ currentTime }) => {
       if (currentTime > 0) {
@@ -106,14 +143,6 @@ function LocalFeedVideo({
       }
     });
     return () => { sub?.remove?.(); };
-  }, [player, postId]);
-
-  // Restore position when mounting a fresh player
-  useEffect(() => {
-    const saved = useVideoStore.getState().breadcrumbs[postId];
-    if (saved) {
-      player.currentTime = saved / 1000;
-    }
   }, [player, postId]);
 
   return (
@@ -312,6 +341,22 @@ function PostCardComponent({
   // Is this post within the active window? (previous, current, next)
   // If so, we mount the local AVPlayer.
   const shouldMountPlayer = useVideoStore((s) => s.activeWindowIds.has(post.id));
+
+  // Delay unmounting by 800 ms when shouldMountPlayer goes false. This prevents
+  // a race condition in expo-video 3.0.x where AVFoundation fires a
+  // currentVideoTrack KVO notification on a background thread after the
+  // VideoPlayerObserver starts tearing down, causing a SIGSEGV in
+  // Field.key.getter (crash confirmed in Nearby feed with rapid scrolling).
+  const [mountPlayer, setMountPlayer] = useState(shouldMountPlayer);
+  useEffect(() => {
+    if (shouldMountPlayer) {
+      setMountPlayer(true);
+      return;
+    }
+    const t = setTimeout(() => setMountPlayer(false), 1500);
+    return () => clearTimeout(t);
+  }, [shouldMountPlayer]);
+
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   // ─── Cell recycle reset ────────────────────────────────────────────────────
@@ -402,7 +447,7 @@ function PostCardComponent({
               const isVideoUrl =
                 isVideo && !isProcessing && (i === 0 || url.includes(".m3u8"));
               // Show the native video player ONLY when it falls in the window.
-              const showVideoView = isVideoUrl && shouldMountPlayer;
+              const showVideoView = isVideoUrl && mountPlayer;
 
               return (
                 <View

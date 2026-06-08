@@ -1,4 +1,5 @@
 import { ScreenHeader } from "@/components";
+import { FollowersSheet, FollowersSheetMode } from "@/components/social/FollowersSheet";
 import { colors, layout, spacing, typography } from "@/constants/design";
 import { formatCount } from "@/data/mock";
 import { useFollowMutation } from "@/hooks/mutations/use-feed-mutations";
@@ -11,7 +12,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "@/components/ExpoImage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as React from "react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { generateVideoThumbnail } from "@/utils/video-thumbnail";
 import {
     ActivityIndicator,
     FlatList,
@@ -19,6 +21,7 @@ import {
     Pressable,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View,
 } from "react-native";
 import { useAuthStore } from "@/stores/auth.store";
@@ -41,10 +44,20 @@ const DEFAULT_AVATAR =
 const StatItem = React.memo(function StatItem({
   value,
   label,
+  onPress,
 }: {
   value: number;
   label: string;
+  onPress?: () => void;
 }) {
+  if (onPress) {
+    return (
+      <TouchableOpacity style={styles.statItem} onPress={onPress} activeOpacity={0.7}>
+        <Text style={styles.statValue}>{formatCount(value)}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </TouchableOpacity>
+    );
+  }
   return (
     <View style={styles.statItem}>
       <Text style={styles.statValue}>{formatCount(value)}</Text>
@@ -68,7 +81,24 @@ const GridThumbnail = React.memo(function GridThumbnail({
   // Pull from the shared video store first (populated by Social/Explore);
   // fall back to post.thumbnail_url which the backend now supplies.
   const storedThumb = useVideoStore((s) => s.thumbnails[post.id] ?? null);
+  const setThumbnail = useVideoStore((s) => s.setThumbnail);
+  const [thumbFailed, setThumbFailed] = useState(false);
   const videoThumb = storedThumb ?? post.thumbnail_url ?? null;
+
+  // Generate the thumbnail on the fly when the store doesn't have one and
+  // the backend didn't supply post.thumbnail_url. Without this, users who
+  // open a profile directly (without first scrolling through Social/Explore)
+  // see only the play-circle placeholder for video posts.
+  useEffect(() => {
+    if (!isVideo || videoThumb || thumbFailed || !post.media_url) return;
+    let cancelled = false;
+    generateVideoThumbnail(post.media_url).then((uri) => {
+      if (cancelled) return;
+      if (uri) setThumbnail(post.id, uri);
+      else setThumbFailed(true);
+    });
+    return () => { cancelled = true; };
+  }, [isVideo, videoThumb, thumbFailed, post.id, post.media_url, setThumbnail]);
 
   // The image to display: thumbnail for videos, media_url for images.
   const imageSource = isVideo ? videoThumb : (post.media_url || null);
@@ -116,6 +146,8 @@ export default function UserProfileScreen() {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const { data: followingList } = useUserFollowing(currentUserId || null);
   const followMutation = useFollowMutation();
+
+  const [followSheet, setFollowSheet] = useState<FollowersSheetMode | null>(null);
 
   const gridPosts = userPosts;
 
@@ -182,8 +214,16 @@ export default function UserProfileScreen() {
           {handle ? <Text style={styles.handle}>{handle}</Text> : null}
           <View style={styles.statsRow}>
             <StatItem value={gridPosts.length} label="Posts" />
-            <StatItem value={stats?.follower_count ?? 0} label="Followers" />
-            <StatItem value={stats?.following_count ?? 0} label="Following" />
+            <StatItem
+              value={stats?.follower_count ?? 0}
+              label="Followers"
+              onPress={() => setFollowSheet("followers")}
+            />
+            <StatItem
+              value={stats?.following_count ?? 0}
+              label="Following"
+              onPress={() => setFollowSheet("following")}
+            />
           </View>
 
           {currentUserId && currentUserId.toString() !== userId?.toString() && (
@@ -225,6 +265,7 @@ export default function UserProfileScreen() {
       handleFollowToggle,
       followMutation.isPending,
       userId,
+      setFollowSheet,
     ],
   );
 
@@ -264,6 +305,14 @@ export default function UserProfileScreen() {
         maxToRenderPerBatch={9}
         updateCellsBatchingPeriod={50}
         removeClippedSubviews
+      />
+
+      <FollowersSheet
+        userId={followSheet ? (userId ?? null) : null}
+        initialTab={followSheet ?? "followers"}
+        followerCount={stats?.follower_count ?? 0}
+        followingCount={stats?.following_count ?? 0}
+        onClose={() => setFollowSheet(null)}
       />
     </View>
   );

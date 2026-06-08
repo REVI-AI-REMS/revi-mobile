@@ -1,6 +1,11 @@
-import OverlayModal from "@/components/common/OverlayModal";
 import { Fonts } from "@/constants/theme";
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
 import { Ionicons } from "@expo/vector-icons";
+import { useCallback, useEffect, useRef } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface ChatActionModalProps {
@@ -9,100 +14,127 @@ interface ChatActionModalProps {
   onActionPress: (action: string) => void;
 }
 
+const mediaActions = [
+  { id: "camera", icon: "camera-outline", label: "Camera", action: "Camera" },
+  { id: "photos", icon: "image-outline", label: "Photos", action: "Photos" },
+  { id: "files", icon: "document-text-outline", label: "Files", action: "Files" },
+] as const;
+
+const listActions = [
+  {
+    id: "report",
+    icon: "flag-outline",
+    title: "Report a Landlord",
+    description: "Flag unfair practices and protect renters.",
+  },
+  {
+    id: "find",
+    icon: "home-outline",
+    title: "Find a Property",
+    description: "Discover verified homes you can trust.",
+  },
+  {
+    id: "story",
+    icon: "create-outline",
+    title: "Tell Your Story",
+    description: "Help others by telling what happened.",
+  },
+  {
+    id: "around",
+    icon: "location-outline",
+    title: "Around You",
+    description: "See reports and listings nearby.",
+  },
+] as const;
+
 export default function ChatActionModal({
   visible,
   onClose,
   onActionPress,
 }: ChatActionModalProps) {
-  const mediaActions = [
-    { id: "camera", icon: "camera-outline", label: "Camera", action: "Camera" },
-    { id: "photos", icon: "image-outline", label: "Photos", action: "Photos" },
-    {
-      id: "files",
-      icon: "document-text-outline",
-      label: "Files",
-      action: "Files",
-    },
-  ] as const;
+  const sheetRef = useRef<BottomSheetModal>(null);
 
-  const listActions = [
-    {
-      id: "report",
-      icon: "flag-outline",
-      title: "Report a Landlord",
-      description: "Flag unfair practices and protect renters.",
-    },
-    {
-      id: "find",
-      icon: "home-outline",
-      title: "Find a Property",
-      description: "Discover verified homes you can trust.",
-    },
-    {
-      id: "story",
-      icon: "create-outline", // Changed from pencil to match "Tell Your Story" vibe better or stick to design
-      title: "Tell Your Story",
-      description: "Help others by telling what happened.",
-    },
-    {
-      id: "around",
-      icon: "location-outline",
-      title: "Around You",
-      description: "See reports and listings nearby.",
-    },
-  ] as const;
+  useEffect(() => {
+    if (visible) {
+      sheetRef.current?.present();
+    } else {
+      sheetRef.current?.dismiss();
+    }
+  }, [visible]);
+
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.6}
+      />
+    ),
+    [],
+  );
 
   return (
-    <OverlayModal
-      visible={visible}
-      onClose={onClose}
-      height="auto"
-      showCloseButton={false}
-      dismissOnBackdrop={true}
+    <BottomSheetModal
+      ref={sheetRef}
+      enableDynamicSizing
+      backdropComponent={renderBackdrop}
+      onDismiss={onClose}
+      backgroundStyle={s.sheetBg}
+      handleIndicatorStyle={s.handle}
+      enablePanDownToClose
     >
-      <View style={styles.container}>
-        {/* Media Actions */}
-        <View style={styles.mediaRow}>
+      <BottomSheetView style={s.container}>
+        {/* Media row */}
+        <View style={s.mediaRow}>
           {mediaActions.map((item) => (
             <TouchableOpacity
               key={item.id}
-              style={styles.mediaButton}
+              style={s.mediaButton}
               onPress={() => onActionPress(item.action)}
               activeOpacity={0.7}
             >
               <Ionicons name={item.icon} size={28} color="#FFFFFF" />
-              <Text style={styles.mediaLabel}>{item.label}</Text>
+              <Text style={s.mediaLabel}>{item.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* List Actions */}
-        <View style={styles.listContainer}>
+        {/* List actions */}
+        <View style={s.listContainer}>
           {listActions.map((item) => (
             <TouchableOpacity
               key={item.id}
-              style={styles.listItem}
+              style={s.listItem}
               onPress={() => onActionPress(item.title)}
               activeOpacity={0.7}
             >
-              <View style={styles.listIconContainer}>
+              <View style={s.listIconContainer}>
                 <Ionicons name={item.icon} size={24} color="#FFFFFF" />
               </View>
-              <View style={styles.listContent}>
-                <Text style={styles.listTitle}>{item.title}</Text>
-                <Text style={styles.listDescription}>{item.description}</Text>
+              <View style={s.listContent}>
+                <Text style={s.listTitle}>{item.title}</Text>
+                <Text style={s.listDescription}>{item.description}</Text>
               </View>
             </TouchableOpacity>
           ))}
         </View>
-      </View>
-    </OverlayModal>
+      </BottomSheetView>
+    </BottomSheetModal>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
+  sheetBg: {
+    backgroundColor: "#111111",
+  },
+  handle: {
+    backgroundColor: "#3A3A3C",
+    width: 36,
+  },
   container: {
-    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
   },
   mediaRow: {
     flexDirection: "row",
@@ -112,7 +144,7 @@ const styles = StyleSheet.create({
   },
   mediaButton: {
     flex: 1,
-    aspectRatio: 1, // Make them square
+    aspectRatio: 1,
     backgroundColor: "#2C2C2E",
     borderRadius: 16,
     alignItems: "center",

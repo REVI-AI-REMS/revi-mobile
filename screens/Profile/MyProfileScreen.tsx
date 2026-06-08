@@ -1,4 +1,5 @@
 import { ScreenHeader } from "@/components";
+import { FollowersSheet, FollowersSheetMode } from "@/components/social/FollowersSheet";
 import { colors, layout, radius, spacing, typography } from "@/constants/design";
 import { formatCount } from "@/data/mock";
 import { useUserPosts } from "@/hooks/queries/use-feed";
@@ -7,6 +8,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const DEFAULT_AVATAR = process.env.EXPO_PUBLIC_DEFAULT_AVATAR_URL ?? "https://ui-avatars.com/api/?background=333&color=fff&name=U";
@@ -18,6 +20,7 @@ export default function MyProfileScreen() {
     const { data: userPosts = [] } = useUserPosts(user?.id ?? null);
 
     const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "No name set";
+    const [followSheet, setFollowSheet] = useState<FollowersSheetMode | null>(null);
 
     return (
         <View style={styles.container}>
@@ -63,14 +66,22 @@ export default function MyProfileScreen() {
 
                     {/* Stats */}
                     <View style={styles.statsRow}>
-                        <View style={styles.statItem}>
+                        <TouchableOpacity
+                            style={styles.statItem}
+                            onPress={() => setFollowSheet("followers")}
+                            activeOpacity={0.7}
+                        >
                             <Text style={styles.statNumber}>{formatCount(stats?.follower_count ?? 0)}</Text>
                             <Text style={styles.statLabel}>Followers</Text>
-                        </View>
-                        <View style={styles.statItem}>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.statItem}
+                            onPress={() => setFollowSheet("following")}
+                            activeOpacity={0.7}
+                        >
                             <Text style={styles.statNumber}>{formatCount(stats?.following_count ?? 0)}</Text>
                             <Text style={styles.statLabel}>Following</Text>
-                        </View>
+                        </TouchableOpacity>
                         <View style={styles.statItem}>
                             <Text style={styles.statNumber}>{formatCount(userPosts.length)}</Text>
                             <Text style={styles.statLabel}>Posts</Text>
@@ -89,6 +100,14 @@ export default function MyProfileScreen() {
                     <Text style={styles.emptySubtitle}>Your posts will appear here</Text>
                 </View>
             </ScrollView>
+
+            <FollowersSheet
+                userId={followSheet ? (user?.id ?? null) : null}
+                initialTab={followSheet ?? "followers"}
+                followerCount={stats?.follower_count ?? 0}
+                followingCount={stats?.following_count ?? 0}
+                onClose={() => setFollowSheet(null)}
+            />
         </View>
     );
 }

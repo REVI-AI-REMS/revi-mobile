@@ -56,14 +56,15 @@ export const PostHeader = memo(function PostHeader({
         </View>
       </TouchableOpacity>
       <View style={styles.postHeaderActions}>
-        {!isOwnPost && (
+        {/* Only render the Follow CTA when the user is NOT already following
+            (and isn't viewing their own post). Once they follow, the button
+            disappears — unfollowing is done from the author's profile. */}
+        {!isOwnPost && !isFollowing && (
           <TouchableOpacity
-            style={[styles.followButton, isFollowing && styles.followingButton]}
+            style={styles.followButton}
             onPress={() => onFollow(post.author_id, isFollowing)}
           >
-            <Text style={styles.followButtonText}>
-              {isFollowing ? "Following" : "Follow"}
-            </Text>
+            <Text style={styles.followButtonText}>Follow</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity

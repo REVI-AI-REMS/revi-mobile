@@ -23,10 +23,12 @@ export interface PostRead {
   is_active?: boolean; // false while video is transcoding
   is_sponsored?: boolean;
   campaign_id?: string | null; // present when is_sponsored=true
-  is_liked?: boolean; // client-side, set after like mutations
+  is_liked: boolean; // returned by the server (default: false); reflects current user's like status
   // Pre-generated thumbnail — uploaded by mobile at post time (before HLS transcoding)
   thumbnail_url?: string | null;
-  // Hydrated client-side by useAuthorProfiles — not returned by the API
+  media_width?: number | null;
+  media_height?: number | null;
+  // Returned by the API; also hydrated by useAuthorProfiles for display name
   author_username?: string | null;
   author_avatar?: string | null;
 }
@@ -48,8 +50,7 @@ export interface GeospatialFeedParams {
   latitude: number;
   longitude: number;
   radius_km?: number; // default 5.0
-  skip?: number; // offset for pagination
-  limit?: number; // 1-100, default 20
+  limit?: number; // 1-100, default 20 — no skip, endpoint does not support pagination
 }
 
 export interface MainFeedParams {

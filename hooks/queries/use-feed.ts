@@ -1,6 +1,7 @@
 import { interactionsService } from "@/scripts/services/social/interactions.service";
 import { postsService } from "@/scripts/services/social/posts.service";
 import type {
+    LikeRead,
     MainFeedParams,
     PostRead,
     VideoFeedParams,
@@ -28,6 +29,7 @@ export const feedKeys = {
     [...feedKeys.all, "video", params] as const,
   post: (postId: string) => [...feedKeys.all, "post", postId] as const,
   comments: (postId: string) => [...feedKeys.all, "comments", postId] as const,
+  likes: (postId: string) => [...feedKeys.all, "likes", postId] as const,
   userPosts: (userId: string) => [...feedKeys.all, "user", userId] as const,
 };
 
@@ -86,6 +88,9 @@ export function useMainFeed(params: MainFeedParams) {
  *   const { data, fetchNextPage, hasNextPage } = useGeospatialFeed(params);
  *   const posts = data?.pages.flat() ?? [];
  */
+// The /api/v1/posts/feed (geospatial) endpoint has no `skip` parameter —
+// it does not support pagination. We load up to 100 results in a single
+// request and never attempt a second page.
 export function useGeospatialFeed(params: MainFeedParams, enabled = true) {
   return useInfiniteQuery<PostRead[]>({
     queryKey: feedKeys.geospatialFeed(
@@ -93,28 +98,13 @@ export function useGeospatialFeed(params: MainFeedParams, enabled = true) {
       params.longitude,
       params.radius_km,
     ),
-    queryFn: ({ pageParam = 0 }) =>
+    queryFn: () =>
       postsService.getGeospatialFeed({
         ...params,
-        skip: pageParam as number,
-        limit: params.limit ?? PAGE_SIZE,
+        limit: 100, // max the server allows; no skip support
       }),
     initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      const limit = params.limit ?? PAGE_SIZE;
-      if (lastPage.length < limit) return undefined;
-      // Same circuit breaker as useMainFeed — stop if a page adds no
-      // new ids (guards against a backend that ignores `skip`).
-      if (allPages.length > 1) {
-        const prevIds = new Set<string>();
-        for (let i = 0; i < allPages.length - 1; i++) {
-          for (const p of allPages[i]) prevIds.add(p.id);
-        }
-        const addsSomething = lastPage.some((p) => !prevIds.has(p.id));
-        if (!addsSomething) return undefined;
-      }
-      return allPages.reduce((acc, page) => acc + page.length, 0);
-    },
+    getNextPageParam: () => undefined, // no pagination on geo feed
     staleTime: 1000 * 30,
     enabled: enabled && Boolean(params.latitude && params.longitude),
     retry: 2,
@@ -167,6 +157,19 @@ export function useComments(postId: string, skip = 0, limit = 50) {
     queryKey: feedKeys.comments(postId),
     queryFn: () => interactionsService.getComments(postId, skip, limit),
     enabled: Boolean(postId),
+  });
+}
+
+/**
+ * List of users who liked a post.
+ * Fetches GET /api/v1/posts/{post_id}/likes
+ */
+export function useLikes(postId: string | null) {
+  return useQuery<LikeRead[]>({
+    queryKey: feedKeys.likes(postId ?? ""),
+    queryFn: () => postsService.getPostLikes(postId!),
+    enabled: Boolean(postId),
+    staleTime: 1000 * 30,
   });
 }
 

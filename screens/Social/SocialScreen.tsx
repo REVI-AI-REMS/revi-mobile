@@ -31,7 +31,7 @@ import { socialTabPressEmitter } from "@/utils/social-tab-emitter";
 import { FlashList, type FlashListRef, type ViewToken } from "@shopify/flash-list";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { InteractionManager, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { InteractionManager, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 // ─── Dev / Default Location ───────────────────────────────────────────────────
 // TODO: replace with expo-location getCurrentPositionAsync() when ready
@@ -121,6 +121,11 @@ export default function SocialsScreen() {
   // Mirrors the last value passed to setActiveVideoId so we can restore it
   // when the screen comes back into focus.
   const lastActiveVideoIdRef = useRef<string | null>(null);
+  // Ref mirror of reelsPost so the useFocusEffect callback (which intentionally
+  // omits reelsPost from its deps to avoid re-registering on every reel open)
+  // can still read the current value rather than a stale closure copy.
+  const reelsPostRef = useRef(reelsPost);
+  useEffect(() => { reelsPostRef.current = reelsPost; }, [reelsPost]);
 
   // Pause feed video when reels overlay opens, resume when it closes.
   useEffect(() => {
@@ -134,7 +139,7 @@ export default function SocialsScreen() {
   // Pause on blur (navigate to another tab/screen), resume on focus.
   useFocusEffect(
     useCallback(() => {
-      if (!reelsPost && lastActiveVideoIdRef.current) {
+      if (!reelsPostRef.current && lastActiveVideoIdRef.current) {
         setActiveVideoId(lastActiveVideoIdRef.current);
       }
       return () => {
@@ -155,14 +160,30 @@ export default function SocialsScreen() {
   );
 
   // ─── View tracking ─────────────────────────────────────────────────────────
-  // Accumulate viewed IDs as user scrolls, flush to API at 50 or on unmount
+  // Accumulate viewed IDs as user scrolls. Flush on three triggers so the
+  // server count stays close to real-time:
+  //   - 10 IDs buffered (was 50 — that was too high; views barely fired
+  //     during normal browsing and only landed when the screen unmounted)
+  //   - Every 8 s of activity (catches the case of someone dwelling on a
+  //     small number of posts without crossing the size threshold)
+  //   - On unmount (catches whatever's left)
   const viewedIdsRef = useRef<Set<string>>(new Set());
   const visibleIdsRef = useRef<Set<string>>(new Set());
   const { mutate: batchLogViews } = useBatchLogViewsMutation();
 
   useEffect(() => {
     const viewedIds = viewedIdsRef.current;
+    // Periodic flush so views land even if the user dwells without hitting
+    // the 10-item buffer threshold.
+    const periodicFlush = setInterval(() => {
+      if (viewedIds.size > 0) {
+        batchLogViews(Array.from(viewedIds));
+        viewedIds.clear();
+      }
+    }, 8000);
+
     return () => {
+      clearInterval(periodicFlush);
       if (viewedIds.size > 0) {
         batchLogViews(Array.from(viewedIds));
         viewedIds.clear();
@@ -231,7 +252,7 @@ export default function SocialsScreen() {
       // If viewableItems is empty, we are in a 'dead zone' mid-scroll. 
       // Do nothing, letting the video continue seamlessly until the next item comes into view.
 
-      if (viewedIdsRef.current.size >= 50) {
+      if (viewedIdsRef.current.size >= 10) {
         batchLogViews(Array.from(viewedIdsRef.current));
         viewedIdsRef.current.clear();
       }
@@ -262,7 +283,7 @@ export default function SocialsScreen() {
   // the background and rehydrates instantly when the user switches tabs.
   const mainFeedQuery = useMainFeed(DEV_LOCATION);
   const geoFeedQuery = useGeospatialFeed(
-    { ...DEV_LOCATION, radius_km: 5 },
+    DEV_LOCATION,
     activeTab === "neighborhoods",
   );
 
@@ -730,8 +751,6 @@ export default function SocialsScreen() {
         onNotificationPress={() => router.push("/notification")}
       />
 
-      <View style={styles.updateBanner} />
-
       {/* Tabs */}
       <View style={styles.tabsContainer}>
         {TABS.map(({ key, label }) => (
@@ -787,8 +806,15 @@ export default function SocialsScreen() {
         renderItem={renderPost}
         getItemType={getPostType}
         viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs}
-        onRefresh={refetch}
-        refreshing={isRefetching && posts.length > 0}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching && posts.length > 0}
+            onRefresh={refetch}
+            tintColor="#A855F7"
+            colors={["#A855F7"]}
+            progressBackgroundColor="#1C1C1E"
+          />
+        }
         ListEmptyComponent={ListEmptyComponent}
         ListFooterComponent={isFetchingNextPage ? <PostCardSkeleton /> : null}
         showsVerticalScrollIndicator={false}
@@ -857,10 +883,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0F0F10",
     overflow: "visible",
-  },
-  updateBanner: {
-    height: 8,
-    backgroundColor: "#0F0F10",
   },
   tabsContainer: {
     flexDirection: "row",

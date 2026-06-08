@@ -514,13 +514,11 @@ export default function ChatConversationScreen() {
           currentSessionId={sessionId}
         />
 
-        {actionModalVisible && (
-          <ChatActionModal
-            visible={actionModalVisible}
-            onClose={() => setActionModalVisible(false)}
-            onActionPress={handleActionPress}
-          />
-        )}
+        <ChatActionModal
+          visible={actionModalVisible}
+          onClose={() => setActionModalVisible(false)}
+          onActionPress={handleActionPress}
+        />
 
         <FlatList
           ref={listRef}

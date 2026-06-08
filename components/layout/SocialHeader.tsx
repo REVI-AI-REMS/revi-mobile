@@ -1,4 +1,4 @@
-import SocialLogo from "@/assets/svgs/socialreviai.svg";
+import SocialLogo from "@/assets/svgs/reviaimobilelogo.svg";
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,7 +20,7 @@ export default function SocialHeader({
         </TouchableOpacity>
 
         <View style={styles.center}>
-          <SocialLogo width={68} height={25} />
+          <SocialLogo width={29} height={28} />
 
         </View>
 
